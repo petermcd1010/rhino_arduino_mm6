@@ -144,7 +144,6 @@ float Ratio[] = {0,0,0,0,0,0};
 int Gripper_StallE = 0;
 int Gripper_StallX = 0;
 int SyncMove_Status = 0;
-int AngleOffset[] = {0,0,0,0,0,0}; // Used to adjust the physical positioning of arm's angles.
 int current_pwm[] = {0,0,0,0,0,0};
 int Forward_Logic[] = {0,0,0,0,0,0}; // Forward Logic - The value for the Direction IO Line when the motor needs to move forward to sync with encoders.
 int Reverse_Logic[] = {1,1,1,1,1,1}; // Reverse Logic - The value for the Direction IO Line when the motor needs to move Reverse to sync with encoders.
@@ -172,6 +171,13 @@ static const int config_robot_serial_nbytes = 15;
 static const int config_robot_name_nbytes = 20;
 
 typedef struct __attribute__((packed)) {
+  bool configured;
+  int angle_offset;
+  int motor_logic;
+  int direction_logic;
+} motor_config_t;
+
+typedef struct __attribute__((packed)) {
   // nbytes, version, magic, and crc are used to verify a valid config.
   size_t nbytes;
   int version;
@@ -181,11 +187,9 @@ typedef struct __attribute__((packed)) {
   robot_id_t robot_id;
   char robot_serial[config_robot_serial_nbytes];  // To help user confirm board/robot match.
   char robot_name[config_robot_name_nbytes];  // Optional robot name for user.
-  int angle_offset[MOTOR_ID_COUNT];
-  int motor_logic[MOTOR_ID_COUNT];
-  int direction_logic[MOTOR_ID_COUNT];
-  int gripper_open;
-  int gripper_close;
+  motor_config_t motor[MOTOR_ID_COUNT];
+  int gripper_open_location;
+  int gripper_close_location;
 } config_t;
 
 config_t config = {};
@@ -264,18 +268,17 @@ void mm6_enable_motors(bool enable)
     return;
 
   for (int i = MOTOR_ID_FIRST; i <= MOTOR_ID_LAST; i++) {
-    if (enable) {
-      mm6_pid_enabled = true;  // TODO: What about mm6_pid_enable()?
+    if (enable && config.motor[i].configured) {
       digitalWrite(motor_pinout[i].out_brake, LOW);  // Turn brakes off.
     } else {
-      mm6_pid_enabled = false;
-      motor_sync_move_enabled = false;
       digitalWrite(motor_pinout[i].out_brake, HIGH);  // Enable brakes.
       digitalWrite(motor_pinout[i].out_pwm, LOW);  // Set PWM speed to zero.  TODO: analogWrite() below?
       analogWrite(motor_pinout[i].out_pwm, 0);  // Set PWM speed to 0.
     }
   }
 
+  motor_sync_move_enabled = enable;
+  mm6_pid_enabled = enable;  // TODO: What about mm6_pid_enable()?
   mm6_enabled = enable;
   log_writeln(F("All motor electronics %s."), mm6_enabled ? "enabled" : "disabled");
 }
@@ -303,7 +306,7 @@ void mm6_set_position(motor_id_t motor_id, int position)
 float mm6_get_angle(motor_id_t motor_id) 
 {  
   assert((motor_id >= MOTOR_ID_FIRST) && (motor_id <= MOTOR_ID_LAST));
-  return (mm6_get_position(motor_id) - AngleOffset[motor_id]) / EncoderStepsPerDegree(motor_id);
+  return (mm6_get_position(motor_id) - config.motor[motor_id].angle_offset) / EncoderStepsPerDegree(motor_id);
 }
 
 void mm6_set_angle(motor_id_t motor_id, float angle) 
@@ -628,21 +631,19 @@ ISR(TIMER1_COMPA_vect)
 
 void mm6_pid_enable(bool enable)
 {
-  if (enable) {
-    for (int iMotor = MOTOR_ID_FIRST; iMotor <= MOTOR_ID_LAST; iMotor++){
-      digitalWrite(motor_pinout[iMotor].out_brake, LOW);  // Turn off the brakes.
+  for (int i = MOTOR_ID_FIRST; i <= MOTOR_ID_LAST; i++) {
+    if (enable && config.motor[i].configured) {
+      digitalWrite(motor_pinout[i].out_brake, LOW);  // Turn off the brakes.
+    } else {
+      analogWrite(motor_pinout[i].out_pwm, 0);  // Set the speed to 0.
+      digitalWrite(motor_pinout[i].out_brake, LOW);  // Turn on the brakes.
     }
-    mm6_pid_enabled = true;
-    log_writeln(F("Motors are now on."));
-  } else {
-    mm6_pid_enabled = false;
-    motor_sync_move_enabled = false;
-    for (int iMotor = MOTOR_ID_FIRST; iMotor <= MOTOR_ID_LAST; iMotor++){
-      analogWrite(motor_pinout[iMotor].out_pwm,0);  // Set the speed to 0.
-      digitalWrite(motor_pinout[iMotor].out_brake, LOW);  // Turn on the brakes.
-    }
-    log_writeln(F("Motors are now off."));
   }
+  
+  mm6_pid_enabled = enable;
+  motor_sync_move_enabled = enable;
+
+  log_writeln(F("Motors are now %s."), enable ? "enabled" : "disabled");
 }
 
 void mm6_set_pwm(motor_id_t motor_id)
@@ -783,27 +784,27 @@ bool config_check()
   const int min_count = -9999;  // TODO.
   const int max_count = 9999;  // TODO.
   for (int i = MOTOR_ID_FIRST; i <= MOTOR_ID_LAST; i++) {
-    if ((config.angle_offset[i] < min_count) || (config.angle_offset[i] > max_count)) {
+    if ((config.motor[i].angle_offset < min_count) || (config.motor[i].angle_offset > max_count)) {
       log_writeln(F("ERROR: config_check: Invalid angle offset."));
       ret = false;
     }
 
-    if ((config.motor_logic[i] < 0) || (config.motor_logic[i] > 1)) {
+    if ((config.motor[i].motor_logic & 0xfffe) != 0) {  // Confirm is 0 or 1.
       log_writeln(F("ERROR: config_check: Invalid motor logic."));
       ret = false;
     }
 
-    if ((config.direction_logic[i] < 0) || (config.direction_logic[i] > 1)) {
+    if ((config.motor[i].direction_logic & 0xfffe) != 0) {  // Confirm is 0 or 1.
       log_writeln(F("ERROR: config_check: Invalid direction logic."));
       ret = false;
     }
   }
 
-  if ((config.gripper_open < min_count) || (config.gripper_open > max_count)) {
+  if ((config.gripper_open_location < min_count) || (config.gripper_open_location > max_count)) {
     log_writeln(F("ERROR: config_check: Invalid gripper_open."));
   }
 
-  if ((config.gripper_close < min_count) || (config.gripper_close > max_count)) {
+  if ((config.gripper_close_location < min_count) || (config.gripper_close_location > max_count)) {
     log_writeln(F("ERROR: config_check: Invalid gripper_open."));
   }
 
@@ -821,9 +822,8 @@ void config_sign()
   config.nbytes = sizeof(config_t);
   config.version = config_version;
   config.magic = config_magic;
-  config.crc = 0;
-  config.crc = crc_calculate(&config, sizeof(config_t));
-  
+  config.crc = 0;  
+  config.crc = crc_calculate(&config, sizeof(config_t)); 
 }
 
 void config_clear() 
@@ -838,7 +838,7 @@ bool config_write()
   if (!config_check())
     return false;
 
-  // EEPROM.put(config_base_address, config); // TODO: Return value?
+  EEPROM.put(config_base_address, config); // TODO: Return value?
   return true;
 }
 
@@ -870,38 +870,95 @@ void config_set_robot_name(char robot_name[config_robot_name_nbytes])
   config_sign();
 }
 
+void config_set_motor_configured(motor_id_t motor_id, bool configured)
+{  
+  assert(motor_id >= MOTOR_ID_FIRST && motor_id <= MOTOR_ID_LAST);
+  
+  assert(config_check());
+  config.motor[motor_id].configured = configured;
+  config_sign();
+}
+
+void config_set_motor_logic(motor_id_t motor_id, int motor_logic)
+{  
+  assert(motor_id >= MOTOR_ID_FIRST && motor_id <= MOTOR_ID_LAST);
+  assert(motor_logic & 0xfffe == 0); // Direction logic == 0 or 1.
+  
+  assert(config_check());
+  config.motor[motor_id].motor_logic = motor_logic;
+  config_sign();
+}
+
+void config_set_direction_logic(motor_id_t motor_id, int direction_logic)
+{  
+  assert(motor_id >= MOTOR_ID_FIRST && motor_id <= MOTOR_ID_LAST);
+  assert((direction_logic & 0xfffe) == 0); // Direction logic == 0 or 1.
+  // TODO: assert logic is in valid range;
+  
+  assert(config_check());
+  config.motor[motor_id].direction_logic = direction_logic;
+  config_sign();
+}
+
+void config_set_gripper_open_location(int location)
+{  
+  // TODO: assert location is in valid range.
+  
+  assert(config_check());
+  config.gripper_open_location = location;
+  config_sign();
+}
+
+void config_set_gripper_close_location(int location)
+{  
+  // TODO: assert location is in valid range.
+  
+  assert(config_check());
+  config.gripper_close_location = location;
+  config_sign();
+}
+
+void config_set_angle_offsets(int B, int C, int D, int E, int F) {
+  config.motor[MOTOR_ID_B].angle_offset = B;
+  config.motor[MOTOR_ID_C].angle_offset = C;
+  config.motor[MOTOR_ID_D].angle_offset = D;
+  config.motor[MOTOR_ID_E].angle_offset = E;
+  config.motor[MOTOR_ID_F].angle_offset = F;
+  log_write(F("Angle Offsets Set to: %d, %d, %d, %d, %d."), 
+      config.motor[MOTOR_ID_B].angle_offset, 
+      config.motor[MOTOR_ID_B].angle_offset, 
+      config.motor[MOTOR_ID_B].angle_offset, 
+      config.motor[MOTOR_ID_B].angle_offset, 
+      config.motor[MOTOR_ID_B].angle_offset);
+}
+
+
 void config_display()
 {  
   // TODO: check for valid config.
 
   log_writeln(F("Configuration:"));
-  log_writeln(F("  Robot ID: '%s'"), robot_name_by_robot_id[config.robot_id]);
-  log_writeln(F("  Robot serial: '%s'"), config.robot_serial);
-  log_writeln(F("  Robot name: '%s'"), config.robot_name);
+  log_writeln(F("  Robot ID: '%s'."), robot_name_by_robot_id[config.robot_id]);
+  log_writeln(F("  Robot serial: '%s'."), config.robot_serial);
+  log_writeln(F("  Robot name: '%s'."), config.robot_name);
 
   char str[15] = {};
 
-  log_write(F("  Angle offsets: "));
-  for (int i=0; i < MOTOR_ID_COUNT; i++) {
-    dtostrf(config.angle_offset[i], 3, 2, str);
-    log_write(F("%c:%s "), 'A' + i, str);
+  for (int i = 0; i < MOTOR_ID_COUNT; i++) {
+    log_write(F("  Motor %c: "), 'A' + i);
+    if (!config.motor[i].configured) {
+      log_writeln(F("not configured."));
+    } else {
+      dtostrf(config.motor[i].angle_offset, 3, 2, str);
+      log_writeln(F("angle_offset:%s motor_logic:%s, direction_logic:%s."), 
+          str, 
+          config.motor[i].motor_logic ? "forward" : "reverse",
+          config.motor[i].direction_logic ? "forward" : "reverse");
+    }
   }
-  log_writeln(F(""));
 
-  log_write(F("  Motor logic: "));
-  for (int i=0; i < MOTOR_ID_COUNT; i++) {
-    log_write(F("%c:%d "), 'A' + i, config.motor_logic[i]);
-  }
-  log_writeln(F(""));
-
-  log_write(F("  Direction logic: "));
-  for (int i=0; i < MOTOR_ID_COUNT; i++) {
-    log_write(F("%c:%d "), 'A' + i, config.direction_logic[i]);
-  }
-  log_writeln(F(""));
-
-  log_writeln(F("  Gripper open: %d"), config.gripper_open);
-  log_writeln(F("  Gripper close: %d"), config.gripper_close);
+  log_writeln(F("  Gripper open location: %d."), config.gripper_open_location);
+  log_writeln(F("  Gripper close location: %d."), config.gripper_close_location);
 
   log_writeln(F(""));
 }
@@ -1462,8 +1519,6 @@ int command_config_robot_id(char *pargs, size_t args_nbytes)
   char *p = pargs;
 
   size_t nbytes = parse_whitespace(p, args_nbytes);
-  if (nbytes < 0)
-    goto error;
   args_nbytes -= nbytes;
   p += nbytes;
 
@@ -1480,8 +1535,6 @@ int command_config_robot_id(char *pargs, size_t args_nbytes)
   p += nbytes;
 
   nbytes = parse_whitespace(p, args_nbytes);
-  if (nbytes < 0)
-    goto error;
   args_nbytes -= nbytes;
   p += nbytes;
 
@@ -1510,8 +1563,6 @@ int command_config_robot_serial(char *pargs, size_t args_nbytes)
   char *p = pargs;
 
   size_t nbytes = parse_whitespace(p, args_nbytes);
-  if (nbytes < 0)
-    goto error;
   args_nbytes -= nbytes;
   p += nbytes;
 
@@ -1547,8 +1598,6 @@ int command_config_robot_name(char *pargs, size_t args_nbytes)  // TODO: should 
   char *p = pargs;
 
   size_t nbytes = parse_whitespace(p, args_nbytes);
-  if (nbytes < 0)
-    goto error;
   args_nbytes -= nbytes;
   p += nbytes;
 
@@ -1589,11 +1638,13 @@ int command_config_write(char *pargs, size_t args_nbytes)
 
   // Confirm arguments are empty.
   size_t nbytes = parse_whitespace(pargs, args_nbytes);
-  if (args_nbytes != nbytes) {
+  if (nbytes != args_nbytes) {
     return -1;
   } 
 
   assert(config_write());
+  log_writeln(F("%d bytes of configuration data written to EEPROM."), sizeof(config_t));
+  return 0;
 }
 
 int command_heartbeat(char *pargs, size_t args_nbytes)
@@ -1612,7 +1663,7 @@ int command_help(char *pargs, size_t args_nbytes)
   
   // Confirm arguments are empty.
   size_t nbytes = parse_whitespace(pargs, args_nbytes);
-  if (args_nbytes != nbytes) {
+  if (nbytes != args_nbytes) {
     return -1;
   } 
 
@@ -1623,7 +1674,7 @@ int command_home_position(char *pargs, size_t args_nbytes)
 {
   assert(pargs);
   size_t nbytes = parse_whitespace(pargs, args_nbytes);
-  if (args_nbytes != nbytes) {
+  if (nbytes != args_nbytes) {
     return -1;
   } 
 
@@ -1636,7 +1687,7 @@ int command_interrogate_switches(char *pargs, size_t args_nbytes)
 {
   assert(pargs);
   size_t nbytes = parse_whitespace(pargs, args_nbytes);
-  if (args_nbytes != nbytes) {
+  if (nbytes != args_nbytes) {
     return -1;
   } 
   
@@ -1663,8 +1714,6 @@ int command_motor_angle(char *pargs, size_t args_nbytes)
   p += nbytes;
 
   nbytes = parse_whitespace(p, args_nbytes);
-  if (nbytes < 0)
-    goto error;
   args_nbytes -= nbytes;
   p += nbytes;
 
@@ -1676,8 +1725,6 @@ int command_motor_angle(char *pargs, size_t args_nbytes)
   p += nbytes;
 
   nbytes = parse_whitespace(p, args_nbytes);
-  if (nbytes < 0)
-    goto error;
   args_nbytes -= nbytes;
   p += nbytes;
 
@@ -1710,8 +1757,6 @@ int command_motor_position(char *pargs, size_t args_nbytes)
   p += nbytes;
 
   nbytes = parse_whitespace(p, args_nbytes);
-  if (nbytes < 0)
-    goto error;
   args_nbytes -= nbytes;
   p += nbytes;
 
@@ -1723,8 +1768,6 @@ int command_motor_position(char *pargs, size_t args_nbytes)
   p += nbytes;
 
   nbytes = parse_whitespace(p, args_nbytes);
-  if (nbytes < 0)
-    goto error;
   args_nbytes -= nbytes;
   p += nbytes;
 
@@ -1778,17 +1821,20 @@ int command_factory_reset(char *pargs, size_t args_nbytes)
   assert(pargs);
 
   char *p = pargs;
+  
+  size_t nbytes = parse_whitespace(pargs, args_nbytes);
+  args_nbytes -= nbytes;
+  p += nbytes;
+  if (args_nbytes == 0)
+    return -1;
 
   int entry_num = -1;
   char *reboot_table[] = { "RESET" };
-  size_t nbytes = parse_string_in_table(pargs, args_nbytes, reboot_table, 1, &entry_num);
+  nbytes = parse_string_in_table(pargs, args_nbytes, reboot_table, 1, &entry_num);
   args_nbytes -= nbytes;
   p += nbytes;
 
   nbytes = parse_whitespace(p, args_nbytes);
-  if (nbytes < 0)
-    goto error;
-
   args_nbytes -= nbytes;
   p += nbytes;
 
@@ -1810,9 +1856,16 @@ int command_reboot(char *pargs, size_t args_nbytes)
 {
   assert(pargs);
 
+  size_t nbytes = parse_whitespace(pargs, args_nbytes);
+  pargs += nbytes;
+  args_nbytes -= nbytes;
+  if (args_nbytes == 0)
+    return -1;
+
   int entry_num = -1;
   char *reboot_table[] = { "REBOOT" };
-  size_t nbytes = parse_string_in_table(pargs, args_nbytes, reboot_table, 1, &entry_num);
+  nbytes = parse_string_in_table(pargs, args_nbytes, reboot_table, 1, &entry_num);
+  // TODO: check entry_num == -1?
   // TODO: allow whitespace after REBOOT.
   if (nbytes != args_nbytes)
     return -1;
@@ -1845,7 +1898,7 @@ int command_zero_position(char *pargs, size_t args_nbytes)
 
   // Confirm arguments are empty.
   size_t nbytes = parse_whitespace(pargs, args_nbytes);
-  if (args_nbytes != nbytes) {
+  if (nbytes != args_nbytes) {
     return -1;
   } 
   
@@ -1873,12 +1926,6 @@ int Distance[] = {0,0,0,0,0,0};
 int Tracking = 0;
 int Tracked[] = {0,0,0,0,0,0}; // Last Value send while tracking.
 robot_id_t robot_id = 0;
-#define Eloc_RobotType 4000
-int AngleOffsetELoc[] = {4004,4008,4012,4016,4020,4024}; // EEPROM locations of AngleOffsets
-int MotorLogicELoc[] = {4028,4032,4036,4040,4044,4048}; // EEPROM locations of MotorLogic
-int DirLogicELoc[] = {4052,4056,4060,4064,4068,4072}; // EEPROM locations of MotorLogic
-#define Gripper_OpenEloc 4076
-#define Gripper_CloseEloc 4080
 int Gripper_OpenLoc = -130;
 int Gripper_CloseLoc = -310;
 //*************************************
@@ -1960,14 +2007,15 @@ void hardware_init() {
     //   MegaMotor6 Angle Values will work the actual physical position of the robot
     //   while the Position Values work with positions relative to the home switches.
     //     The values for the AngleOffets come from the "~" Command.
-    EEPROM.get(AngleOffsetELoc[iMotor], AngleOffset[iMotor]);
+
+    // EEPROM.get(AngleOffsetELoc[iMotor], AngleOffset[iMotor]);
 
     // The Forward and Reverse Locic is used to turn the motors in the right direction to sync with the encoders.
     //   Each Rhino Robot may have the wires to the motors reversed.
     //   So the Forward and Reverse Locic is used to correct that.    
     //     The values for the Direction Logic come from the "m" command.
     //       Since the Forward and Reverse Locic are used for an I/O line the values are 0 or 1'
-    EEPROM.get(DirLogicELoc[iMotor], Logic);
+    Logic = config.motor[iMotor].direction_logic;
     if (Logic != 0) 
       Logic = !0;  
     Reverse_Logic[iMotor] = Logic; // Reverse Logic - The value for the Direction IO Line when the motor needs to move Reverse. Defaults to 1.
@@ -1978,8 +2026,9 @@ void hardware_init() {
     //   So the Moto Locic is used to correct that.    
     //     The values for the Motor Logic are set by the setup.
     //       Since the Forward and Reverse Locic are used to invert the position the values are 1 or -1'
-    EEPROM.get(MotorLogicELoc[iMotor], Logic);
-    if (Logic!=1) Logic=-1;
+    Logic = config.motor[iMotor].motor_logic;
+    if (Logic !=1 ) 
+      Logic=-1;
     motor_state[iMotor].logic = Logic; // Motor Logic - The value for inverting the Position when the motor needs to move Reverse. 
   }
   
@@ -1987,19 +2036,19 @@ void hardware_init() {
   // Get the Type of Rhino Robot being used.
   // XR1, XR2, XR3, or XR4
   //******************************************
-  EEPROM.get(Eloc_RobotType, robot_id);
+  robot_id = config.robot_id;
   //******************************************
   // Get the gripper open and close  
   //******************************************
-  EEPROM.get(Gripper_OpenEloc, Gripper_OpenLoc);
-  EEPROM.get(Gripper_CloseEloc, Gripper_CloseLoc);
+  Gripper_OpenLoc = config.gripper_open_location;
+  Gripper_CloseLoc = config.gripper_close_location;
   if ((robot_id < ROBOT_ID_FIRST) || (robot_id > ROBOT_ID_LAST)) {
     // If the EEPROM reported an invalid robot id,
     //  then the EEPROM data wasn't set yet.
     // Set EEPROM robot_id to default.
     // AND set all EEPROM Angle Offsets to 0.
     config_set_robot_id(ROBOT_ID_DEFAULT);
-    EEPROMSetAngleOffsets(0,0,0,0,0);
+    config_set_angle_offsets(0, 0, 0, 0, 0);
   } else {
     log_writeln(F("Configured for '%s'."), robot_name_by_robot_id[robot_id]);
   }
@@ -2061,12 +2110,20 @@ void process_serial_input()
     reset_prompt = false;
 
     for (int i = MOTOR_ID_FIRST; i <= MOTOR_ID_LAST; i++) {
-      char angle_str[15];
-      dtostrf(status.motor[i].angle, 3, 2, angle_str);
-      char motor_name = (status.motor[i].switch_triggered ? 'A' : 'a') + i;
-      log_write(F("%c:%s "), motor_name, angle_str);  // TODO: F()
+      if (!config.motor[i].configured) {
+        log_write(F("%c:-.-- "), 'A' + i);        
+      } else {
+        char angle_str[15];
+        dtostrf(status.motor[i].angle, 3, 2, angle_str);
+        char motor_name = (status.motor[i].switch_triggered ? 'A' : 'a') + i;
+        log_write(F("%c:%s "), motor_name, angle_str);  // TODO: F()
+      }
     }
-    log_write(F("%s > "), state_name_by_state[state]);  // TODO: F()
+
+    if (strlen(config.robot_name) != 0)
+      log_write(F("%s "), config.robot_name);
+
+    log_write(F("%s> "), state_name_by_state[state]);  // TODO: F()
 
     memcpy(&previous_status, &status, sizeof(status_t));
     previous_status_time_millis = current_time_millis;
@@ -2204,8 +2261,6 @@ state_t state_init_execute()
   log_writeln(F("Version: %s (%s)."), version_str, psoftware_date);  
   log_string("\n\r");
 
-  hardware_init();
-
   bool config_read_success = config_read();
   if (!config_read_success) {
     log_writeln(F("ERROR: Invalid configuration. Re-initializing configuration data."));
@@ -2215,6 +2270,7 @@ state_t state_init_execute()
   }
 
   config_display();
+  hardware_init();
 
   bool self_test_success = run_self_test();
 
@@ -2764,8 +2820,8 @@ float EncoderStepsPerDegree(int Motor) {
 //************************************************************
 // Cacluation to convert Rhino Robot angles to motor position
 //************************************************************
-int AngleToPosition(int Motor, float Angle) {
-  return (Angle * EncoderStepsPerDegree(Motor)) + AngleOffset[Motor];
+int AngleToPosition(int i, float Angle) {
+  return (Angle * EncoderStepsPerDegree(i)) + config.motor[i].angle_offset;
 }
 
 //**********************************************
@@ -2845,7 +2901,7 @@ void InterrogateLimitSwitches(){
   InterrogateLimitSwitches2();
   Serial.println("  Done Interrogating Limit Switches");  
   if (CurrentMotorState == 0) {
-    //mm6_pid_enable(false);
+    // mm6_pid_enable(false);
   }  
 }
 
@@ -2853,7 +2909,7 @@ void Reverse(motor_id_t motor_id) {
   noinit_data.motor_encoder[motor_id] *= -1;
   motor_state[motor_id].target_encoder *= -1;
   motor_state[motor_id].logic *= -1;
-  EEPROM.put(MotorLogicELoc[motor_id], motor_state[motor_id].logic);
+  config_set_motor_logic(motor_id, motor_state[motor_id].logic);
   Serial.print("Motor ");
   Serial.print(char(Command_Motor+65));    
   Serial.println(" reversed.");  
@@ -2944,11 +3000,11 @@ void InterrogateLimitSwitchA() {
     noinit_data.motor_encoder[MOTOR_ID_A] = 0;  
     motor_state[MOTOR_ID_A].target_encoder  = 0;
     motor_state[MOTOR_ID_A].logic = -1;
-    EEPROM.put(MotorLogicELoc[MOTOR_ID_A], motor_state[MOTOR_ID_A].logic);
+    config_set_motor_logic(MOTOR_ID_A, motor_state[MOTOR_ID_A].logic);
     Gripper_OpenLoc = -140;
     Gripper_CloseLoc = -310;    
-    EEPROM.put(Gripper_OpenEloc, Gripper_OpenLoc);
-    EEPROM.put(Gripper_CloseEloc, Gripper_CloseLoc);
+    config_set_gripper_open_location(Gripper_OpenLoc);
+    config_set_gripper_close_location(Gripper_CloseLoc);
     Serial.println("Done");
   } else {
     // Encoder goes Negative towards switch.
@@ -2958,11 +3014,11 @@ void InterrogateLimitSwitchA() {
     noinit_data.motor_encoder[MOTOR_ID_A] = 0;  
     motor_state[MOTOR_ID_A].target_encoder  = 0;
     motor_state[MOTOR_ID_A].logic = 1;
-    EEPROM.put(MotorLogicELoc[MOTOR_ID_A], motor_state[MOTOR_ID_A].logic);
+    config_set_motor_logic(MOTOR_ID_A, motor_state[MOTOR_ID_A].logic);
     Gripper_OpenLoc = 140;
     Gripper_CloseLoc = 310;    
-    EEPROM.put(Gripper_OpenEloc, Gripper_OpenLoc);
-    EEPROM.put(Gripper_CloseEloc, Gripper_CloseLoc);
+    config_set_gripper_open_location(Gripper_OpenLoc);
+    config_set_gripper_close_location(Gripper_CloseLoc);
     Serial.println("Done");
   }
 }
@@ -3041,41 +3097,47 @@ void TestMotors() {
   // Set all motor power lines to High-Z state by 
   // Setting speed to 0 and turning off brakes.  
   Serial.println("Setting Drive Power for all Motors to High-Z.");
-  for (int iMotor = MOTOR_ID_FIRST; iMotor <= MOTOR_ID_LAST; iMotor++){    
-    digitalWrite(motor_pinout[iMotor].out_brake, LOW); // Turn the Brakes off.
-    motor_state[iMotor].speed = 0;
-    mm6_set_pwm(iMotor);
+  for (int i = MOTOR_ID_FIRST; i <= MOTOR_ID_LAST; i++){    
+    digitalWrite(motor_pinout[i].out_brake, LOW); // Turn the Brakes off.
+    motor_state[i].speed = 0;
+    mm6_set_pwm(i);
   }  
   
-  for (int iMotor = MOTOR_ID_FIRST; iMotor <= MOTOR_ID_LAST; iMotor++){    
-    TestMotor(iMotor);
-    if (((P2[iMotor]-P1[iMotor]) >0 ) && ((P3[iMotor]-P2[iMotor])<0)) {
-      Serial.print("Reversing Direction Logic on Motor ");
-      Serial.println(char(iMotor+65));
-      Forward_Logic[iMotor] = !Forward_Logic[iMotor];
-      Reverse_Logic[iMotor] = !Reverse_Logic[iMotor];
-      EEPROM.put(DirLogicELoc[iMotor], Reverse_Logic[iMotor]);
-      iMotor=iMotor-1; // Test motor[iMotor] again.
+  for (int i = MOTOR_ID_FIRST; i <= MOTOR_ID_LAST; i++){    
+    TestMotor(i);
+    if (((P2[i] - P1[i]) > 0 ) && ((P3[i] - P2[i]) < 0)) {
+      log_writeln(F("Reversing Direction Logic on Motor %c."), 'A' + i);
+      Forward_Logic[i] = !Forward_Logic[i];
+      Reverse_Logic[i] = !Reverse_Logic[i];
+      config_set_direction_logic(i, Reverse_Logic[i]);
+      i = i - 1; // Test motor[i] again.
     }    
   }
 
-  Serial.print("Forward encoder count");    
-  for (int iMotor = MOTOR_ID_FIRST; iMotor <= MOTOR_ID_LAST; iMotor++){
-    Serial.print(" : ");
-    Serial.print(char(iMotor+65));
-    Serial.print("=");
-    Serial_Print_Pos(P3[iMotor]-P2[iMotor]);
+  log_write(F("Forward encoder count:"));    
+  for (int i = MOTOR_ID_FIRST; i <= MOTOR_ID_LAST; i++){
+    log_write(F(" %c="), 'A' + i);
+    Serial_Print_Pos(P3[i] - P2[i]);
   } 
-  Serial.println("."); 
+  log_writeln(F(".")); 
   
-  Serial.print("Reverse encoder count");
-  for (int iMotor = MOTOR_ID_FIRST; iMotor <= MOTOR_ID_LAST; iMotor++){
-    Serial.print(" : ");
-    Serial.print(char(iMotor+65));
-    Serial.print("=");
-    Serial_Print_Pos(P2[iMotor]-P1[iMotor]);
+  Serial.print("Reverse encoder count:");
+  for (int i = MOTOR_ID_FIRST; i <= MOTOR_ID_LAST; i++){
+    log_write(F(" %c="), 'A' + i);
+    Serial_Print_Pos(P2[i] - P1[i]);
   } 
-  Serial.println("."); 
+  log_writeln(F(".")); 
+
+  for (int i = MOTOR_ID_FIRST; i <= MOTOR_ID_LAST; i++) {
+    log_write(F("Motor %c configuration "), 'A' + i);
+    if (P2[i] != P1[i]) {
+      config_set_motor_configured(i, true);
+      log_writeln(F("passed."));
+    } else {
+      config_set_motor_configured(i, false);
+      log_writeln(F("FAILED."));
+    }
+  }    
 
   /* Auto Correct Reversed Motors.
   for (int iMotor = MOTOR_ID_FIRST; iMotor <= MOTOR_ID_LAST; m++){
@@ -3089,15 +3151,16 @@ void TestMotors() {
   */
   
   ShowPositions();
-  Serial.println("Done Testing Motors");  
+  log_writeln(F("Done Testing Motors."));
   mm6_pid_enable(true);
 }
 
-void TestMotor(int m) {
+void TestMotor(int m) 
+{
   const int TestSpeed = 255 - motor_min_speed;
   const int SpeedDelay = 50;
   
-  log_writeln(F("Moving Motor %c"), 'A' + m);
+  log_writeln(F("Moving Motor %c."), 'A' + m);
   log_write(F("  Backward"));   // TODO: F()
   P1[m] = noinit_data.motor_encoder[m];  // Get Current Position.
   
@@ -3108,7 +3171,7 @@ void TestMotor(int m) {
     
   motor_state[m].speed = 0;          // Turn off motor.
   mm6_set_pwm(m);            // Set Motor PWM.
-  log_writeln(F(" off"));
+  log_writeln(F(" off."));
   delay(SpeedDelay);         // Short Delay to allow the motor to stop.  
 
   P2[m] = noinit_data.motor_encoder[m];  // Get Current Position.
@@ -3125,7 +3188,7 @@ void TestMotor(int m) {
     
   motor_state[m].speed = 0;          // Turn off motor.
   mm6_set_pwm(m);            // Set Motor PWM.
-  log_writeln(F(" off"));
+  log_writeln(F(" off."));
   delay(SpeedDelay);         // Short Delay to allow the motor to stop.  
 
   P3[m] = noinit_data.motor_encoder[m]; // Get Current Position.
@@ -3344,37 +3407,13 @@ String GetStringPartAtSpecificIndex(String StringToSplit, char SplitChar, int St
   return outString;
 }
 
-void EEPROMSetAngleOffsets(int B, int C, int D, int E, int F) {
-  AngleOffset[MOTOR_ID_B] = B;
-  AngleOffset[MOTOR_ID_C] = C;
-  AngleOffset[MOTOR_ID_D] = D;
-  AngleOffset[MOTOR_ID_E] = E;
-  AngleOffset[MOTOR_ID_F] = F;
-  EEPROM.put(AngleOffsetELoc[MOTOR_ID_B], AngleOffset[MOTOR_ID_B]);
-  EEPROM.put(AngleOffsetELoc[MOTOR_ID_C], AngleOffset[MOTOR_ID_C]);
-  EEPROM.put(AngleOffsetELoc[MOTOR_ID_D], AngleOffset[MOTOR_ID_D]);
-  EEPROM.put(AngleOffsetELoc[MOTOR_ID_E], AngleOffset[MOTOR_ID_E]);
-  EEPROM.put(AngleOffsetELoc[MOTOR_ID_F], AngleOffset[MOTOR_ID_F]);
-  Serial.print("Angle Offsets Set to: ");
-  Serial.print(AngleOffset[MOTOR_ID_B]);
-  Serial.print(", ");
-  Serial.print(AngleOffset[MOTOR_ID_C]);
-  Serial.print(", ");
-  Serial.print(AngleOffset[MOTOR_ID_D]);
-  Serial.print(", ");
-  Serial.print(AngleOffset[MOTOR_ID_E]);
-  Serial.print(", ");
-  Serial.print(AngleOffset[MOTOR_ID_F]);
-  Serial.println(".");
-}
-
 void SetZeroAngles() {
   int B = mm6_get_position(MOTOR_ID_B);
   int C = mm6_get_position(MOTOR_ID_C);
   int D = mm6_get_position(MOTOR_ID_D);
   int E = mm6_get_position(MOTOR_ID_E);
   int F = mm6_get_position(MOTOR_ID_F);
-  EEPROMSetAngleOffsets(B, C, D, E, F);
+  config_set_angle_offsets(B, C, D, E, F);
 }
 
 void SetWayPointAngle() {  
