@@ -87,7 +87,7 @@ static const motor_pinout_t motor_pinout[MOTOR_ID_COUNT] = {
   {   3,   5,   4,  A6,   6,  28,  45,  44 },  // Motor C.
   {  A1,   8,  A2,  A4,  A3,  30,  34,  35 },  // Motor D.
   {  17,   2,  16,  A7,  15,  40,  43,  42 },  // Motor E.
-  {  51,   9,  50, A10,  52,  38,  36,  37 }   // Motor F.
+  {  51,   9,  50, A10,  52,  38,  36,  37 },  // Motor F.
 };
 
 static const int expansion_io_pinout[] = { A15, A14, A13, A12, 53, 49, 48, 41 };
@@ -236,7 +236,6 @@ typedef struct {
   motor_status_t motor[MOTOR_ID_COUNT];
 } status_t;
 
-
 /*
  * MegaMotor6 functions.
  */
@@ -299,6 +298,7 @@ void mm6_set_position(motor_id_t motor_id, int position)
 {  
   assert((motor_id >= MOTOR_ID_FIRST) && (motor_id <= MOTOR_ID_LAST));
   // TODO: assert valid position?
+
   motor_state[motor_id].target_encoder = position * motor_state[motor_id].logic;
   motor_state[motor_id].progress = MOTOR_PROGRESS_ON_WAY_TO_TARGET; //Set the flag that indicates that the motor has been put in motion.
 }
@@ -526,7 +526,7 @@ ISR(TIMER1_COMPA_vect)
         motor_state[motor_id].progress = MOTOR_PROGRESS_APPROACHING_TARGET;
       }
     } else if (PIDPError < 0) {
-      motor_state[motor_id].target_speed = motor_state[motor_id].pid_perror - (motor_state[motor_id].pid_dvalue / 6),-255;
+      motor_state[motor_id].target_speed = motor_state[motor_id].pid_perror - (motor_state[motor_id].pid_dvalue / 6), -255; // TODO: Check.
       if (PIDPError > -2) {
         // Set the Status that indicates that the Motor is 1 click from target
         motor_state[motor_id].progress = MOTOR_PROGRESS_BESIDE_TARGET;  
@@ -1118,6 +1118,7 @@ const menu_item_t menu_item_by_index[] = {  // TODO: F()
   { 'H', "home position", NULL, false, command_home_position, "-- set current positions to home." },
   { 'I', "input mode", NULL, true, command_input_mode, "packet / keyboard."},
   { 'K', "clock", NULL, true, command_clock, "get / set [YYYY-MM-DD] HH:MM[:SS].fraction]]." },
+  { 'M', "motor status", NULL, false, command_motor_status, "-- display motor status." },
   { 'N', "motor angle", NULL, true, command_motor_angle, "motorid degrees -- degrees is 0.0 to 360.0, +15, -20, +, -, ++, --." },
   { 'P', "motor position", NULL, true, command_motor_position, "motorid position -- position is in the range X - Y." },  // TODO
   { 'Q', "run test sequence", NULL, false, command_run_test_sequence, "" },
@@ -1464,6 +1465,36 @@ int command_input_mode(char *pargs, size_t args_nbytes)
 {
   // TODO.
   assert(false);
+}
+
+int command_motor_status()
+{  
+  log_writeln(F("PID:%s"), mm6_pid_enabled ? "enabled" : "disabled");
+
+  for (int i = MOTOR_ID_FIRST; i <= MOTOR_ID_LAST; i++) {    
+    char angle_str[15] = {};
+    dtostrf(mm6_get_angle(i), 3, 2, angle_str);
+    log_writeln(F("%c: home:%d sta:%d enc:%d tar:%d err:%d spd:%d PWM:%d cur:%d hs:%d,%d,%d,%d->%d angle:%s"), 
+        'A' + i, 
+        motor_state[i].switch_previously_triggered,  // home.
+        motor_state[i].progress,  // sta. Report whether or not the Motor has reached the target location.
+        /* mm6_get_position(iMotor), */  // pos.
+        noinit_data.motor_encoder[i] * motor_state[i].logic,  // enc.
+        motor_state[i].target_encoder * motor_state[i].logic,  // tar.
+        motor_state[i].pid_perror * motor_state[i].logic,  // err.
+        motor_state[i].speed * motor_state[i].logic,  // spd.
+        /* motor_state[i].target_speed, */  // tspd.
+        current_pwm[i],  // pwm.
+        motor_state[i].current,  // cur.
+        motor_state[i].switch_reverse_off,  // hs.
+        motor_state[i].switch_forward_on,  // hs.
+        motor_state[i].switch_reverse_on,  // hs.
+        motor_state[i].switch_forward_off,  // hs.
+        (motor_state[i].switch_forward_off + motor_state[i].switch_reverse_on + motor_state[i].switch_forward_on + motor_state[i].switch_reverse_off) / 4, // hs.
+        angle_str);
+  } 
+
+  return 0;
 }
 
 int command_motor_angle(char *pargs, size_t args_nbytes)
@@ -2504,53 +2535,6 @@ void CloseGripper(){
   Gripper_StallX=0;
   motor_state[MOTOR_ID_A].target_encoder = Gripper_CloseLoc;
   Serial.println("Closing Gripper.");
-}
-
-void DisplayStatus(){  
-  Serial.println("Motor Status Report");
-  Serial.print("  PID: ");
-  if (mm6_pid_enabled) {
-    Serial.println("On");  
-  } else {
-    Serial.println("Off");  
-  }
-  for (int iMotor = MOTOR_ID_FIRST; iMotor <= MOTOR_ID_LAST; iMotor++){
-    Serial.print("  ");
-    Serial.print(char(iMotor+65));
-    Serial.print(": Home=");  
-    Serial.print(motor_state[iMotor].switch_previously_triggered);
-    Serial.print(" Sta=");
-    Serial.print(motor_state[iMotor].progress); // Report whether or not the Motor has reached the target location.
-    //Serial.print(" Pos=");
-    //Serial_print(mm6_get_position(iMotor),4);
-    Serial.print(" Enc=");  
-    Serial_print(noinit_data.motor_encoder[iMotor] * motor_state[iMotor].logic,4);
-    Serial.print(" Tar=");  
-    Serial_print(motor_state[iMotor].target_encoder * motor_state[iMotor].logic,4);
-    Serial.print(" Err=");  
-    Serial_print(motor_state[iMotor].pid_perror * motor_state[iMotor].logic,4);
-    Serial.print(" Spd=");
-    Serial_print(motor_state[iMotor].speed * motor_state[iMotor].logic,3);
-    //Serial.print(" TSpd=");
-    //Serial.print(motor_state[iMotor].target_speed);
-    Serial.print(" PWM=");
-    Serial_print(current_pwm[iMotor],3);
-    Serial.print(" Cur=");  
-    Serial_print(motor_state[iMotor].current, 3);
-    Serial.print(" HS=");
-    Serial_print(motor_state[iMotor].switch_reverse_off,3);
-    Serial.print(",");
-    Serial_print(motor_state[iMotor].switch_forward_on, 3);
-    Serial.print(",");
-    Serial_print(motor_state[iMotor].switch_reverse_on,3);
-    Serial.print(",");
-    Serial_print(motor_state[iMotor].switch_forward_off,3);
-    Serial.print(",");
-    Serial.print((motor_state[iMotor].switch_forward_off + motor_state[iMotor].switch_reverse_on + motor_state[iMotor].switch_forward_on + motor_state[iMotor].switch_reverse_off) / 4);
-    Serial.print(" Angle=");  
-    Serial.print(mm6_get_angle(iMotor));
-    Serial.println(" ");   
-  } 
 }
 
 //************************************************************
