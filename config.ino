@@ -148,7 +148,7 @@ void config_set_motor_configured(motor_id_t motor_id, bool configured)
 void config_set_motor_logic(motor_id_t motor_id, int motor_logic)
 {  
   assert(motor_id >= MOTOR_ID_FIRST && motor_id <= MOTOR_ID_LAST);
-  assert(motor_logic & 0xfffe == 0); // Direction logic == 0 or 1.
+  assert(motor_logic & 0xfffe == 0); // Motor logic == 0 or 1.
   
   assert(config_check());
   config.motor[motor_id].motor_logic = motor_logic;
