@@ -55,26 +55,30 @@ bool config_check()
       ret = false;
     }
 
-    if ((config.motor[i].motor_logic & 0xfffe) != 0) {  // Confirm is 0 or 1.
-      log_writeln(F("ERROR: config_check: Invalid motor logic."));
+    if ((config.motor[i].orientation != MOTOR_ORIENTATION_NOT_INVERTED) &&
+        (config.motor[i].orientation != MOTOR_ORIENTATION_INVERTED)) {
+      log_writeln(F("ERROR: config_check: Invalid motor orientation for motor %c."), 'A' + i);
       ret = false;
     }
 
-    if ((config.motor[i].direction_logic & 0xfffe) != 0) {  // Confirm is 0 or 1.
-      log_writeln(F("ERROR: config_check: Invalid direction logic."));
+    if ((config.motor[i].polarity != MOTOR_POLARITY_NOT_REVERSED) &&
+        (config.motor[i].polarity == MOTOR_POLARITY_REVERSED)) {
+      log_writeln(F("ERROR: config_check: Invalid motor polarity for motor %c."), 'A' + i);
       ret = false;
     }
   }
 
   if ((config.gripper_open_location < min_count) || (config.gripper_open_location > max_count)) {
     log_writeln(F("ERROR: config_check: Invalid gripper_open."));
+    ret = false;
   }
 
   if ((config.gripper_close_location < min_count) || (config.gripper_close_location > max_count)) {
     log_writeln(F("ERROR: config_check: Invalid gripper_open."));
+    ret = false;
   }
 
-  return true;
+  return ret;
 }
 
 bool config_read() 
@@ -96,6 +100,10 @@ void config_clear()
 {
   memset(&config, 0, sizeof(config_t));
   config.robot_id = ROBOT_ID_DEFAULT;
+  for (int i = MOTOR_ID_FIRST; i <= MOTOR_ID_LAST; i++) {
+    config.motor[i].orientation = MOTOR_ORIENTATION_NOT_INVERTED;
+    config.motor[i].polarity = MOTOR_POLARITY_NOT_REVERSED;
+  }
   config_sign();
 }
 
@@ -145,24 +153,26 @@ void config_set_motor_configured(motor_id_t motor_id, bool configured)
   config_sign();
 }
 
-void config_set_motor_logic(motor_id_t motor_id, int motor_logic)
+void config_set_motor_orientation(motor_id_t motor_id, motor_orientation_t motor_orientation)
 {  
   assert(motor_id >= MOTOR_ID_FIRST && motor_id <= MOTOR_ID_LAST);
-  assert(motor_logic & 0xfffe == 0); // Motor logic == 0 or 1.
+  assert((motor_orientation == MOTOR_ORIENTATION_NOT_INVERTED) || 
+         (motor_orientation == MOTOR_ORIENTATION_INVERTED));
   
   assert(config_check());
-  config.motor[motor_id].motor_logic = motor_logic;
+  config.motor[motor_id].orientation = motor_orientation;
   config_sign();
 }
 
-void config_set_direction_logic(motor_id_t motor_id, int direction_logic)
+void config_set_motor_polarity(motor_id_t motor_id, motor_polarity_t motor_polarity)
 {  
   assert(motor_id >= MOTOR_ID_FIRST && motor_id <= MOTOR_ID_LAST);
-  assert((direction_logic & 0xfffe) == 0); // Direction logic == 0 or 1.
+  assert((motor_polarity == MOTOR_POLARITY_NOT_REVERSED) ||
+         (motor_polarity == MOTOR_POLARITY_REVERSED));
   // TODO: assert logic is in valid range;
   
   assert(config_check());
-  config.motor[motor_id].direction_logic = direction_logic;
+  config.motor[motor_id].polarity = motor_polarity;
   config_sign();
 }
 
@@ -215,10 +225,10 @@ void config_display()
       log_writeln(F("not configured."));
     } else {
       dtostrf(config.motor[i].angle_offset, 3, 2, str);
-      log_writeln(F("angle_offset:%s motor_logic:%s, direction_logic:%s."), 
+      log_writeln(F("angle_offset:%s motor_orientation:%s, direction_logic:%s."), 
           str, 
-          config.motor[i].motor_logic ? "forward" : "reverse",
-          config.motor[i].direction_logic ? "forward" : "reverse");
+          config.motor[i].orientation == MOTOR_ORIENTATION_NOT_INVERTED ? "not inverted" : "inverted",
+          config.motor[i].polarity == MOTOR_POLARITY_NOT_REVERSED ? "not reversed" : "reversed");
     }
   }
 

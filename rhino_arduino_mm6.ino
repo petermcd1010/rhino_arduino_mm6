@@ -71,9 +71,9 @@ typedef enum {
 
 // MM6 motor I/O lines.
 typedef struct {
-  unsigned short out_direction;  // Digital.
+  unsigned short out_direction;  // Digital. LOW = forward direction. HIGH = reverse direction.
   unsigned short out_pwm;  // Digital.
-  unsigned short out_brake;  // Digital.
+  unsigned short out_brake;  // Digital. LOW = disable brake. HIGH = enable brake.
   unsigned short in_current_draw;  // Analog. 377uA/A. What's the resistance?
   unsigned short in_thermal_overload;  // Digital. Becomes active at 145C. Chip shuts off at 170C.
   unsigned short in_switch;  // Digital. LOW = switch triggered. HIGH = switch not triggered.
@@ -102,15 +102,15 @@ typedef enum {
 } motor_progress_t;
 
 typedef enum {
-  MOTOR_ERROR_NO_ERROR = 0,
-  MOTOR_ERROR_INVALID_ENCODER_TRANSITION,  // only 0->1->3->2 and 0->2->3->1 are valid.
-} motor_error_t;
+  MOTOR_ERROR_FLAG_INVALID_ENCODER_TRANSITION = 1 << 0,  // only 0->1->3->2 and 0->2->3->1 are valid.
+  MOTOR_ERROR_FLAG_OPPOSITE_DIRECTION = 1 << 1,
+} motor_error_flag_t;
 
 typedef struct {
   int speed;
   int target_speed;
   int pwm;
-  int logic;
+  int logic;  // -1 or +1.
   int previous_direction;
   int pid_dvalue;
   int pid_perror;  // Proportional Error (Difference between Current and Target)
@@ -125,10 +125,14 @@ typedef struct {
   int switch_reverse_on;  // Alignment switch reverse direction high value.
   int switch_reverse_off;  // Alignment switch reverse direction low value.
 
-  motor_error_t error;
+  motor_error_flag_t error_flags;
 } motor_state_t;
 
 static motor_state_t motor_state[MOTOR_ID_COUNT] = {}; 
+
+// For motor direction pin.
+static const int mm6_direction_forward = LOW;
+static const int mm6_direction_reverse = HIGH;
 
 static const int motor_min_speed = 55;
 static bool motor_sync_move_enabled = false;
@@ -170,11 +174,23 @@ static const int config_magic = 0x5678FEAD;
 static const int config_robot_serial_nbytes = 15;
 static const int config_robot_name_nbytes = 20;
 
+// Mechanical orientation based on motor installation side.
+typedef enum {
+  MOTOR_ORIENTATION_INVERTED = -1,
+  MOTOR_ORIENTATION_NOT_INVERTED = 1
+} motor_orientation_t;
+
+// Motor wiring polarity. Corrects for motors being wired backwards.
+typedef enum {
+  MOTOR_POLARITY_REVERSED = -1,
+  MOTOR_POLARITY_NOT_REVERSED = 1,
+} motor_polarity_t;
+
 typedef struct __attribute__((packed)) {
   bool configured;
   int angle_offset;
-  int motor_logic;
-  int direction_logic;
+  motor_orientation_t orientation;  
+  motor_polarity_t polarity; 
 } motor_config_t;
 
 typedef struct __attribute__((packed)) {
@@ -248,7 +264,7 @@ void mm6_init()
     pinMode(motor_pinout[i].out_brake, OUTPUT);
     pinMode(motor_pinout[i].out_direction, OUTPUT);
     pinMode(motor_pinout[i].out_pwm, OUTPUT);
-    digitalWrite(motor_pinout[i].out_direction, HIGH); //  Set direction to forward.
+    digitalWrite(motor_pinout[i].out_direction, mm6_direction_forward);
 
     // Configure inputs.
     pinMode(motor_pinout[i].in_switch, INPUT_PULLUP);
@@ -270,18 +286,18 @@ void mm6_set_brake(motor_id_t motor_id, bool enable)
 bool mm6_enable_motor(motor_id_t motor_id, bool enable)
 {
   assert((motor_id >= MOTOR_ID_FIRST) && (motor_id <= MOTOR_ID_LAST));
-  // if (!mm6_configured(motor_id))
-  //   return false;  TODO: Enable this check.
+
+  // Will turn off a motor if it's not configured, regardless of enable's value.
 
   if (enable && config.motor[motor_id].configured) {
     mm6_set_brake(motor_id, false);
+    return true;
   } else {
     mm6_set_brake(motor_id, true);
     digitalWrite(motor_pinout[motor_id].out_pwm, LOW);  // Set PWM speed to zero.  TODO: analogWrite() below?
     mm6_set_speed(motor_id, 0);
+    return !enable;  // Return false if motor wasn't configured but enble == true. Return true otherwise.
   }
-
-  return true;
 }
 
 void mm6_enable_motors(bool enable)
@@ -433,46 +449,68 @@ bool mm6_get_overcurrent_active(motor_id_t motor_id)
   return false;
 }
 
+static void write_motor_delta(int delta)
+{
+  if (delta == 0) {
+    log_write(F("0"));
+  } else if (delta > 0) {
+    log_write(F("+%d"), delta);
+  } else {
+    log_write(F("%d"), delta);
+  }
+}
+
 void mm6_test_motor(motor_id_t motor_id) 
 {
   assert((motor_id >= MOTOR_ID_FIRST) && (motor_id <= MOTOR_ID_LAST));
 
-  // Set all motor power lines to High-Z state by setting speed to 0 and turning off brakes.
+  const int test_speed = 255 - motor_min_speed;
+  const int delay_ms = 50;
+
+  // Mark motor as configured, so motor-control commands will execute.
+  bool was_configured = config.motor[motor_id].configured;
+  config.motor[motor_id].configured = true;
+
   mm6_set_brake(motor_id, false);
   mm6_set_speed(motor_id, 0);
-  
-  const int TestSpeed = 255 - motor_min_speed;
-  const int SpeedDelay = 50;
-  
-  log_write(F("  %c: "), 'A' + motor_id);
-  log_write(F("Backward "));   // TODO: F()
-  int position1 = noinit_data.motor_encoder[motor_id];  // Get Current Position.
-  
-  mm6_set_speed(motor_id, -TestSpeed);
+    
+  log_write(F("  %c: Reverse "), 'A' + motor_id);  
+  int position1 = mm6_get_position(motor_id);
+  mm6_set_speed(motor_id, -test_speed);
   log_write(F("on, "));
-  delay(SpeedDelay);         // Short Delay to allow the motor to move.  
+  delay(delay_ms);  // Allow motor to move.  
     
   mm6_set_speed(motor_id, 0); 
   log_write(F("off. "));
-  delay(SpeedDelay);         // Short Delay to allow the motor to stop.  
+  delay(delay_ms);  // Allow motor to move.  
 
-  int position2 = noinit_data.motor_encoder[motor_id];  // Get Current Position.
+  int position2 = mm6_get_position(motor_id); 
+  int reverse_delta = position2 - position1;
+
+  log_write(F("Reverse delta: "));
+  write_motor_delta(reverse_delta);
+  log_write(F(". "));
 
   log_write(F("Forward "));
   //Serial.print("Moving Motor ");
   //Serial.print(char(m+65));
   //Serial.print(" forward ");
 
-  mm6_set_speed(motor_id, TestSpeed);
+  mm6_set_speed(motor_id, test_speed);
   log_write(F("on, "));
-  delay(SpeedDelay);         // Short Delay to allow the motor to move.  
+  delay(delay_ms);         // Short Delay to allow the motor to move.  
     
   mm6_set_speed(motor_id, 0);
   log_write(F("off. "));
-  delay(SpeedDelay);         // Short Delay to allow the motor to stop.  
+  delay(delay_ms);         // Short Delay to allow the motor to stop.  
 
-  int position3 = noinit_data.motor_encoder[motor_id]; // Get Current Position.
+  int position3 = mm6_get_position(motor_id);
+  int forward_delta = position3 - position2;
 
+  log_write(F("Forward delta: "));
+  write_motor_delta(forward_delta);
+
+#if 0
   bool done = false;
   do {
     if (((position2 - position1) > 0 ) && ((position3 - position2) < 0)) {
@@ -487,32 +525,30 @@ void mm6_test_motor(motor_id_t motor_id)
       done = true;
     }
   } while (!done);
-
-  log_write(F("Forward count: "));    
-  Serial_Print_Pos(position3 - position2);
-  log_write(F(". "));  
+#endif
   
-  log_write(F("Reverse count: "));
-  Serial_Print_Pos(position2 - position1);
+  const __FlashStringHelper *pfailure_message = NULL;
 
-  if (position2 != position1) {
-    config_set_motor_configured(motor_id, true);
-    log_writeln(F(" ... Passed."));
+  if (position1 == position2) {
+    pfailure_message = F("Failed to move when commanded");
+  } else if ((forward_delta < 0) == (reverse_delta < 0)) {
+    // To Test, execute pinMode(51, INPUT_PULLUP) to disable Motor F's direction pin.
+    pfailure_message = F("Failed to switch direction when commanded");
+  } else if ((reverse_delta > 0) && (forward_delta < 0)) {
+    pfailure_message = F("Motor +/- wired backwards");
+  }    
+
+  config.motor[motor_id].configured = was_configured;  // Restore configuration status.
+  config_set_motor_configured(motor_id, pfailure_message == NULL);
+  if (pfailure_message) {
+    log_write(F(" ... FAILED ("));
+    log_write(pfailure_message);
+    log_writeln(F(")."));
   } else {
-    config_set_motor_configured(motor_id, false);
-    log_writeln(F(" ... FAILED."));
+    config_set_motor_orientation(motor_id, MOTOR_ORIENTATION_NOT_INVERTED);
+    config_set_motor_polarity(motor_id, MOTOR_POLARITY_NOT_REVERSED);
+    log_writeln(F(" ... Passed."));
   }
-
-  /* Auto Correct Reversed Motors.
-  for (int iMotor = MOTOR_ID_FIRST; iMotor <= MOTOR_ID_LAST; m++){
-    if (((P2[iMotor]-P1[iMotor]) >0 ) && ((P3[iMotor]-P2[iMotor])<0)) {
-      Serial.print("Reversing Direction Logic on Motor ");
-      Serial.println(char(m+65));
-      Forward_Logic[iMotor] = !Forward_Logic[iMotor];
-      Reverse_Logic[iMotor] = !Reverse_Logic[iMotor];
-    }    
-  } 
-  */
 }
 
 void mm6_test_motors() {
@@ -549,33 +585,38 @@ void mm6_set_speed(motor_id_t motor_id, int speed)
 {
   assert((motor_id >= MOTOR_ID_FIRST) && (motor_id <= MOTOR_ID_LAST));
   // TODO: Range-check speed.
-  /*
+
   if (!config.motor[motor_id].configured) {
     motor_state[motor_id].pwm = 0;
     analogWrite(motor_pinout[motor_id].out_pwm, 0);          
     return;
   }
 
-  // TODO: Enable this check and make TestMotors work.
-  */
-
-  // log_writeln(F("mm6_set_speed %d %d %d %d %d"), motor_id, speed, Forward_Logic[motor_id], Reverse_Logic[motor_id], motor_pinout[motor_id].out_direction);
-  
   // Calculate the PWM and Direction for the Speed
   // Converts the speed's +/- 255 value to PWM and Direction.
   motor_state[motor_id].speed = speed;
 
   if (speed > 0) {      
     motor_state[motor_id].pwm = speed + motor_min_speed;
-    digitalWrite(motor_pinout[motor_id].out_direction, Forward_Logic[motor_id]);          
+    digitalWrite(motor_pinout[motor_id].out_direction, mm6_direction_forward);          
   } else if (speed < 0) {      
     motor_state[motor_id].pwm = -speed + motor_min_speed;
-    digitalWrite(motor_pinout[motor_id].out_direction, Reverse_Logic[motor_id]);        
+    digitalWrite(motor_pinout[motor_id].out_direction, mm6_direction_reverse);        
   } else {
     motor_state[motor_id].pwm = 0;
   }  
 
-  analogWrite(motor_pinout[motor_id].out_pwm, motor_state[motor_id].pwm);          
+  analogWrite(motor_pinout[motor_id].out_pwm, motor_state[motor_id].pwm);    
+#if 0
+  log_writeln(F("\r\nmm6_set_speed %c speed:%d f:%d r:%d dir:%d encoder:%d logic:%d"), 
+    'A' + motor_id, 
+    speed, 
+    Forward_Logic[motor_id], 
+    Reverse_Logic[motor_id], 
+    digitalRead(motor_pinout[motor_id].out_direction),
+    noinit_data.motor_encoder[motor_id],
+    motor_state[motor_id].logic);        
+#endif
 }
 
 void mm6_dump_motor(motor_id_t motor_id) 
@@ -657,7 +698,7 @@ ISR(TIMER1_COMPA_vect)
       noinit_data.motor_encoder[qe_motor_id]--;      
       motor_state[qe_motor_id].pid_dvalue = 0;
     } else {
-      motor_state[qe_motor_id].error = MOTOR_ERROR_INVALID_ENCODER_TRANSITION;  // TODO: validate.
+      motor_state[qe_motor_id].error_flags |= MOTOR_ERROR_FLAG_INVALID_ENCODER_TRANSITION;
     }    
     noinit_data.motor_qe_prev[qe_motor_id] = qe_state;
 
@@ -759,7 +800,17 @@ ISR(TIMER1_COMPA_vect)
     // Calculate PID Proportional Error
     //==========================================================
     int PIDPError = (motor_state[motor_id].target_encoder - noinit_data.motor_encoder[motor_id]);
-    motor_state[motor_id].pid_perror = PIDPError; // Save
+
+#if 0
+    // TODO: Make this work.
+    if ((motor_state[motor_id].pid_perror != 0) &&
+        (abs(PIDPError) > abs(motor_state[motor_id].pid_perror))) {
+      LOG_D(F("%d %d"), PIDPError, motor_state[motor_id].pid_perror);
+      // Motor is getting further away from target, not closer.
+      motor_state[motor_id].error_flags |= MOTOR_ERROR_FLAG_OPPOSITE_DIRECTION;
+    }
+#endif
+    motor_state[motor_id].pid_perror = PIDPError;  // Save.
       
     //==========================================================
     // Calc the Target Speed from the Proportional Error
@@ -775,7 +826,7 @@ ISR(TIMER1_COMPA_vect)
       motor_state[motor_id].target_speed = min_error;
       // Set the Status that indicates that the Motor is more than 200 clicks from target.
       motor_state[motor_id].progress = MOTOR_PROGRESS_ON_WAY_TO_TARGET;      
-    } else if (PIDPError > 0) {
+    } else if (PIDPError > 0) {  // TODO: Refactor to combine PIDPerror > 0 and < 0 cases.
       motor_state[motor_id].target_speed = motor_state[motor_id].pid_perror + (motor_state[motor_id].pid_dvalue / 6);
       if (PIDPError < 2) {
         // Set the Status that indicates that the Motor is 1 click from target
@@ -1756,10 +1807,14 @@ int command_motor_angle(char *pargs, size_t args_nbytes)
 
   char angle_str[15] = {};
   dtostrf(angle, 3, 2, angle_str);
-  log_writeln(F("Move Motor %c to an angle of %s degrees."), 'A' + motor_id, angle_str);
 
-  mm6_set_angle(motor_id, angle);
-
+  if (mm6_configured(motor_id)) {
+    log_writeln(F("Move Motor %c to an angle of %s degrees."), 'A' + motor_id, angle_str);
+    mm6_set_angle(motor_id, angle);
+  } else {
+    log_writeln(F("ERROR: Motor %c not configured."), 'A' + motor_id);
+    // TODO: error state?
+  }
   return p - pargs;
 
 error:
@@ -1799,9 +1854,14 @@ int command_motor_position(char *pargs, size_t args_nbytes)
 
   char position_str[15] = {};
   dtostrf(position, 3, 2, position_str);
-  log_writeln(F("Move Motor %c to position %s."), 'A' + motor_id, position_str);
 
-  mm6_set_position(motor_id, position);
+  if (mm6_configured(motor_id)) {
+    log_writeln(F("Move Motor %c to position %s."), 'A' + motor_id, position_str);
+    mm6_set_position(motor_id, position);
+  } else {
+    log_writeln(F("ERROR: Motor %c not configured."), 'A' + motor_id);
+    // TODO: error state?
+  }
 
   return p - pargs;
 
@@ -2031,21 +2091,21 @@ void hardware_init() {
     //   So the Forward and Reverse Logic is used to correct that.    
     //     The values for the Direction Logic come from the "t" command.
     //       Since the Forward and Reverse Locic are used for an I/O line the values are 0 or 1'
+#if 0
     logic = config.motor[i].direction_logic;  // 0 = forward, 1 = reverse.
     if (logic != 0) 
       logic = !0;  
     Reverse_Logic[i] = logic; // Reverse Logic - The value for the Direction IO Line when the motor needs to move Reverse. Defaults to 1.
     Forward_Logic[i] = !logic; // Forward Logic - The value for the Direction IO Line when the motor needs to move forward. Defaults to 0.
-    
+#endif
+
     // The Motor Locic is used to contol which way the motors turn in responce to the Positions.
     //   Each Rhino Robot may have the motor assembled on either side - which winds up reversing the motors direction mechanically.
     //   So the motor locic is used to correct that.    
     //     The values for the Motor Logic are set by the setup.
-    //       Since the Forward and Reverse Locic are used to invert the position the values are 1 or -1'
-    logic = config.motor[i].motor_logic;
-    if (logic != 1 ) 
-      logic = -1;
-    motor_state[i].logic = logic; // Motor Logic - The value for inverting the Position when the motor needs to move Reverse. 
+    //       Since the Forward and Reverse Locic are used to invert the position the values are 1 or -1
+    motor_state[i].logic = config.motor[i].orientation; 
+    LOG_D(F("%d"), motor_state[i].logic);
   }
   
   //******************************************
@@ -2143,7 +2203,7 @@ void process_serial_input()
         char current_draw_str[15];
         dtostrf(status.motor[i].current_draw, 3, 2, current_draw_str);
 
-        log_write(F("%c:%s,%s "), motor_name, angle_str, current_draw_str);
+        log_write(F("%c:%s,%s,%d "), motor_name, angle_str, current_draw_str, motor_state[i].pid_perror);
       }
     }
 
@@ -2305,9 +2365,11 @@ state_t state_init_execute()
   config_display();
   hardware_init();
 
+#if 0
   bool self_test_success = run_self_test();
 
   menu_help();
+#endif
   log_writeln(F("Ready."));
   
   // return (config_read_success && self_test_success) ? STATE_MOTORS_OFF : STATE_ERROR; TODO2
@@ -2420,8 +2482,10 @@ void setup()
 bool check_system_integrity()
 {
   static bool previous_ok = true;
-  
-  bool ok = config_check();
+  bool ok = previous_ok;
+
+  if (previous_ok)
+    ok = config_check();
 
   if (config.robot_id == ROBOT_ID_UNKNOWN) {
     if (previous_ok)
@@ -2434,9 +2498,15 @@ bool check_system_integrity()
   // TODO: Detect error if any encoders don't transition from 0 -> 1 -> 3 -> 4 (or reverse).
 
   for (int i = MOTOR_ID_FIRST; i <= MOTOR_ID_LAST; i++) {
-    if (motor_state[i].error != MOTOR_ERROR_NO_ERROR) {
-      if (previous_ok)
-        log_writeln(F("ERROR: motor %c error %d"), 'A' + i, motor_state[i].error);
+    if (motor_state[i].error_flags != 0) {
+      if (previous_ok) {
+        log_writeln(F(""));
+        log_writeln(F("ERROR: motor %c error %d:"), 'A' + i, motor_state[i].error_flags);
+        if (motor_state[i].error_flags & MOTOR_ERROR_FLAG_INVALID_ENCODER_TRANSITION)
+          log_writeln(F("  Invalid quadrature encoder transition"));
+        if (motor_state[i].error_flags & MOTOR_ERROR_FLAG_OPPOSITE_DIRECTION)
+          log_writeln(F("  Motor direction opposite of expectation"));
+      }
       ok = false;
     }
   }
@@ -2857,7 +2927,7 @@ void Reverse(motor_id_t motor_id) {
   noinit_data.motor_encoder[motor_id] *= -1;
   motor_state[motor_id].target_encoder *= -1;
   motor_state[motor_id].logic *= -1;
-  config_set_motor_logic(motor_id, motor_state[motor_id].logic);
+  // config_set_motor_orientation(motor_id, !config.motor[motor_id].orientation);
   Serial.print("Motor ");
   Serial.print(char(Command_Motor+65));    
   Serial.println(" reversed.");  
@@ -2948,7 +3018,7 @@ void InterrogateLimitSwitchA() {
     noinit_data.motor_encoder[MOTOR_ID_A] = 0;  
     motor_state[MOTOR_ID_A].target_encoder  = 0;
     motor_state[MOTOR_ID_A].logic = -1;
-    config_set_motor_logic(MOTOR_ID_A, motor_state[MOTOR_ID_A].logic);
+    // config_set_motor_orientation(MOTOR_ID_A, motor_state[MOTOR_ID_A].orientation);
     Gripper_OpenLoc = -140;
     Gripper_CloseLoc = -310;    
     config_set_gripper_open_location(Gripper_OpenLoc);
@@ -2962,7 +3032,7 @@ void InterrogateLimitSwitchA() {
     noinit_data.motor_encoder[MOTOR_ID_A] = 0;  
     motor_state[MOTOR_ID_A].target_encoder  = 0;
     motor_state[MOTOR_ID_A].logic = 1;
-    config_set_motor_logic(MOTOR_ID_A, motor_state[MOTOR_ID_A].logic);
+    // config_set_motor_orientation(MOTOR_ID_A, motor_state[MOTOR_ID_A].orientation);
     Gripper_OpenLoc = 140;
     Gripper_CloseLoc = 310;    
     config_set_gripper_open_location(Gripper_OpenLoc);
@@ -3033,13 +3103,6 @@ void SetNewHome(int m) {
     Serial.print(" Motor ");
     Serial.print(char(m+65));
     Serial.println(" Centered");  
-}
-
-void Serial_Print_Pos(int i){
-  if (i > 0){
-    Serial.print("+");
-  } 
-  Serial.print(i);
 }
 
 void Serial_print(int a, int l) {
