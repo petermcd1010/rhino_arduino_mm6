@@ -999,22 +999,6 @@ bool hardware_get_led()
 }
 
 /*
- * Configuration functions.
- */
-
-bool buffer_contains(char *pbuffer, size_t buffer_nbytes, char c)
-{
-  assert(pbuffer);
-
-  for (int i = 0; i < buffer_nbytes; i++) {
-    if (pbuffer[i] == c)
-      return true;
-  }
-
-  return false;
-}
-
-/*
  * Parsing functions.
  */
 

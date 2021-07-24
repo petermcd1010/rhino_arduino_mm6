@@ -37,12 +37,12 @@ bool config_check()
     ret = false;
   }
 
-  if (!buffer_contains(config.robot_serial, config_robot_serial_nbytes, '\0')) {
+  if (!util_buffer_contains(config.robot_serial, config_robot_serial_nbytes, '\0')) {
     log_writeln(F("ERROR: config_check: Robot serial isn't null-terminated."));
     ret = false;
   }
 
-  if (!buffer_contains(config.robot_name, config_robot_name_nbytes, '\0')) {
+  if (!util_buffer_contains(config.robot_name, config_robot_name_nbytes, '\0')) {
     log_writeln(F("ERROR: config_check: Robot name isn't null-terminated."));
     ret = false;
   }
@@ -112,7 +112,7 @@ bool config_write()
   if (!config_check())
     return false;
 
-  EEPROM.put(config_base_address, config); // TODO: Return value?
+  EEPROM.put(config_base_address, config);  // Doesn't return success/failure indiction.
   return true;
 }
 
@@ -129,7 +129,7 @@ void config_set_robot_id(robot_id_t robot_id)
 void config_set_robot_serial(char robot_serial[config_robot_serial_nbytes])
 {
   assert(robot_serial);
-  // TODO: Verify it's null-terminated.
+  assert(util_buffer_contains(robot_serial, config_robot_serial_nbytes, 0));
   assert(config_check());
   memcpy(config.robot_serial, robot_serial, config_robot_serial_nbytes);
   config_sign();
@@ -138,7 +138,7 @@ void config_set_robot_serial(char robot_serial[config_robot_serial_nbytes])
 void config_set_robot_name(char robot_name[config_robot_name_nbytes])
 {
   assert(robot_name);
-  // TODO: Verify it's null-terminated.
+  assert(util_buffer_contains(robot_name, config_robot_name_nbytes, 0));
   assert(config_check());
   memcpy(config.robot_name, robot_name, config_robot_name_nbytes);
   config_sign();
@@ -169,8 +169,6 @@ void config_set_motor_polarity(motor_id_t motor_id, motor_polarity_t motor_polar
   assert(motor_id >= MOTOR_ID_FIRST && motor_id <= MOTOR_ID_LAST);
   assert((motor_polarity == MOTOR_POLARITY_NOT_REVERSED) ||
          (motor_polarity == MOTOR_POLARITY_REVERSED));
-  // TODO: assert logic is in valid range;
-  
   assert(config_check());
   config.motor[motor_id].polarity = motor_polarity;
   config_sign();
