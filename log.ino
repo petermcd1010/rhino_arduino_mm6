@@ -52,6 +52,11 @@ void log_write(const __FlashStringHelper *pformat, ...)
   va_end(args);
 }
 
+void log_writeln()
+{
+  log_string(F("\n\r"));
+}
+
 void log_writeln(const __FlashStringHelper *pformat, ...)
 {
   assert(pformat);
@@ -66,7 +71,7 @@ void log_writeln(const __FlashStringHelper *pformat, ...)
   log_format_str_va_list(buffer, args);
   va_end(args);
 
-  log_string(F("\n\r"));
+  log_writeln();
 }
 
 static void print_file_name(const __FlashStringHelper *pfile_path)

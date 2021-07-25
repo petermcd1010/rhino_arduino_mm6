@@ -22,8 +22,7 @@
 
 #include "log.h"
 
-static const float software_version = 2.00;  
-static const char* const psoftware_date = "June 30, 2021";
+static const float rhino_arduino_mm6_version = 2.00;  
 
 // Used to select per-robot config information.
 typedef enum {
@@ -1386,6 +1385,7 @@ const menu_item_t menu_item_by_index[] = {  // TODO: F()
   { 'Q', "run test sequence", NULL, false, command_run_test_sequence, "" },
   { 'S', "interrogate switches", NULL, false, command_interrogate_switches, "-- interrogate switch positions." },
   { 'T', "test motors", NULL, false, command_test_motors, "-- test motors." },
+  { 'V', "version", NULL, false, command_print_software_version, "-- print software version." },
   { 'W', "waypoint", NULL, true, command_waypoint, "" },
   { 'X', "expansion I/O", NULL, true, command_expansion_io, ""},
   // { 'M', "motor config", true, command_motor_config, ""},
@@ -1943,6 +1943,28 @@ int command_reboot(char *pargs, size_t args_nbytes)
   return 0;
 }
 
+const size_t command_args_max_nbytes = 64;
+
+int command_print_software_version(char *pargs, size_t args_nbytes)
+{
+  assert(pargs);
+  if (args_nbytes >= command_args_max_nbytes)
+    return -1;
+
+  char *p = pargs;
+  size_t nbytes = parse_whitespace(p, args_nbytes);
+  args_nbytes -= nbytes;
+  p += nbytes;
+
+  if (args_nbytes > 0)
+    return -1;
+
+  print_software_version();
+
+  return 0;
+}
+
+
 int command_waypoint(char *pargs, size_t args_nbytes)
 {
   // TODO.
@@ -2328,15 +2350,21 @@ bool overcurrent_detected()
   return detected;
 }
 
+void print_software_version()
+{
+  const size_t version_string_nbytes = 32;
+  char version_string[version_string_nbytes] = {};
+  version_get_string(version_string, version_string_nbytes, rhino_arduino_mm6_version);
+  log_writeln(F("Version: %s."), version_string);  
+}
+
 state_t state_init_execute()
 {
   Serial.begin(38400);
 
   log_writeln(F("\n\rBooting Arduino Mega 2560 MegaMotor6 controller for Rhino Robots arms and accessories."));
-  char version_str[15] = {};
-  dtostrf(software_version, 3, 2, version_str);
-  log_writeln(F("Version: %s (%s)."), version_str, psoftware_date);  
-  log_string("\n\r");
+  print_software_version();
+  log_writeln();
 
   bool config_read_success = config_read();
   if (!config_read_success) {
@@ -2349,11 +2377,8 @@ state_t state_init_execute()
   config_display();
   hardware_init();
 
-#if 0
   bool self_test_success = run_self_test();
-
   menu_help();
-#endif
   log_writeln(F("Ready."));
   
   // return (config_read_success && self_test_success) ? STATE_MOTORS_OFF : STATE_ERROR; TODO2
