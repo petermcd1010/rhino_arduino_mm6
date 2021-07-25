@@ -27,7 +27,7 @@ static const float rhino_arduino_mm6_version = 2.00;
 // Used to select per-robot config information.
 typedef enum {
   ROBOT_ID_FIRST = 0,
-  ROBOT_ID_UNKNOWN = ROBOT_ID_FIRST,
+  ROBOT_ID_NOT_CONFIGURED = ROBOT_ID_FIRST,
   ROBOT_ID_RHINO_XR_1,
   ROBOT_ID_RHINO_XR_2,
   ROBOT_ID_RHINO_XR_3,
@@ -39,11 +39,11 @@ typedef enum {
   ROBOT_ID_RHINO_CONVEYOR_BELT,
   ROBOT_ID_COUNT,
   ROBOT_ID_LAST = ROBOT_ID_COUNT - 1,
-  ROBOT_ID_DEFAULT = ROBOT_ID_RHINO_XR_2,
+  ROBOT_ID_DEFAULT = ROBOT_ID_NOT_CONFIGURED,
 } robot_id_t;
 
 static const char* const robot_name_by_robot_id[ROBOT_ID_COUNT] = { 
-  "unknown robot id",
+  "Not configured",
   "Rhino XR-1 6-axis arm",
   "Rhino XR-2 6-axis arm",
   "Rhino XR-3 6-axis arm",
@@ -1326,7 +1326,7 @@ static const int menu_item_max_name_nbytes = 25;
 void extended_menu_robot_id()
 {
   log_writeln(F(""));  
-  log_writeln(F("Current robot ID is '%s'."), robot_name_by_robot_id[config.robot_id]);
+  log_writeln(F("Current robot ID: %s."), robot_name_by_robot_id[config.robot_id]);
   log_writeln(F("Available robot IDs:"));
   for (int i = ROBOT_ID_FIRST; i < ROBOT_ID_COUNT; i++) {
     log_writeln(F("  %d. %s."), i, robot_name_by_robot_id[i]);
@@ -1367,7 +1367,7 @@ void extended_menu_reboot()
 
 const menu_item_t menu_item_by_index[] = {  // TODO: F()
   { '1', "display configuration", NULL, true, command_config_display, "-- print configuration." },
-  { '2', "configure robot id", extended_menu_robot_id, true, command_config_robot_id, "[id] print or set configured robot id." },
+  { '2', "configure robot ID", extended_menu_robot_id, true, command_config_robot_id, "[id] print or set configured robot ID." },
   { '3', "configure robot serial", extended_menu_robot_serial, true, command_config_robot_serial, "[string] -- print or set configured robot serial." },  
   { '4', "configure robot name", extended_menu_robot_name, true, command_config_robot_name, "[name] -- print or set configured robot name." },
   { '5', "run calibration", NULL, true, command_config_calibrate, "[CALIBRATE] -- print or run robot calibration configuration data." },
@@ -2496,9 +2496,9 @@ bool check_system_integrity()
   if (previous_ok)
     ok = config_check();
 
-  if (config.robot_id == ROBOT_ID_UNKNOWN) {
+  if (config.robot_id == ROBOT_ID_NOT_CONFIGURED) {
     if (previous_ok)
-      log_writeln(F("ERROR: robot_id == ROBOT_ID_UNKNOWN. Configure robot and restart."));
+      log_writeln(F("ERROR: robot_id == ROBOT_ID_NOT_CONFIGURED. Configure robot and restart."));
     ok = false;
   }
 

@@ -33,7 +33,7 @@ bool config_check()
   bool ret = true;
 
   if ((config.robot_id < ROBOT_ID_FIRST) || (config.robot_id > ROBOT_ID_LAST)) {
-    log_writeln(F("ERROR: config_check: Invalid robot id %d."), config.robot_id);
+    log_writeln(F("ERROR: config_check: Invalid robot ID %d."), config.robot_id);
     ret = false;
   }
 
@@ -211,27 +211,27 @@ void config_display()
   // TODO: check for valid config.
 
   log_writeln(F("Configuration:"));
-  log_writeln(F("  Robot ID: '%s'."), robot_name_by_robot_id[config.robot_id]);
-  log_writeln(F("  Robot serial: '%s'."), config.robot_serial);
-  log_writeln(F("  Robot name: '%s'."), config.robot_name);
+  log_writeln(F("  Robot ID: %s"), robot_name_by_robot_id[config.robot_id]);
+  log_writeln(F("  Robot serial: %s"), config.robot_serial);
+  log_writeln(F("  Robot name: %s"), config.robot_name);
 
   char str[15] = {};
 
   for (int i = 0; i < MOTOR_ID_COUNT; i++) {
     log_write(F("  Motor %c: "), 'A' + i);
     if (!config.motor[i].configured) {
-      log_writeln(F("not configured."));
+      log_writeln(F("Not configured"));
     } else {
       dtostrf(config.motor[i].angle_offset, 3, 2, str);
-      log_writeln(F("angle_offset:%s motor_orientation:%s, direction_logic:%s."), 
+      log_writeln(F("angle_offset:%s motor_orientation:%s, direction_logic:%s"), 
           str, 
           config.motor[i].orientation == MOTOR_ORIENTATION_NOT_INVERTED ? "not inverted" : "inverted",
           config.motor[i].polarity == MOTOR_POLARITY_NOT_REVERSED ? "not reversed" : "reversed");
     }
   }
 
-  log_writeln(F("  Gripper open location: %d."), config.gripper_open_location);
-  log_writeln(F("  Gripper close location: %d."), config.gripper_close_location);
+  log_writeln(F("  Gripper open location: %d"), config.gripper_open_location);
+  log_writeln(F("  Gripper close location: %d"), config.gripper_close_location);
 
   log_writeln(F(""));
 }
