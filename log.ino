@@ -101,7 +101,7 @@ void log_error_internal(int line_num, const char *pfunction_name, const __FlashS
   assert(pformat);
 
   char buffer[log_progmem_copy_buffer_nbytes];
-  snprintf(buffer, log_progmem_copy_buffer_nbytes, ":%d:%s: ERROR: ", "", line_num, pfunction_name);
+  snprintf(buffer, log_progmem_copy_buffer_nbytes, ":%d:%s: ERROR: ", line_num, pfunction_name);
   buffer[log_progmem_copy_buffer_nbytes - 1] = '\0';
   log_string(buffer);
 
