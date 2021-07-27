@@ -114,7 +114,7 @@ typedef struct {
   int pid_dvalue;
   int pid_perror;  // Proportional Error (Difference between Current and Target)
   int target_encoder;
-  int current;  // Motor Current Consumption. TODO: units? counts?
+  int current_draw;  // TODO: units? counts?
   motor_progress_t progress;
 
   bool switch_previously_triggered;  // Alignment switch previous value used for debounce.
@@ -159,9 +159,8 @@ typedef struct {
   size_t nbytes;
   int version;
   int magic;
-
-  int motor_encoder[MOTOR_ID_COUNT];  // Present Motor Encoder Positions.
-  int motor_qe_prev[MOTOR_ID_COUNT];  // Quadrature Encoder Previous Read.
+  int quadrature_encoder_previous_value[MOTOR_ID_COUNT];
+  int encoder_value[MOTOR_ID_COUNT];
 } noinit_data_t;
 
 static noinit_data_t noinit_data __attribute__ ((section (".noinit")));  // NOT reset to 0 when the CPU is reset.
@@ -189,7 +188,7 @@ typedef struct __attribute__((packed)) {
   bool configured;
   int angle_offset;
   motor_orientation_t orientation;  
-  motor_polarity_t polarity; 
+  motor_polarity_t polarity;  // Easy to wire motors backwards.
 } motor_config_t;
 
 typedef struct __attribute__((packed)) {
@@ -330,31 +329,33 @@ bool mm6_get_switch_triggered(motor_id_t motor_id)
   return motor_state[motor_id].switch_triggered;
 }
 
-int mm6_get_position(motor_id_t motor_id)
+int mm6_get_encoder_value(motor_id_t motor_id)
 {
   assert((motor_id >= MOTOR_ID_FIRST) && (motor_id <= MOTOR_ID_LAST));
   if (!mm6_configured(motor_id))
     return 0;
   
-  return noinit_data.motor_encoder[motor_id] * motor_state[motor_id].logic;
+  return noinit_data.encoder_value[motor_id] * motor_state[motor_id].logic;
 }
 
-void mm6_set_position(motor_id_t motor_id, int position) 
+void mm6_set_encoder_value(motor_id_t motor_id, int encoder_value)
 {  
   assert((motor_id >= MOTOR_ID_FIRST) && (motor_id <= MOTOR_ID_LAST));
-  // TODO: assert valid position?
+  // TODO: assert valid encoder?
   if (!mm6_configured(motor_id))
     return;
 
-  motor_state[motor_id].target_encoder = position * motor_state[motor_id].logic;
-  motor_state[motor_id].progress = MOTOR_PROGRESS_ON_WAY_TO_TARGET;  // Set the flag that indicates that the motor has been put in motion.
+  motor_state[motor_id].target_encoder = encoder_value * motor_state[motor_id].logic;
+  motor_state[motor_id].progress = MOTOR_PROGRESS_ON_WAY_TO_TARGET;  
+}
 
-  log_write(F("target_encoder "));
+void mm6_print_encoder_values() 
+{
+  log_writeln(F("Current Positions: "));
   for (int i = MOTOR_ID_FIRST; i <= MOTOR_ID_LAST; i++) {
-    log_write(F("%c:%d "), 'A' + i, motor_state[i].target_encoder);
+    log_write(F("%c=%d%c"), 'A' + i, mm6_get_encoder_value(i), (i < MOTOR_ID_LAST) ? ',' : ' ');
   }
-  log_writeln(F(""));
-
+  log_writeln();
 }
 
 float mm6_get_encoder_steps_per_degree(motor_id_t motor_id) 
@@ -388,7 +389,7 @@ float mm6_get_encoder_steps_per_degree(motor_id_t motor_id)
   assert(false);
 }
 
-int mm6_angle_to_position(motor_id_t motor_id, float angle) {
+int mm6_angle_to_encoder_value(motor_id_t motor_id, float angle) {
   assert((motor_id >= MOTOR_ID_FIRST) && (motor_id <= MOTOR_ID_LAST));
   if (!mm6_configured(motor_id))
     return 0;
@@ -402,7 +403,7 @@ float mm6_get_angle(motor_id_t motor_id)
   if (!mm6_configured(motor_id))
     return 0.0f;
   
-  return (mm6_get_position(motor_id) - config.motor[motor_id].angle_offset) / mm6_get_encoder_steps_per_degree(motor_id);
+  return (mm6_get_encoder_value(motor_id) - config.motor[motor_id].angle_offset) / mm6_get_encoder_steps_per_degree(motor_id);
 }
 
 void mm6_set_angle(motor_id_t motor_id, float angle) 
@@ -412,8 +413,8 @@ void mm6_set_angle(motor_id_t motor_id, float angle)
     return;
 
   // TODO: assert valid angle?
-  int position = mm6_angle_to_position(motor_id, angle);
-  mm6_set_position(motor_id, position);
+  int encoder_value = mm6_angle_to_encoder_value(motor_id, angle);
+  mm6_set_encoder_value(motor_id, encoder_value);
 }
 
 bool mm6_get_thermal_overload_active(motor_id_t motor_id)
@@ -430,14 +431,14 @@ bool mm6_get_thermal_overload_active(motor_id_t motor_id)
   return digitalRead(motor_pinout[motor_id].in_thermal_overload) == 0;
 }
 
-float mm6_get_current_draw(motor_id_t motor_id)
+int mm6_get_current_draw(motor_id_t motor_id)
 {
   assert((motor_id >= MOTOR_ID_FIRST) && (motor_id <= MOTOR_ID_LAST));
   // Ignores mm6_configured(motor_id).
 
+  // TODO: Convert to a float?
   // LMD18200 datasheet says 377uA/A. What's the resistance?
-  float f = analogRead(motor_pinout[motor_id].in_current_draw);  // * (5.0f / 1023.0f);
-  return f;
+  return analogRead(motor_pinout[motor_id].in_current_draw);  // 0 - 1023.
 }
 
 bool mm6_get_overcurrent_active(motor_id_t motor_id)
@@ -474,7 +475,7 @@ void mm6_test_motor(motor_id_t motor_id)
   mm6_set_speed(motor_id, 0);
     
   log_write(F("  %c: Reverse "), 'A' + motor_id);  
-  int position1 = mm6_get_position(motor_id);
+  int position1 = mm6_get_encoder_value(motor_id);
   mm6_set_speed(motor_id, -test_speed);
   log_write(F("on, "));
   delay(delay_ms);  // Allow motor to move.  
@@ -483,7 +484,7 @@ void mm6_test_motor(motor_id_t motor_id)
   log_write(F("off. "));
   delay(delay_ms);  // Allow motor to move.  
 
-  int position2 = mm6_get_position(motor_id); 
+  int position2 = mm6_get_encoder_value(motor_id); 
   int reverse_delta = position2 - position1;
 
   log_write(F("Reverse delta: "));
@@ -503,7 +504,7 @@ void mm6_test_motor(motor_id_t motor_id)
   log_write(F("off. "));
   delay(delay_ms);         // Short Delay to allow the motor to stop.  
 
-  int position3 = mm6_get_position(motor_id);
+  int position3 = mm6_get_encoder_value(motor_id);
   int forward_delta = position3 - position2;
 
   log_write(F("Forward delta: "));
@@ -563,6 +564,309 @@ void mm6_test_motors() {
   mm6_pid_enable(true);  // TODO: Don't enable? Re-enable?
 }
 
+bool mm6_interrogate_limit_switch_a() {  
+  if (!config.motor[MOTOR_ID_A].configured)
+    return false;
+
+  mm6_set_encoder_value(MOTOR_ID_A, 9999);
+  delay(2000);
+  int CurF = analogRead(motor_pinout[MOTOR_ID_A].in_current_draw);
+  int EncF = noinit_data.encoder_value[MOTOR_ID_A];
+  int SwcF = digitalRead(motor_pinout[MOTOR_ID_A].in_switch);
+  mm6_set_encoder_value(MOTOR_ID_A, -9999);
+  delay(1500);
+  int CurR = analogRead(motor_pinout[MOTOR_ID_A].in_current_draw);
+  int EncR = noinit_data.encoder_value[MOTOR_ID_A];
+  int SwcR = digitalRead(motor_pinout[MOTOR_ID_A].in_switch);  
+  mm6_set_encoder_value(MOTOR_ID_A, 9999);
+  delay(1500);
+  mm6_set_encoder_value(MOTOR_ID_A, -9999);
+  delay(1500);
+    //Serial.print("  For Cur=");
+    //Serial.println(CurF);
+    //Serial.print("  For Enc=");
+    //Serial.println(EncF);
+    //Serial.print("  For Swt=");
+    //Serial.println(SwcF);
+    //Serial.print("  Rev Cur=");
+    //Serial.println(CurR);
+    //Serial.print("  Rev Enc=");
+    //Serial.println(EncR);
+    //Serial.print("  Rev Swt=");
+    //Serial.println(SwcR);  
+    //Serial.print("  motor_state[MOTOR_ID_A].switch_forward_on=");
+    //Serial.println(motor_state[MOTOR_ID_A].switch_forward_on);        
+  if (SwcF==0) {
+    // Encoder goes Positive towards switch.
+    int OverSwitch = ((motor_state[MOTOR_ID_A].switch_forward_on + EncF ) / 2);      
+    mm6_set_encoder_value(MOTOR_ID_A, OverSwitch);
+    do {TrackReport(MOTOR_ID_A);} while (noinit_data.encoder_value[MOTOR_ID_A] != OverSwitch);
+    noinit_data.encoder_value[MOTOR_ID_A] = 0;  
+    motor_state[MOTOR_ID_A].target_encoder  = 0;
+    motor_state[MOTOR_ID_A].logic = -1;
+    // config_set_motor_orientation(MOTOR_ID_A, motor_state[MOTOR_ID_A].orientation);
+    config_set_gripper_open_location(-140);
+    config_set_gripper_close_location(-310);
+    Serial.println("Done");
+  } else {
+    // Encoder goes Negative towards switch.
+    int OverSwitch = ((motor_state[MOTOR_ID_A].switch_reverse_on + EncR ) / 2);      
+    mm6_set_encoder_value(MOTOR_ID_A, OverSwitch);
+    do {TrackReport(MOTOR_ID_A);} while (noinit_data.encoder_value[MOTOR_ID_A] != OverSwitch);
+    noinit_data.encoder_value[MOTOR_ID_A] = 0;  
+    motor_state[MOTOR_ID_A].target_encoder  = 0;
+    motor_state[MOTOR_ID_A].logic = 1;
+    // config_set_motor_orientation(MOTOR_ID_A, motor_state[MOTOR_ID_A].orientation);
+    config_set_gripper_open_location(140);
+    config_set_gripper_close_location(310);
+    Serial.println("Done");
+  }
+  return true;
+}
+
+int tracking = 0;
+int tracked[] = { 0, 0, 0, 0, 0, 0 }; // Last value while tracking.
+
+static void mm6_track_report(motor_id_t motor_id) 
+{
+  if (tracking > 0) {
+    int position = mm6_get_encoder_value(motor_id);
+    if (tracked[motor_id] != position) {
+      log_write(F("@"));
+      if (tracking == 1) {
+        log_write(F("%c:%d"), 'A' + motor_id, mm6_get_encoder_value(motor_id));
+      } else if (tracking == 2) {
+        log_write(F("%c:%d"), 'A' + motor_id, mm6_get_angle(motor_id));
+      }    
+      log_write(F(":HS%d:"), motor_state[motor_id].switch_previously_triggered);
+      tracked[motor_id] = position;
+    }
+  }
+}
+
+void calculate_mean_and_variance(float value, int nvalues, float *pM2, float *pmean, float *pvariance)
+{
+  // Welford's algorithm adapted from:
+  // https://stackoverflow.com/questions/17052395/calculate-the-running-standard-deviation/17053010
+  float delta = value - *pmean;
+  *pmean += delta / nvalues;
+  *pM2 += delta * (value - *pmean);
+  *pvariance = *pM2 / nvalues;
+}
+
+// Track per-motor mean and variance for current
+// Track per-motor mean and variance for qe-transitions/second
+
+/*
+ * CALIBRATE_LIMIT_FORWARD
+ * CALIBRATE_LIMIT_BACKWARD
+ * CALIBRATE_SWITCH_FORWARD
+ * CALIBRATE_SWITCH_BACKWARD
+ * CALIBRATE_DONE
+ */
+
+bool mm6_interrogate_limit_switch(motor_id_t motor_id) {
+  assert((motor_id >= MOTOR_ID_FIRST) && (motor_id <= MOTOR_ID_LAST));
+  if (!config.motor[motor_id].configured)
+    return false;
+
+  // if (motor_id == MOTOR_ID_A)
+  //  return mm6_interrogate_limit_switch_a();
+
+  bool encoder_min_found = false;
+  bool encoder_max_found = false;
+  int encoder_min = noinit_data.encoder_value[motor_id];
+  int encoder_max = encoder_min;
+  int encoder_delta = +100;
+  int encoder_target = noinit_data.encoder_value[motor_id] + encoder_delta;
+  const int delta = 100;
+
+  int motor_current_draw = 0;
+  int motor_current_draw_nvalues = 0;
+  float motor_current_draw_M2 = 0;
+  float motor_current_draw_mean = 0;
+  float motor_current_draw_variance = 0;
+
+#if 0
+  float encoders_per_second_M2 = 0;
+  float encoders_per_second_mean = 0;
+  float encoders_per_second_variance = 0;
+#endif
+
+  int start_time_millis = millis();
+  int start_encoder_value = noinit_data.encoder_value[motor_id];
+
+  bool switch_triggered = motor_state[motor_id].switch_previously_triggered;
+
+  log_writeln(F("Motor %c encoder start:%d, switch_triggered=%d"), 
+      'A' + motor_id, noinit_data.encoder_value[motor_id], switch_triggered);
+
+  // Find the switch and limits.
+  do {
+    int encoder_value = noinit_data.encoder_value[motor_id];
+
+    encoder_min = encoder_value < encoder_min ? encoder_value : encoder_min;
+    encoder_max = encoder_value > encoder_max ? encoder_value : encoder_max;
+
+    if ((encoder_delta < 0) && ((encoder_value <= encoder_target) || encoder_min_found)) {
+      // Reached encoder target in negative direction.
+      if (!encoder_max_found) {
+        encoder_delta = -encoder_delta;
+        encoder_target = encoder_max + encoder_delta;                      
+      } else {
+        encoder_target = encoder_value + encoder_delta;                      
+      }
+    } else if ((encoder_delta > 0) && ((encoder_value >= encoder_target) || encoder_max_found)) {
+      // Reached encoder target in positive direction.
+      if (!encoder_min_found) {
+        encoder_delta = -encoder_delta;
+        encoder_target = encoder_min + encoder_delta;                      
+      } else {
+        encoder_target = encoder_value + encoder_delta;                      
+      }
+    }
+
+    int ms = millis();
+    if (ms - start_time_millis > 1000) {
+      if (abs(encoder_value - start_encoder_value) < 5) {
+        if (encoder_delta < 0) {
+          encoder_min_found = true;
+          log_writeln(F("Motor %c minimum found at position %d"), 'A' + motor_id, encoder_value);
+        } else if (encoder_delta > 0) {
+          encoder_max_found = true;
+          log_writeln(F("Motor %c maximum found at position %d"), 'A' + motor_id, encoder_value);
+        }
+      }
+
+      start_encoder_value = encoder_value;
+      start_time_millis = ms;
+    }
+
+    // TODO: Deal with apparent PWM overflow when calibrating motor B.
+    // TODO: Find switch centers, other switch values.
+    // TODO: Zero motor angles to switch centers.
+    // TODO: Make robust for A-motor when fixing fasterner is loose.
+    // TODO: Fail calibration if switch not found.
+    // TODO: Consider checkpointing?
+
+    if (switch_triggered != motor_state[motor_id].switch_previously_triggered) {
+      switch_triggered = motor_state[motor_id].switch_previously_triggered;
+      log_writeln(F("Motor %c switch %d at encoder %d"), 'A' + motor_id, switch_triggered, encoder_value);
+    }
+
+#if 0
+    if (motor_state[motor_id].current_draw != motor_current_draw) {
+      motor_current_draw = motor_state[motor_id].current_draw;
+      // log_writeln(F("current: %d"), motor_current_draw);
+    }
+    
+    int motor_current_draw = mm6_get_current_draw(motor_id); // motor_state[motor_id].current;
+    calculate_mean_and_variance(motor_current_draw, ++motor_current_draw_nvalues, 
+        &motor_current_draw_M2, &motor_current_draw_mean, &motor_current_draw_variance);
+
+    char motor_current_draw_mean_str[15] = {};
+    dtostrf(motor_current_draw_mean, 3, 2, motor_current_draw_mean_str);
+    char motor_current_draw_variance_str[15] = {};
+    dtostrf(motor_current_draw_variance, 3, 2, motor_current_draw_variance_str);
+    // log_writeln(F("current:%d, mean:%s, variance:%s"), motor_current_draw, motor_current_draw_mean_str, motor_current_draw_variance_str);
+
+    int mcmul = (int)(motor_current_draw_mean * 2.5);
+    if ((motor_current_draw_nvalues > 100) && (motor_current_draw > mcmul)) {
+      log_writeln(F("high motor_current mean = %s, (%d > %d)"), motor_current_draw_mean_str,
+          motor_current_draw, mcmul);
+    }
+#endif
+
+    mm6_set_encoder_value(motor_id, encoder_target);
+  } while (!(encoder_min_found && encoder_max_found)); // (!motor_state[motor_id].switch_previously_triggered);
+
+  log_writeln(F("Motor %c encoder_min=%d, encoder_max=%d"), 'A' + motor_id, encoder_min, encoder_max);
+
+  return true;
+
+#if 0
+
+  int r = 0;
+  int f = 0;
+
+  if (motor_state[motor_id].switch_previously_triggered) {
+    //Serial.print(" Centering Motor ");
+    //Serial.println(char(m+65));
+    //Serial.print("   Moving to: ");
+    noinit_data.encoder_value[motor_id] = 0;  // The Home Switch was pressed, so assume the encoder is at 0.
+    motor_state[motor_id].target_encoder = 0;
+    
+    // Move to one side of switch and wait for the switch to be unpressed.
+    log_write(F("  "));
+    mm6_set_encoder_value(motor_id, r - 130);
+    do { 
+      mm6_track_report(motor_id); 
+    } while (motor_state[motor_id].switch_previously_triggered);
+
+    // Move to the other side of switch and wait for the switch to be pressed and then unpressed.
+    log_write(F("  "));
+    mm6_set_encoder_value(motor_id, f + 130);
+    do {
+      mm6_track_report(motor_id);
+    } while (!motor_state[motor_id].switch_previously_triggered);
+
+    do {
+      mm6_track_report(motor_id);
+    } while (motor_state[motor_id].switch_previously_triggered);
+
+    //do {mm6_track_report(m);} while (mm6_get_encoder_value(m) < f);
+
+    // Move back to first side of switch and wait for the switch to be pressed and then unpressed.        
+    log_write(F("  "));
+    mm6_set_encoder_value(motor_id, r - 130);
+    do {
+      mm6_track_report(motor_id);
+    } while (!motor_state[motor_id].switch_previously_triggered);
+
+    do {
+      mm6_track_report(motor_id);
+    } while (motor_state[motor_id].switch_previously_triggered);
+    //do {mm6_track_report(m);} while (mm6_get_encoder_value(m) > r);
+
+    // Calculate center of switches and then move to that place.
+    int center_encoder = 
+        ((motor_state[motor_id].switch_forward_off + motor_state[motor_id].switch_reverse_on + 
+          motor_state[motor_id].switch_forward_on + motor_state[motor_id].switch_reverse_off) / 4);
+    log_writeln(F("   Switch positions: %d, %d, %d, %d. Centering at position %d"),
+        motor_state[motor_id].switch_reverse_off,
+        motor_state[motor_id].switch_forward_on,
+        motor_state[motor_id].switch_reverse_on,
+        motor_state[motor_id].switch_forward_off,
+        center_encoder);
+    mm6_set_encoder_value(motor_id, center_encoder);
+    do { 
+      TrackReport(motor_id); 
+    } while (noinit_data.encoder_value[motor_id] != center_encoder);
+
+    // Set Encoder and Target Values to 0.
+    noinit_data.encoder_value[motor_id] = 0;  // The Home Switch was pressed, so assume the encoder is at 0.
+    motor_state[motor_id].target_encoder = 0;
+  } else {
+    log_writeln(F(" Motor %c home switch not closed - skipping."), 'A' + motor_id);
+  }
+#endif
+
+}
+
+bool mm6_interrogate_limit_switches()
+{
+  bool ret = true;
+  for (int i = MOTOR_ID_B; i <= MOTOR_ID_B; i++) {
+    if (config.motor[i].configured) {
+      if (!mm6_interrogate_limit_switch(i)) {
+        LOG_E(F("configuration of motor switch %c failed."), 'A' + i);
+        ret = false;
+      }
+    }
+  }
+  return ret;
+}
+
 void mm6_pid_enable(bool enable)
 {
   for (int i = MOTOR_ID_FIRST; i <= MOTOR_ID_LAST; i++) {
@@ -613,7 +917,7 @@ void mm6_set_speed(motor_id_t motor_id, int speed)
     Forward_Logic[motor_id], 
     Reverse_Logic[motor_id], 
     digitalRead(motor_pinout[motor_id].out_direction),
-    noinit_data.motor_encoder[motor_id],
+    noinit_data.encoder_value[motor_id],
     motor_state[motor_id].logic);        
 #endif
 }
@@ -626,8 +930,8 @@ void mm6_dump_motor(motor_id_t motor_id)
 
   log_writeln(F("%c: encoder:%d qe_prev:%d, speed:%d target_speed:%d logic:%d prev_dir:%d pid_dvalue:%d pid_perror:%d target_encoder:%d current:%d progress:%d"),
     'A' + motor_id,
-    noinit_data.motor_encoder[motor_id],
-    noinit_data.motor_qe_prev[motor_id],  
+    noinit_data.encoder_value[motor_id],
+    noinit_data.quadrature_encoder_previous_value[motor_id],  
     motor_state[motor_id].speed,
     motor_state[motor_id].target_speed,
     motor_state[motor_id].logic,
@@ -635,7 +939,7 @@ void mm6_dump_motor(motor_id_t motor_id)
     motor_state[motor_id].pid_dvalue,
     motor_state[motor_id].pid_perror,
     motor_state[motor_id].target_encoder,
-    motor_state[motor_id].current,
+    motor_state[motor_id].current_draw,
     motor_state[motor_id].progress);
 }
 
@@ -659,7 +963,7 @@ void isr_blink_led(bool pid_enabled)
   }
 }
 
-// Interrupt routine that interrupts the main program at freq of 2kHz 
+// Interrupt routine that interrupts the main program at freq of 2kHz.
 ISR(TIMER1_COMPA_vect) 
 {
   static int tb = 0;
@@ -677,29 +981,29 @@ ISR(TIMER1_COMPA_vect)
   for (motor_id_t qe_motor_id = MOTOR_ID_FIRST; qe_motor_id <= MOTOR_ID_LAST; qe_motor_id = motor_id_t(qe_motor_id + 1)) {
     // Quadrature Encoders - read at rate of 2kHz.
     int qe_value_a = digitalRead(motor_pinout[qe_motor_id].in_quadrature_encoder_a);
-    int qe_value_b = digitalRead(motor_pinout[qe_motor_id].in_quadrature_encoder_b) << 1;
-    int qe_state = qe_value_a + qe_value_b;
+    int qe_value_b = digitalRead(motor_pinout[qe_motor_id].in_quadrature_encoder_b);
+    int qe_state = qe_value_a + (qe_value_b << 1);  // 0-3.
 
-    if (qe_state == noinit_data.motor_qe_prev[qe_motor_id]) {
+    if (qe_state == noinit_data.quadrature_encoder_previous_value[qe_motor_id]) {
       // Same state as last time through loop.
       motor_state[qe_motor_id].pid_dvalue++;
       if (motor_state[qe_motor_id].pid_dvalue > 10000) {
         motor_state[qe_motor_id].pid_dvalue = 10000;
       }
-    } else if (qe_state == qe_inc_states[noinit_data.motor_qe_prev[qe_motor_id]]) {
+    } else if (qe_state == qe_inc_states[noinit_data.quadrature_encoder_previous_value[qe_motor_id]]) {
       // Quadrature encoder reading indicates moving in positive direction.
       motor_state[qe_motor_id].previous_direction = 1;
-      noinit_data.motor_encoder[qe_motor_id]++;
+      noinit_data.encoder_value[qe_motor_id]++;  // Wraps from 65535 to 0.
       motor_state[qe_motor_id].pid_dvalue = 0;
-    } else if (qe_state == qe_dec_states[noinit_data.motor_qe_prev[qe_motor_id]]) {
+    } else if (qe_state == qe_dec_states[noinit_data.quadrature_encoder_previous_value[qe_motor_id]]) {
       // Quadrature encoder reading indicates moving in negative direction.
       motor_state[qe_motor_id].previous_direction = -1;
-      noinit_data.motor_encoder[qe_motor_id]--;      
+      noinit_data.encoder_value[qe_motor_id]--;  // Wraps from 0 to 65535.
       motor_state[qe_motor_id].pid_dvalue = 0;
     } else {
       motor_state[qe_motor_id].error_flags |= MOTOR_ERROR_FLAG_INVALID_ENCODER_TRANSITION;
     }    
-    noinit_data.motor_qe_prev[qe_motor_id] = qe_state;
+    noinit_data.quadrature_encoder_previous_value[qe_motor_id] = qe_state;
 
 #if 1  // Switch logic.
     /* 
@@ -715,15 +1019,15 @@ ISR(TIMER1_COMPA_vect)
         motor_state[qe_motor_id].switch_previously_triggered = switch_triggered;
         if (motor_state[qe_motor_id].previous_direction == 1) {
           if (!switch_triggered) {
-            motor_state[qe_motor_id].switch_forward_on = noinit_data.motor_encoder[qe_motor_id]; 
+            motor_state[qe_motor_id].switch_forward_on = noinit_data.encoder_value[qe_motor_id]; 
           } else {
-            motor_state[qe_motor_id].switch_forward_off = noinit_data.motor_encoder[qe_motor_id]; 
+            motor_state[qe_motor_id].switch_forward_off = noinit_data.encoder_value[qe_motor_id]; 
           }        
         } else if (motor_state[qe_motor_id].previous_direction == -1) {
           if (!switch_triggered) {
-            motor_state[qe_motor_id].switch_reverse_on = noinit_data.motor_encoder[qe_motor_id];
+            motor_state[qe_motor_id].switch_reverse_on = noinit_data.encoder_value[qe_motor_id];
           } else {
-            motor_state[qe_motor_id].switch_reverse_off = noinit_data.motor_encoder[qe_motor_id];
+            motor_state[qe_motor_id].switch_reverse_off = noinit_data.encoder_value[qe_motor_id];
           }                
         }      
       }    
@@ -752,7 +1056,7 @@ ISR(TIMER1_COMPA_vect)
     // The IntMotor PID is NOT running.
     // ( =1230 instead of =0 is just to kill the routine for now because it isn't doing what it needs to do.)
     motor_state[motor_id].pid_dvalue = 0;  // Clear the PID DValue for this motor.
-    int intMDiff = abs(motor_state[motor_id].target_encoder - noinit_data.motor_encoder[motor_id]);
+    int intMDiff = abs(motor_state[motor_id].target_encoder - noinit_data.encoder_value[motor_id]);
     if (intMDiff > 3)
       Motor_PID[motor_id] = 1;  // Turn on the PID for this Motor.
   } else {
@@ -770,17 +1074,19 @@ ISR(TIMER1_COMPA_vect)
       // the target position is set back a bit from the
       // current position.      
       
+#if 0
       if (motor_state[motor_id].current > 200) {
         if (motor_state[motor_id].previous_direction == 1) {
-          motor_state[motor_id].target_encoder = noinit_data.motor_encoder[motor_id] - 50;
+          motor_state[motor_id].target_encoder = noinit_data.encoder_value[motor_id] - 50;
           motor_state[motor_id].current = 0;  // TODO: Why is this zero?
         } else if (motor_state[motor_id].previous_direction == -1) {
-          motor_state[motor_id].target_encoder = noinit_data.motor_encoder[motor_id] + 50;
+          motor_state[motor_id].target_encoder = noinit_data.encoder_value[motor_id] + 50;
           motor_state[motor_id].current = 0;  // TOOD: Why is this zero?
         }
       }
+#endif
     } else {
-      if (motor_state[motor_id].current > 100) {
+      if (motor_state[motor_id].current_draw > 100) {
         // Motor A is a special case where High Current 
         // means that the Gripper is gripping someting.
         // Set gripper tension on MotorA by setting
@@ -789,8 +1095,8 @@ ISR(TIMER1_COMPA_vect)
         //   AND if the relaxed gripper opens a little,
         //     it will turn back on but at a much lower
         //       PWM duty cycle.
-        Gripper_StallC = motor_state[motor_id].current;
-        Gripper_StallE = noinit_data.motor_encoder[motor_id];
+        Gripper_StallC = motor_state[motor_id].current_draw;
+        Gripper_StallE = noinit_data.encoder_value[motor_id];
         Gripper_StallX++;
       }
     }
@@ -798,7 +1104,7 @@ ISR(TIMER1_COMPA_vect)
     //==========================================================
     // Calculate PID Proportional Error
     //==========================================================
-    int PIDPError = (motor_state[motor_id].target_encoder - noinit_data.motor_encoder[motor_id]);
+    int PIDPError = (motor_state[motor_id].target_encoder - noinit_data.encoder_value[motor_id]);
 
 #if 0
     // TODO: Make this work.
@@ -904,7 +1210,7 @@ ISR(TIMER1_COMPA_vect)
     static int TravelSoFarPrev = 0;
 
     if (motor_sync_move_enabled > 0) {    
-      TravelSoFar =abs(noinit_data.motor_encoder[LeadMotor] - Start[LeadMotor]+1);
+      TravelSoFar =abs(noinit_data.encoder_value[LeadMotor] - Start[LeadMotor]+1);
       if (TravelSoFar != TravelSoFarPrev) {
         TravelSoFarPrev = TravelSoFar;
         float TravelSoFarFloat = TravelSoFar;
@@ -916,11 +1222,11 @@ ISR(TIMER1_COMPA_vect)
             motor_state[sync_motor_id].target_encoder  = Start[sync_motor_id]+RI;
           }
         } 
-        tb = abs(End[MOTOR_ID_B] - noinit_data.motor_encoder[MOTOR_ID_B]);
-        tc = abs(End[MOTOR_ID_C] - noinit_data.motor_encoder[MOTOR_ID_C]);
-        td = abs(End[MOTOR_ID_D] - noinit_data.motor_encoder[MOTOR_ID_D]);
-        te = abs(End[MOTOR_ID_E] - noinit_data.motor_encoder[MOTOR_ID_E]);
-        tf = abs(End[MOTOR_ID_F] - noinit_data.motor_encoder[MOTOR_ID_F]);            
+        tb = abs(End[MOTOR_ID_B] - noinit_data.encoder_value[MOTOR_ID_B]);
+        tc = abs(End[MOTOR_ID_C] - noinit_data.encoder_value[MOTOR_ID_C]);
+        td = abs(End[MOTOR_ID_D] - noinit_data.encoder_value[MOTOR_ID_D]);
+        te = abs(End[MOTOR_ID_E] - noinit_data.encoder_value[MOTOR_ID_E]);
+        tf = abs(End[MOTOR_ID_F] - noinit_data.encoder_value[MOTOR_ID_F]);            
         if ((tb==0) && (tc==0) && (td==0) && (te==0) && (tf==0)) {
           // Set the Status that indicates that the Motor is 1 click from target
           SyncMove_Status = MOTOR_PROGRESS_AT_TARGET;
@@ -1243,7 +1549,7 @@ size_t parse_string_in_table(char *pbuf, size_t buf_nbytes, char *ptable[], int 
   return 0;
 }
 
-size_t parse_motor_angle_or_position(char *pargs, size_t args_nbytes, float *pvalue)
+size_t parse_motor_angle_or_encoder_value(char *pargs, size_t args_nbytes, float *pvalue)
 {
   assert(pargs);
   assert(pvalue);
@@ -1312,7 +1618,7 @@ bool test_parse()
 
   ret = test_parse_float() ? ret : false;
 
-  // TODO: parse_motor_angle_or_position
+  // TODO: parse_motor_angle_or_encoder_value
 
   return ret;  
 }
@@ -1375,21 +1681,21 @@ const menu_item_t menu_item_by_index[] = {  // TODO: F()
   { 'B', "heartbeat", NULL, true, command_heartbeat, "off / on -- enable heartbeat (only emitted when input mode is packet)." },
   { 'D', "PID mode", NULL, false, command_pid_mode, "-- Enable/disable motors" },
   { 'E', "emergency stop", NULL, false, command_emergency_stop, "-- execute hardware emergency stop (E-Stop). Enters 'error' state. Requires reboot to reset."},
-  { 'G', "gripper position", NULL, true, command_gripper_position, "" },
-  { 'H', "home position", NULL, false, command_home_position, "-- set current positions to home." },
+  { 'G', "gripper encoder value", NULL, true, command_gripper_encoder_value, "" },
+  { 'H', "home encoder value", NULL, false, command_home_encoder_values, "-- set current encoder values to home." },
   { 'I', "input mode", NULL, true, command_input_mode, "packet / keyboard."},
   { 'K', "clock", NULL, true, command_clock, "get / set [YYYY-MM-DD] HH:MM[:SS].fraction]]." },
   { 'M', "motor status", NULL, false, command_motor_status, "-- display motor status." },
   { 'N', "motor angle", NULL, true, command_motor_angle, "motorid degrees -- degrees is 0.0 to 360.0, +15, -20, +, -, ++, --." },
-  { 'P', "motor position", NULL, true, command_motor_position, "motorid position -- position is in the range X - Y." },  // TODO
+  { 'P', "motor encoder value", NULL, true, command_motor_encoder_value, "motorid encoder_value -- encoder_value is in the range X - Y." },  // TODO
   { 'Q', "run test sequence", NULL, false, command_run_test_sequence, "" },
-  { 'S', "interrogate switches", NULL, false, command_interrogate_switches, "-- interrogate switch positions." },
+  { 'S', "interrogate switches", NULL, false, command_interrogate_switches, "-- interrogate switch encoder values." },
   { 'T', "test motors", NULL, false, command_test_motors, "-- test motors." },
   { 'V', "version", NULL, false, command_print_software_version, "-- print software version." },
   { 'W', "waypoint", NULL, true, command_waypoint, "" },
   { 'X', "expansion I/O", NULL, true, command_expansion_io, ""},
   // { 'M', "motor config", true, command_motor_config, ""},
-  { 'Z', "zero position", NULL, false, command_zero_position, "-- set current positions to zero." },
+  { 'Z', "zero encoder values", NULL, false, command_zero_encoder_values, "-- set current encoder_values to zero." },
   { '*', "factory reset", extended_menu_factory_reset, false, command_factory_reset, "RESET -- factory reset system, clearing EEPROM and rebooting."},
   { '!', "reboot", extended_menu_reboot, true, command_reboot, "REBOOT -- reboot system. Requires typing the 'REBOOT' keyword." }, 
   { '?', "help", NULL, false, command_help, "-- display this help message." },
@@ -1517,7 +1823,7 @@ int command_emergency_stop(char *pargs, size_t args_nbytes)
   return 0;
 }
 
-int command_gripper_position(char *pargs, size_t args_nbytes)
+int command_gripper_encoder_value(char *pargs, size_t args_nbytes)
 {
   // TODO.
   assert(false);
@@ -1698,7 +2004,7 @@ int command_help(char *pargs, size_t args_nbytes)
   return 0;
 }
 
-int command_home_position(char *pargs, size_t args_nbytes)
+int command_home_encoder_values(char *pargs, size_t args_nbytes)
 {
   assert(pargs);
   size_t nbytes = parse_whitespace(pargs, args_nbytes);
@@ -1719,7 +2025,8 @@ int command_interrogate_switches(char *pargs, size_t args_nbytes)
     return -1;
   } 
   
-  InterrogateLimitSwitches();
+  log_writeln(F("Motor switch interrogration ... %s"), mm6_interrogate_limit_switches() ? "passed" : "FAILED");
+
   return nbytes;
 }
 
@@ -1740,14 +2047,14 @@ int command_motor_status()
         'A' + i, 
         motor_state[i].switch_previously_triggered,  // home.
         motor_state[i].progress,  // sta. Report whether or not the Motor has reached the target location.
-        /* mm6_get_position(iMotor), */  // pos.
-        noinit_data.motor_encoder[i] * motor_state[i].logic,  // enc.
+        /* mm6_get_encoder_value(iMotor), */  // pos.
+        noinit_data.encoder_value[i] * motor_state[i].logic,  // enc.
         motor_state[i].target_encoder * motor_state[i].logic,  // tar.
         motor_state[i].pid_perror * motor_state[i].logic,  // err.
         motor_state[i].speed * motor_state[i].logic,  // spd.
         /* motor_state[i].target_speed, */  // tspd.
         motor_state[i].pwm,
-        motor_state[i].current,  // cur.
+        motor_state[i].current_draw,  // cur.
         motor_state[i].switch_reverse_off,  // hs.
         motor_state[i].switch_forward_on,  // hs.
         motor_state[i].switch_reverse_on,  // hs.
@@ -1776,9 +2083,9 @@ int command_motor_angle(char *pargs, size_t args_nbytes)
   p += nbytes;
 
   float angle = mm6_get_angle(motor_id);
-  nbytes = parse_motor_angle_or_position(p, args_nbytes, &angle);
+  nbytes = parse_motor_angle_or_encoder_value(p, args_nbytes, &angle);
   if (nbytes <= 0)
-    goto error;  // parse_motor_angle_or_position will emit message if error.   
+    goto error;  // parse_motor_angle_or_encoder_values will emit message if error.   
   args_nbytes -= nbytes;
   p += nbytes;
 
@@ -1806,7 +2113,7 @@ error:
   return -1;
 }
 
-int command_motor_position(char *pargs, size_t args_nbytes)
+int command_motor_encoder_value(char *pargs, size_t args_nbytes)
 {
   assert(pargs);
 
@@ -1822,8 +2129,8 @@ int command_motor_position(char *pargs, size_t args_nbytes)
   args_nbytes -= nbytes;
   p += nbytes;
 
-  float position = mm6_get_position(motor_id);
-  nbytes = parse_motor_angle_or_position(p, args_nbytes, &position);
+  float encoder_value = mm6_get_encoder_value(motor_id);
+  nbytes = parse_motor_angle_or_encoder_value(p, args_nbytes, &encoder_value);
   if (nbytes <= 0)
     return -1;
   args_nbytes -= nbytes;
@@ -1836,12 +2143,12 @@ int command_motor_position(char *pargs, size_t args_nbytes)
   if (args_nbytes > 0)
     goto error;
 
-  char position_str[15] = {};
-  dtostrf(position, 3, 2, position_str);
+  char encoder_value_str[15] = {};
+  dtostrf(encoder_value, 3, 2, encoder_value_str);
 
   if (mm6_configured(motor_id)) {
-    log_writeln(F("Move Motor %c to position %s."), 'A' + motor_id, position_str);
-    mm6_set_position(motor_id, position);
+    log_writeln(F("Move Motor %c to encoder_value %s."), 'A' + motor_id, encoder_value_str);
+    mm6_set_encoder_value(motor_id, encoder_value);
   } else {
     log_writeln(F("ERROR: Motor %c not configured."), 'A' + motor_id);
     // TODO: error state?
@@ -1981,7 +2288,7 @@ int command_expansion_io(char *pargs, size_t args_nbytes)
   return -1;
 }
 
-int command_zero_position(char *pargs, size_t args_nbytes)
+int command_zero_encoder_values(char *pargs, size_t args_nbytes)
 {
   assert(pargs);
 
@@ -2008,11 +2315,6 @@ int command_zero_position(char *pargs, size_t args_nbytes)
 // Motor Status / Motion Control Vars.
 //*************************************
 int Distance[] = {0,0,0,0,0,0};
-int Tracking = 0;
-int Tracked[] = {0,0,0,0,0,0}; // Last Value send while tracking.
-robot_id_t robot_id = 0;
-int Gripper_OpenLoc = -130;
-int Gripper_CloseLoc = -310;
 //*************************************
 // Waypoint Structure and vars
 //*************************************
@@ -2049,8 +2351,8 @@ void check_noinit_data()
     noinit_data.version = noinit_data_version;
     noinit_data.magic = noinit_data_magic;
     for (int i = 0; i < MOTOR_ID_COUNT; i++) {
-      noinit_data.motor_encoder[i] = 0;
-      noinit_data.motor_qe_prev[i] = 0;
+      noinit_data.encoder_value[i] = 0;
+      noinit_data.quadrature_encoder_previous_value[i] = 0;
     }
   } else {
     log_writeln(F("Reset without power cycle detected. Reusing stored motor encoder values."));
@@ -2112,30 +2414,7 @@ void hardware_init() {
     //       Since the Forward and Reverse Locic are used to invert the position the values are 1 or -1
     motor_state[i].logic = config.motor[i].orientation; 
     LOG_D(F("%d"), motor_state[i].logic);
-  }
-  
-  //******************************************
-  // Get the Type of Rhino Robot being used.
-  // XR1, XR2, XR3, or XR4
-  //******************************************
-  robot_id = config.robot_id;
-  //******************************************
-  // Get the gripper open and close  
-  //******************************************
-  Gripper_OpenLoc = config.gripper_open_location;
-  Gripper_CloseLoc = config.gripper_close_location;
-  if ((robot_id < ROBOT_ID_FIRST) || (robot_id > ROBOT_ID_LAST)) {
-    // If the EEPROM reported an invalid robot id,
-    //  then the EEPROM data wasn't set yet.
-    // Set EEPROM robot_id to default.
-    // AND set all EEPROM Angle Offsets to 0.
-    config_set_robot_id(ROBOT_ID_DEFAULT);
-    config_set_angle_offsets(0, 0, 0, 0, 0);
-  } else {
-    log_writeln(F("Configured for '%s'."), robot_name_by_robot_id[robot_id]);
-  }
-
-  ShowPositions();
+  }  
 }
 
 void gather_status(status_t *pstatus)
@@ -2316,33 +2595,32 @@ bool thermal_overload_detected()
 
 bool overcurrent_detected()
 {
-  const float current_limit = 0.1f;
+  const int current_limit = 1023;
   bool detected = false;
 
   return false;  // TODO  
 
-  static float max_current = 0.0f;
+  static int max_current = 0;
 
   static bool overcurrent_state[MOTOR_ID_COUNT] = {};
 
   for (int i = MOTOR_ID_FIRST; i <= MOTOR_ID_LAST; i++) {
     if (config.motor[i].configured) {
-      float f = mm6_get_current_draw(i);
-      if (f > current_limit)
+      int current_draw = mm6_get_current_draw(i);
+      if (current_draw > current_limit)
         detected = true;
 
-      if (f > max_current) {
-        char str[15];
-        dtostrf(f, 7, 3, str);
-        LOG_D(F("max_current: %s"), str);  // TODO: Why does this never print?
+      if (current_draw > max_current) {
+        LOG_D(F("max_current: %d"), current_draw);  // TODO: Why does this never print?
+        max_current = current_draw;
       }
 
-      if ((f > current_limit) != overcurrent_state[i]) {
-        if (f > current_limit)
+      if ((current_draw > current_limit) != overcurrent_state[i]) {
+        if (current_draw > current_limit)
           log_writeln(F("ERROR: Overcurrent error detected on motor %c."), 'A' + i);
         else 
           log_writeln(F("Overcurrent error cleared on motor %c."), 'A' + i);
-        overcurrent_state[i] = f > current_limit;
+        overcurrent_state[i] = current_draw > current_limit;
       }
     }
   }
@@ -2372,6 +2650,8 @@ state_t state_init_execute()
     config_clear();
   } else {
     log_writeln(F("Read %d bytes of configuration data from EEPROM. Configuration is valid."), sizeof(config_t));
+    log_writeln(F("Configured for '%s'."), robot_name_by_robot_id[config.robot_id]);
+    mm6_print_encoder_values();
   }
 
   config_display();
@@ -2549,7 +2829,7 @@ void loop()
   lMotor++; if (lMotor==6) lMotor=0;// Move to the next motor  
   motor_state[lMotor].current  = analogRead(motor_pinout[lMotor].in_current_draw);
 
-  if (Tracking>0) {
+  if (tracking>0) {
     TrackReport(lMotor);
   } 
 */
@@ -2567,13 +2847,13 @@ void loop()
     Serial.print("  Cur=");
     Serial.print(Gripper_StallC);
     Serial.print("  Open=");
-    Serial.print(Gripper_OpenLoc);
+    Serial.print(config.gripper_open_location);
     Serial.print("  Closed=");
-    Serial.print(Gripper_CloseLoc);   
+    Serial.print(config.gripper_close_location);   
     Serial.println(".");
     Gripper_StallX=0;
-    motor_state[MOTOR_ID_A].target_encoder = noinit_data.motor_encoder[MOTOR_ID_A];
-    motor_state[MOTOR_ID_A].current = 0;
+    motor_state[MOTOR_ID_A].target_encoder = noinit_data.encoder_value[MOTOR_ID_A];
+    motor_state[MOTOR_ID_A].current_draw = 0;
   }
 
 #if 0
@@ -2590,7 +2870,7 @@ void loop()
       } else if ((InBuffer=="M") || (InBuffer=="m")){
         mm6_test_motors();
       } else if ((InBuffer=="P") || (InBuffer=="p")){
-        ShowPositions();
+        mm6_print_encoder_values();
       } else if ((InBuffer=="Q") || (InBuffer=="q")){
         TestSeq1();
       } else if ((InBuffer=="R") || (InBuffer=="r")){
@@ -2634,20 +2914,20 @@ void loop()
             } else if (WhatToDo=="R") {
               Reverse(Command_Motor);
             } else if (WhatToDo=="-") {
-              int Position = mm6_get_position(Command_Motor)-10;
+              int Position = mm6_get_encoder_value(Command_Motor)-10;
               mm6_set_position(Command_Motor, Position);              
             } else if (WhatToDo=="--") {
-              int Position = mm6_get_position(Command_Motor)-100;
+              int Position = mm6_get_encoder_value(Command_Motor)-100;
               mm6_set_position(Command_Motor, Position);              
             } else if (WhatToDo=="+") {
-              int Position = mm6_get_position(Command_Motor)+10;
+              int Position = mm6_get_encoder_value(Command_Motor)+10;
               mm6_set_position(Command_Motor, Position);              
             } else if (WhatToDo=="++") {
-              int Position = mm6_get_position(Command_Motor)+100;
-              mm6_set_position(Command_Motor, Position);              
+              int Position = mm6_get_encoder_value(Command_Motor)+100;
+              mm6_set_encoder_value(Command_Motor, Position);              
             } else {              
               int Position = WhatToDo.toInt();
-              mm6_set_position(Command_Motor, Position);
+              mm6_set_encoder_value(Command_Motor, Position);
             }      
           } else {
             Serial.print("Command Motor Set to: ");
@@ -2689,40 +2969,40 @@ void loop()
 //*****************************************
 void StartTracking() {
   if (InBuffer=="W"){
-    Tracking=1; // Track Position 
+    tracking=1; // Track Position 
     Serial.println("Tracking Positions");
   } else {
-    Tracking=2; // Track Angles
+    tracking=2; // Track Angles
     Serial.println("Tracking Angles");
   }
   // Set the last tracked position to some big number just  
   // to make the routine report the current position.
   for (int iMotor = MOTOR_ID_FIRST; iMotor <= MOTOR_ID_LAST; iMotor++){
-    Tracked[iMotor]=32000;
+    tracked[iMotor]=32000;
   }
 }
 
 void StopTracking(){
-  Tracking=0; // Track none
+  tracking=0; // Track none
   Serial.println("Tracking Off");
 }
  
-void TrackReport(motor_id_t motor_id){
-  if (Tracking>0){
-    int Position = mm6_get_position(motor_id);
-    if (Tracked[motor_id]!=Position) {
+void TrackReport(motor_id_t motor_id) {
+  if (tracking>0){
+    int Position = mm6_get_encoder_value(motor_id);
+    if (tracked[motor_id]!=Position) {
       Serial.print("@");
-      if (Tracking==1) {
+      if (tracking==1) {
         Serial.print(char(motor_id+65));
-        Serial.print(mm6_get_position(motor_id));    
-      } else if (Tracking==2) {
+        Serial.print(mm6_get_encoder_value(motor_id));    
+      } else if (tracking==2) {
         Serial.print(char(motor_id+97));
         Serial.print(mm6_get_angle(motor_id));    
       }    
       Serial.print(":HS");
       Serial.print(motor_state[motor_id].switch_previously_triggered);
       Serial.println(":");
-      Tracked[motor_id]=Position;
+      tracked[motor_id]=Position;
     }
   }
 }
@@ -2747,7 +3027,7 @@ int AllAtTarget(){
 
 void ZeroPositions() {
   for (int iMotor = MOTOR_ID_FIRST; iMotor <= MOTOR_ID_LAST; iMotor++){
-    noinit_data.motor_encoder[iMotor] = 0;
+    noinit_data.encoder_value[iMotor] = 0;
     motor_state[iMotor].target_encoder = 0;
   }
   Serial.println("Current Positions set to Zero.");
@@ -2758,17 +3038,6 @@ void SetHomeToCenterOfSwitches() {
     SetNewHome(iMotor);
   }
   Serial.println("Home Positions set to Center Of Switches.");
-}
-
-void ShowPositions() {
-  Serial.print("Current Positions: ");
-  for (int iMotor = MOTOR_ID_FIRST; iMotor <= MOTOR_ID_LAST; iMotor++){
-    Serial.print(char(iMotor+65));
-    Serial.print("=");
-    Serial.print(mm6_get_position(iMotor));
-    if (iMotor<5) Serial.print(",");
-  }
-  Serial.println(".");  
 }
 
 void SetPositionToHome() {
@@ -2841,13 +3110,13 @@ void ShowHelp() {
 
 void OpenGripper(){
   Gripper_StallX=0;
-  motor_state[MOTOR_ID_A].target_encoder = Gripper_OpenLoc;
+  motor_state[MOTOR_ID_A].target_encoder = config.gripper_open_location;
   Serial.println("Opening Gripper.");
 }
 
 void CloseGripper(){
   Gripper_StallX=0;
-  motor_state[MOTOR_ID_A].target_encoder = Gripper_CloseLoc;
+  motor_state[MOTOR_ID_A].target_encoder = config.gripper_close_location;
   Serial.println("Closing Gripper.");
 }
 
@@ -2868,11 +3137,11 @@ void MoveMotorToE(int zMotor, int Position) {
 // (Except the Gripper)
 //***********************************************************
 void SyncMoveAngle(float AngleB, float AngleC, float AngleD, float AngleE, float AngleF) {
-  int PositionB = mm6_angle_to_position(MOTOR_ID_B, AngleB);
-  int PositionC = mm6_angle_to_position(MOTOR_ID_C, AngleC);
-  int PositionD = mm6_angle_to_position(MOTOR_ID_D, AngleD);
-  int PositionE = mm6_angle_to_position(MOTOR_ID_E, AngleE);
-  int PositionF = mm6_angle_to_position(MOTOR_ID_F, AngleF);
+  int PositionB = mm6_angle_to_encoder_value(MOTOR_ID_B, AngleB);
+  int PositionC = mm6_angle_to_encoder_value(MOTOR_ID_C, AngleC);
+  int PositionD = mm6_angle_to_encoder_value(MOTOR_ID_D, AngleD);
+  int PositionE = mm6_angle_to_encoder_value(MOTOR_ID_E, AngleE);
+  int PositionF = mm6_angle_to_encoder_value(MOTOR_ID_F, AngleF);
   SyncMove(PositionB, PositionC, PositionD, PositionE, PositionF);
 }
 
@@ -2933,7 +3202,7 @@ void InterrogateLimitSwitches(){
 }
 
 void Reverse(motor_id_t motor_id) {
-  noinit_data.motor_encoder[motor_id] *= -1;
+  noinit_data.encoder_value[motor_id] *= -1;
   motor_state[motor_id].target_encoder *= -1;
   motor_state[motor_id].logic *= -1;
   // config_set_motor_orientation(motor_id, !config.motor[motor_id].orientation);
@@ -2971,10 +3240,10 @@ void Exercise(int m) {
         case MOTOR_ID_A:; //A
           Serial.println("Swing Gripper out.");
           motor_state[MOTOR_ID_A].target_encoder = 30;
-          do {TrackReport(m);} while (noinit_data.motor_encoder[m] < 25);
+          do {TrackReport(m);} while (noinit_data.encoder_value[m] < 25);
           Serial.println("Swing Gripper in.");
           motor_state[MOTOR_ID_A].target_encoder = -280;
-          do {TrackReport(m);} while (noinit_data.motor_encoder[m] > -275);  
+          do {TrackReport(m);} while (noinit_data.encoder_value[m] > -275);  
           break;
       }   
       delay(500);
@@ -2994,12 +3263,12 @@ void InterrogateLimitSwitchA() {
   MoveMotorToE(MOTOR_ID_A, 9999);
   delay(2000);
   int CurF = analogRead(motor_pinout[MOTOR_ID_A].in_current_draw);
-  int EncF = noinit_data.motor_encoder[MOTOR_ID_A];
+  int EncF = noinit_data.encoder_value[MOTOR_ID_A];
   int SwcF = digitalRead(motor_pinout[MOTOR_ID_A].in_switch);
   MoveMotorToE(MOTOR_ID_A, -9999);
   delay(1500);
   int CurR = analogRead(motor_pinout[MOTOR_ID_A].in_current_draw);
-  int EncR = noinit_data.motor_encoder[MOTOR_ID_A];
+  int EncR = noinit_data.encoder_value[MOTOR_ID_A];
   int SwcR = digitalRead(motor_pinout[MOTOR_ID_A].in_switch);  
   MoveMotorToE(MOTOR_ID_A, 9999);
   delay(1500);
@@ -3023,59 +3292,55 @@ void InterrogateLimitSwitchA() {
     // Encoder goes Positive towards switch.
     int OverSwitch = ((motor_state[MOTOR_ID_A].switch_forward_on + EncF ) / 2);      
     MoveMotorToE(MOTOR_ID_A, OverSwitch);
-    do {TrackReport(MOTOR_ID_A);} while (noinit_data.motor_encoder[MOTOR_ID_A] != OverSwitch);
-    noinit_data.motor_encoder[MOTOR_ID_A] = 0;  
+    do {TrackReport(MOTOR_ID_A);} while (noinit_data.encoder_value[MOTOR_ID_A] != OverSwitch);
+    noinit_data.encoder_value[MOTOR_ID_A] = 0;  
     motor_state[MOTOR_ID_A].target_encoder  = 0;
     motor_state[MOTOR_ID_A].logic = -1;
     // config_set_motor_orientation(MOTOR_ID_A, motor_state[MOTOR_ID_A].orientation);
-    Gripper_OpenLoc = -140;
-    Gripper_CloseLoc = -310;    
-    config_set_gripper_open_location(Gripper_OpenLoc);
-    config_set_gripper_close_location(Gripper_CloseLoc);
+    config_set_gripper_open_location(-140);
+    config_set_gripper_close_location(-310);
     Serial.println("Done");
   } else {
     // Encoder goes Negative towards switch.
     int OverSwitch = ((motor_state[MOTOR_ID_A].switch_reverse_on + EncR ) / 2);      
     MoveMotorToE(MOTOR_ID_A, OverSwitch);
-    do {TrackReport(MOTOR_ID_A);} while (noinit_data.motor_encoder[MOTOR_ID_A] != OverSwitch);
-    noinit_data.motor_encoder[MOTOR_ID_A] = 0;  
+    do {TrackReport(MOTOR_ID_A);} while (noinit_data.encoder_value[MOTOR_ID_A] != OverSwitch);
+    noinit_data.encoder_value[MOTOR_ID_A] = 0;  
     motor_state[MOTOR_ID_A].target_encoder  = 0;
     motor_state[MOTOR_ID_A].logic = 1;
     // config_set_motor_orientation(MOTOR_ID_A, motor_state[MOTOR_ID_A].orientation);
-    Gripper_OpenLoc = 140;
-    Gripper_CloseLoc = 310;    
-    config_set_gripper_open_location(Gripper_OpenLoc);
-    config_set_gripper_close_location(Gripper_CloseLoc);
+    config_set_gripper_open_location(140);
+    config_set_gripper_close_location(310);
     Serial.println("Done");
   }
 }
 
 void InterrogateLimitSwitch(int m, int f, int r) {
-  if (motor_state[m].switch_previously_triggered == 0){
+  if (motor_state[m].switch_previously_triggered){
     //Serial.print(" Centering Motor ");
     //Serial.println(char(m+65));
     //Serial.print("   Moving to: ");
-    noinit_data.motor_encoder[m] = 0;  // The Home Switch was pressed, so assume the encoder is at 0.
+    noinit_data.encoder_value[m] = 0;  // The Home Switch was pressed, so assume the encoder is at 0.
     motor_state[m].target_encoder = 0;
     
     // Move to one side of switch and wait for the switch to be unpressed.
     Serial.print("  ");
     MoveMotorToE(m,r-130);
-    do {TrackReport(m);} while (motor_state[m].switch_previously_triggered == 0);
+    do {TrackReport(m);} while (motor_state[m].switch_previously_triggered);
 
     // Move to the other side of switch and wait for the switch to be pressed and then unpressed.
     Serial.print("  ");
     MoveMotorToE(m,f+130);
-    do {TrackReport(m);} while (motor_state[m].switch_previously_triggered != 0);
-    do {TrackReport(m);} while (motor_state[m].switch_previously_triggered == 0);
-    //do {TrackReport(m);} while (mm6_get_position(m) < f);
+    do {TrackReport(m);} while (!motor_state[m].switch_previously_triggered);
+    do {TrackReport(m);} while (motor_state[m].switch_previously_triggered);
+    //do {TrackReport(m);} while (mm6_get_encoder_value(m) < f);
 
     // Move back to first side of switch and wait for the switch to be pressed and then unpressed.        
     Serial.print("  ");
     MoveMotorToE(m,r-130);
-    do {TrackReport(m);} while (motor_state[m].switch_previously_triggered != 0);
-    do {TrackReport(m);} while (motor_state[m].switch_previously_triggered == 0);
-    //do {TrackReport(m);} while (mm6_get_position(m) > r);
+    do {TrackReport(m);} while (!motor_state[m].switch_previously_triggered);
+    do {TrackReport(m);} while (motor_state[m].switch_previously_triggered);
+    //do {TrackReport(m);} while (mm6_get_encoder_value(m) > r);
 
     // Calculate center of switches and then move to that place.
     int CenterEncoder = ((motor_state[m].switch_forward_off + motor_state[m].switch_reverse_on + motor_state[m].switch_forward_on + motor_state[m].switch_reverse_off) / 4);
@@ -3090,10 +3355,10 @@ void InterrogateLimitSwitch(int m, int f, int r) {
     Serial.println(".");
     Serial.print("     Centering");    
     MoveMotorToE(m,CenterEncoder);
-    do {TrackReport(m);} while (noinit_data.motor_encoder[m] != CenterEncoder);
+    do {TrackReport(m);} while (noinit_data.encoder_value[m] != CenterEncoder);
 
     // Set Encoder and Target Values to 0.
-    noinit_data.motor_encoder[m] = 0;  // The Home Switch was pressed, so assume the encoder is at 0.
+    noinit_data.encoder_value[m] = 0;  // The Home Switch was pressed, so assume the encoder is at 0.
     motor_state[m].target_encoder = 0;
     
   } else {
@@ -3106,8 +3371,8 @@ void InterrogateLimitSwitch(int m, int f, int r) {
 void SetNewHome(int m) {
     int NewHome = ((motor_state[m].switch_forward_off + motor_state[m].switch_reverse_on + motor_state[m].switch_forward_on + motor_state[m].switch_reverse_off) / 4);
     MoveMotorToE(m,NewHome);
-    do {TrackReport(m);} while (noinit_data.motor_encoder[m] != NewHome);
-    noinit_data.motor_encoder[m] = 0;
+    do {TrackReport(m);} while (noinit_data.encoder_value[m] != NewHome);
+    noinit_data.encoder_value[m] = 0;
     motor_state[m].target_encoder = 0;
     Serial.print(" Motor ");
     Serial.print(char(m+65));
@@ -3250,7 +3515,7 @@ void WayPointMove(int i) {
 }
 
 void TrackUm() {
-  if (Tracking>0) {
+  if (tracking>0) {
     for (int iMotor = MOTOR_ID_FIRST; iMotor <= MOTOR_ID_LAST; iMotor++){
       TrackReport(iMotor);
     }
@@ -3321,11 +3586,11 @@ String GetStringPartAtSpecificIndex(String StringToSplit, char SplitChar, int St
 }
 
 void SetZeroAngles() {
-  int B = mm6_get_position(MOTOR_ID_B);
-  int C = mm6_get_position(MOTOR_ID_C);
-  int D = mm6_get_position(MOTOR_ID_D);
-  int E = mm6_get_position(MOTOR_ID_E);
-  int F = mm6_get_position(MOTOR_ID_F);
+  int B = mm6_get_encoder_value(MOTOR_ID_B);
+  int C = mm6_get_encoder_value(MOTOR_ID_C);
+  int D = mm6_get_encoder_value(MOTOR_ID_D);
+  int E = mm6_get_encoder_value(MOTOR_ID_E);
+  int F = mm6_get_encoder_value(MOTOR_ID_F);
   config_set_angle_offsets(B, C, D, E, F);
 }
 
