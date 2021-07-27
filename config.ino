@@ -22,7 +22,7 @@ bool config_check()
 
   long given_crc = config.crc;
   config.crc = 0;
-  long calculated_crc = crc_calculate(&config, sizeof(config_t));
+  long calculated_crc = crc32c_calculate(&config, sizeof(config_t));
   config.crc = given_crc;  // Restore it.
   if (calculated_crc != given_crc) {
     log_writeln(F("ERROR: config_check: Invalid CRC %08lx. Expected %08lx."), calculated_crc, config.crc);
@@ -93,7 +93,7 @@ void config_sign()
   config.version = config_version;
   config.magic = config_magic;
   config.crc = 0;  
-  config.crc = crc_calculate(&config, sizeof(config_t)); 
+  config.crc = crc32c_calculate(&config, sizeof(config_t)); 
 }
 
 void config_clear() 
@@ -104,6 +104,8 @@ void config_clear()
     config.motor[i].orientation = MOTOR_ORIENTATION_NOT_INVERTED;
     config.motor[i].polarity = MOTOR_POLARITY_NOT_REVERSED;
   }
+  config.gripper_open_location = -130;
+  config.gripper_close_location = -310;
   config_sign();
 }
 

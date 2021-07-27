@@ -1774,7 +1774,7 @@ typedef struct {
 test_case_t test_case[] = {
   { test_time, "time" }, 
   { test_log, "log" },
-  { test_crc_calculate, "crc_calculate" },
+  { test_crc32c, "crc32c" },
   { test_config, "config" },
   { test_parse, "parse" },
   { test_menu, "menu" }
