@@ -1,7 +1,7 @@
 /*
- * Arduino Mega 2560 MegaMotor6 controller for Rhino Robots arms and accessories
- * Written by Scott Savage, Peter McDermott
- * Feb 2017-21 GNU General Public License (GPL)
+ * Arduino Mega 2560 MegaMotor6 controller for Rhino Robots arms and accessories.
+ * Written by Scott Savage, Peter McDermott.
+ * Feb 2017-21 GNU General Public License (GPL).
  *
  * Software change log at the end of file.
  *
@@ -249,6 +249,7 @@ typedef struct {
   motor_status_t motor[MOTOR_ID_COUNT];
 } status_t;
 
+// TODO: Get rid of the following two globals.
 int tracking = 0;
 int tracked[] = { 0, 0, 0, 0, 0, 0 }; // Last value while tracking.
 
@@ -2710,26 +2711,3 @@ void MotorTestFullSpeed(int m, int direction)
   int TestSpeed = 255 - motor_min_speed;
   mm6_set_speed(m, TestSpeed * direction);
 }
-
-// Change log
-// 1.02  3/19/2017 line 352: Excluded Motor A from the stall detect routine because it is the gripper and closing on an item is technically a stall.
-// 1.03  3/31/2017 line 792: Added TestMotors routine to test motors that are in an electrically unknown state.
-// 1.04  4/01/2017 line 792: Changed TestMotors routine so that all motor Drives are High-Z except the ones under test.
-// 1.05  7/24/2017 Line 235: Changed the Letter case when Sending Position vs Angle.
-// 1.05  7/24/2017 Line 760/763 - removed the 300 point adjustment when Interrogate Limit Switches.
-// 1.06  7/25/2017 Added Waypoints.
-// 1.07  7/26/2017 Added Version reporting.
-// 1.08  7/31/2017 Added Status check on Waypoints so that Waypoints will run ONLY if Waypoints have actually been written to the MegaMotor6.
-// 1.09  8/02/2017 Changed the boot up message.
-// 1.10  8/25/2017 Added ++ and -- commands.
-// 1.11  4/28/2018 Added Exercise command. Ax - Fx.
-// 1.12 10/19/2018 Added ? Command to Print command list.
-// 1.12 10/19/2018 Added X Command to Set Home To Center Of Switches.
-// 1.13 11/09/2018 Added R/r Commands to set Rhino Ver.
-// 1.13 11/09/2018 Added ~ Command to store the angle offsets.
-// 1.14 11/12/2018 Added Motor Reverse settings. 
-// 1.14 11/12/2018 Added switch settings to tracking info.
-// 1.15 11/13/2018 Added Motor A to the InterrogateLimitSwitches routine.
-// 1.16 11/17/2018 Added logic for a Home Button.
-// 1.17 01/12/2020 Added logic to run motors for assembly test.  RunMotorsForAsmTest()
-// 2.00 06/20/2021 Reworked by petermcd1010. 

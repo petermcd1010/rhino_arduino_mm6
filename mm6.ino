@@ -1,21 +1,7 @@
 /*
- * Arduino Mega 2560 MegaMotor6 controller for Rhino Robots arms and accessories
- * Written by Scott Savage, Peter McDermott
- * Feb 2017-21 GNU General Public License (GPL)
- *
- * Software change log at the end of file.
- *
- * See also:
- *   https://www.ti.com/lit/gpn/lmd18200 for the MegaMotor6's motor drivers.
- *
- * TODO:
- *   Analyze for JPL/etc. C coding rules.
- *   Run through a static analyzer?
- *   Fix all TODOs.
- */
-
-/*
- * MegaMotor6 functions.
+ * MegaMotor6 functions. 
+ * Written by Scott Savage, Peter McDermott.
+ * Feb 2017-21 GNU General Public License (GPL).
  */
 
 void mm6_init()
@@ -213,7 +199,7 @@ bool mm6_get_overcurrent_active(motor_id_t motor_id)
   return false;
 }
 
-static void write_motor_delta(int delta)
+static void print_motor_delta(int delta)
 {
   if (delta == 0) {
     log_write(F("0"));
@@ -252,7 +238,7 @@ void mm6_test_motor(motor_id_t motor_id)
   int reverse_delta = position2 - position1;
 
   log_write(F("Reverse delta: "));
-  write_motor_delta(reverse_delta);
+  print_motor_delta(reverse_delta);
   log_write(F(". "));
 
   log_write(F("Forward "));
@@ -272,7 +258,7 @@ void mm6_test_motor(motor_id_t motor_id)
   int forward_delta = position3 - position2;
 
   log_write(F("Forward delta: "));
-  write_motor_delta(forward_delta);
+  print_motor_delta(forward_delta);
 
 #if 0
   bool done = false;
