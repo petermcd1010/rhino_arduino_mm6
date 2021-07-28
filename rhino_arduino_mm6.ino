@@ -239,7 +239,6 @@ static state_t state = STATE_INIT;
 // Used for status messages.
 typedef struct {
   float angle;
-  float current_draw;
   bool switch_triggered;
   bool thermal_overload_active;
   bool overcurrent_active;
@@ -1672,7 +1671,7 @@ void extended_menu_reboot()
 }
 
 const menu_item_t menu_item_by_index[] = {  // TODO: F()
-  { '1', "display configuration", NULL, true, command_config_display, "-- print configuration." },
+  { '1', "print configuration", NULL, true, command_print_config, "-- print configuration." },
   { '2', "configure robot ID", extended_menu_robot_id, true, command_config_robot_id, "[id] print or set configured robot ID." },
   { '3', "configure robot serial", extended_menu_robot_serial, true, command_config_robot_serial, "[string] -- print or set configured robot serial." },  
   { '4', "configure robot name", extended_menu_robot_name, true, command_config_robot_name, "[name] -- print or set configured robot name." },
@@ -1685,7 +1684,7 @@ const menu_item_t menu_item_by_index[] = {  // TODO: F()
   { 'H', "home encoder value", NULL, false, command_home_encoder_values, "-- set current encoder values to home." },
   { 'I', "input mode", NULL, true, command_input_mode, "packet / keyboard."},
   { 'K', "clock", NULL, true, command_clock, "get / set [YYYY-MM-DD] HH:MM[:SS].fraction]]." },
-  { 'M', "motor status", NULL, false, command_motor_status, "-- display motor status." },
+  { 'M', "print motor status", NULL, false, command_print_motor_status, "-- print motor status." },
   { 'N', "motor angle", NULL, true, command_motor_angle, "motorid degrees -- degrees is 0.0 to 360.0, +15, -20, +, -, ++, --." },
   { 'P', "motor encoder value", NULL, true, command_motor_encoder_value, "motorid encoder_value -- encoder_value is in the range X - Y." },  // TODO
   { 'Q', "run test sequence", NULL, false, command_run_test_sequence, "" },
@@ -1698,7 +1697,7 @@ const menu_item_t menu_item_by_index[] = {  // TODO: F()
   { 'Z', "zero encoder values", NULL, false, command_zero_encoder_values, "-- set current encoder_values to zero." },
   { '*', "factory reset", extended_menu_factory_reset, false, command_factory_reset, "RESET -- factory reset system, clearing EEPROM and rebooting."},
   { '!', "reboot", extended_menu_reboot, true, command_reboot, "REBOOT -- reboot system. Requires typing the 'REBOOT' keyword." }, 
-  { '?', "help", NULL, false, command_help, "-- display this help message." },
+  { '?', "print help", NULL, false, command_print_help, "-- print this help message." },
 };
 #define MENU_ITEM_COUNT sizeof(menu_item_by_index) / sizeof(menu_item_by_index[0])
 
@@ -1772,12 +1771,12 @@ typedef struct {
 } test_case_t;
 
 test_case_t test_case[] = {
-  { test_time, "time" }, 
-  { test_log, "log" },
-  { test_crc32c, "crc32c" },
   { test_config, "config" },
+  { test_crc32c, "crc32c" },
+  { test_log, "log" },
+  { test_menu, "menu" },
   { test_parse, "parse" },
-  { test_menu, "menu" }
+  { test_time, "time" },
 };
 #define TEST_CASE_COUNT sizeof(test_case) / sizeof(test_case[0])
 
@@ -1831,7 +1830,7 @@ int command_gripper_encoder_value(char *pargs, size_t args_nbytes)
   return -1;
 }
 
-int command_config_display(char *pargs, unsigned args_nbytes)
+int command_print_config(char *pargs, unsigned args_nbytes)
 {
   assert(pargs);  
 
@@ -1841,7 +1840,7 @@ int command_config_display(char *pargs, unsigned args_nbytes)
     return -1;
   } 
 
-  config_display();
+  config_print();
   
   return 0;
 }
@@ -1989,7 +1988,7 @@ int command_heartbeat(char *pargs, size_t args_nbytes)
   return -1;
 }
 
-int command_help(char *pargs, size_t args_nbytes)
+int command_print_help(char *pargs, size_t args_nbytes)
 {
   assert(pargs);
   // TODO: confirm pargs is only whitespace.
@@ -2036,7 +2035,7 @@ int command_input_mode(char *pargs, size_t args_nbytes)
   assert(false);
 }
 
-int command_motor_status()
+int command_print_motor_status()
 {  
   log_writeln(F("PID:%s"), mm6_pid_enabled ? "enabled" : "disabled");
 
@@ -2413,7 +2412,7 @@ void hardware_init() {
     //     The values for the Motor Logic are set by the setup.
     //       Since the Forward and Reverse Locic are used to invert the position the values are 1 or -1
     motor_state[i].logic = config.motor[i].orientation; 
-    LOG_D(F("%d"), motor_state[i].logic);
+    // LOG_D(F("%d"), motor_state[i].logic);
   }  
 }
 
@@ -2425,7 +2424,6 @@ void gather_status(status_t *pstatus)
   for (int i = 0; i < MOTOR_ID_COUNT; i++) {
     if (config.motor[i].configured) {
       pstatus->motor[i].angle = mm6_get_angle(i);  // TODO: Or active?
-      pstatus->motor[i].current_draw = 0; // mm6_get_current_draw(i); TODO ??
       pstatus->motor[i].switch_triggered = mm6_get_switch_triggered(i);
       pstatus->motor[i].thermal_overload_active = mm6_get_thermal_overload_active(i);
       pstatus->motor[i].overcurrent_active = mm6_get_overcurrent_active(i);
@@ -2485,10 +2483,7 @@ void process_serial_input()
         dtostrf(status.motor[i].angle, 3, 2, angle_str);
         char motor_name = (status.motor[i].switch_triggered ? 'A' : 'a') + i;
 
-        char current_draw_str[15];
-        dtostrf(status.motor[i].current_draw, 3, 2, current_draw_str);
-
-        log_write(F("%c:%s,%s,%d "), motor_name, angle_str, current_draw_str, motor_state[i].pid_perror);
+        log_write(F("%c:%s,%d,%d "), motor_name, angle_str, mm6_get_current_draw(i), motor_state[i].pid_perror);
       }
     }
 
@@ -2654,7 +2649,7 @@ state_t state_init_execute()
     mm6_print_encoder_values();
   }
 
-  config_display();
+  config_print();
   hardware_init();
 
   bool self_test_success = run_self_test();

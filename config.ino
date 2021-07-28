@@ -208,7 +208,7 @@ void config_set_angle_offsets(int B, int C, int D, int E, int F) {
       config.motor[MOTOR_ID_B].angle_offset);
 }
 
-void config_display()
+void config_print()
 {  
   // TODO: check for valid config.
 
