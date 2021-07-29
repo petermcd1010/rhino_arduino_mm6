@@ -720,7 +720,7 @@ const menu_item_t menu_item_by_index[] = {  // TODO: F()
   { 'P', "motor encoder value", NULL, true, command_motor_encoder_value, "motorid encoder_value -- encoder_value is in the range X - Y." },  // TODO
   { 'Q', "run test sequence", NULL, false, command_run_test_sequence, "" },
   { 'T', "test motors", NULL, false, command_test_motors, "-- test motors." },
-  { 'V', "version", NULL, false, command_print_software_version, "-- print software version." },
+  { 'V', "software version", NULL, false, command_print_software_version, "-- print software version." },
   { 'W', "waypoint", NULL, true, command_waypoint, "" },
   { 'X', "expansion I/O", NULL, true, command_expansion_io, ""},
   // { 'M', "motor config", true, command_motor_config, ""},
@@ -1296,6 +1296,7 @@ int command_print_software_version(char *pargs, size_t args_nbytes)
     return -1;
 
   print_software_version();
+  log_writeln();
 
   return 0;
 }
