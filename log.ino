@@ -178,6 +178,8 @@ void __assert(const char *pfunction_name, const char *pfile_name, int line_num, 
 
   log_string(pfunction_name);
   log_error_internal(line_num, pfunction_name, F("assertion failed: %s"), failedexpr);
+
+  // TODO: Would it be better to write the assertion to persistent memory, reboot, and have it checked at boot?  
   state = STATE_ERROR;
 }
 

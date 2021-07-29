@@ -88,7 +88,7 @@ int mm6_get_encoder_value(motor_id_t motor_id)
   return noinit_data.encoder_value[motor_id] * motor_state[motor_id].logic;
 }
 
-void mm6_set_encoder_value(motor_id_t motor_id, int encoder_value)
+void mm6_set_target_encoder(motor_id_t motor_id, int encoder_value)
 {  
   assert((motor_id >= MOTOR_ID_FIRST) && (motor_id <= MOTOR_ID_LAST));
   // TODO: assert valid encoder?
@@ -156,7 +156,7 @@ float mm6_get_angle(motor_id_t motor_id)
   return (mm6_get_encoder_value(motor_id) - config.motor[motor_id].angle_offset) / mm6_get_encoder_steps_per_degree(motor_id);
 }
 
-void mm6_set_angle(motor_id_t motor_id, float angle) 
+void mm6_set_target_angle(motor_id_t motor_id, float angle) 
 {
   assert((motor_id >= MOTOR_ID_FIRST) && (motor_id <= MOTOR_ID_LAST));
   if (!mm6_configured(motor_id)) 
@@ -164,7 +164,7 @@ void mm6_set_angle(motor_id_t motor_id, float angle)
 
   // TODO: assert valid angle?
   int encoder_value = mm6_angle_to_encoder_value(motor_id, angle);
-  mm6_set_encoder_value(motor_id, encoder_value);
+  mm6_set_target_encoder(motor_id, encoder_value);
 }
 
 bool mm6_get_thermal_overload_active(motor_id_t motor_id)
@@ -318,19 +318,19 @@ bool mm6_interrogate_limit_switch_a() {
   if (!config.motor[MOTOR_ID_A].configured)
     return false;
 
-  mm6_set_encoder_value(MOTOR_ID_A, 9999);
+  mm6_set_target_encoder(MOTOR_ID_A, 9999);
   delay(2000);
   int CurF = analogRead(motor_pinout[MOTOR_ID_A].in_current_draw);
   int EncF = noinit_data.encoder_value[MOTOR_ID_A];
   int SwcF = digitalRead(motor_pinout[MOTOR_ID_A].in_switch);
-  mm6_set_encoder_value(MOTOR_ID_A, -9999);
+  mm6_set_target_encoder(MOTOR_ID_A, -9999);
   delay(1500);
   int CurR = analogRead(motor_pinout[MOTOR_ID_A].in_current_draw);
   int EncR = noinit_data.encoder_value[MOTOR_ID_A];
   int SwcR = digitalRead(motor_pinout[MOTOR_ID_A].in_switch);  
-  mm6_set_encoder_value(MOTOR_ID_A, 9999);
+  mm6_set_target_encoder(MOTOR_ID_A, 9999);
   delay(1500);
-  mm6_set_encoder_value(MOTOR_ID_A, -9999);
+  mm6_set_target_encoder(MOTOR_ID_A, -9999);
   delay(1500);
     //Serial.print("  For Cur=");
     //Serial.println(CurF);
@@ -349,7 +349,7 @@ bool mm6_interrogate_limit_switch_a() {
   if (SwcF==0) {
     // Encoder goes Positive towards switch.
     int OverSwitch = ((motor_state[MOTOR_ID_A].switch_forward_on + EncF ) / 2);      
-    mm6_set_encoder_value(MOTOR_ID_A, OverSwitch);
+    mm6_set_target_encoder(MOTOR_ID_A, OverSwitch);
     do {TrackReport(MOTOR_ID_A);} while (noinit_data.encoder_value[MOTOR_ID_A] != OverSwitch);
     noinit_data.encoder_value[MOTOR_ID_A] = 0;  
     motor_state[MOTOR_ID_A].target_encoder  = 0;
@@ -361,7 +361,7 @@ bool mm6_interrogate_limit_switch_a() {
   } else {
     // Encoder goes Negative towards switch.
     int OverSwitch = ((motor_state[MOTOR_ID_A].switch_reverse_on + EncR ) / 2);      
-    mm6_set_encoder_value(MOTOR_ID_A, OverSwitch);
+    mm6_set_target_encoder(MOTOR_ID_A, OverSwitch);
     do {TrackReport(MOTOR_ID_A);} while (noinit_data.encoder_value[MOTOR_ID_A] != OverSwitch);
     noinit_data.encoder_value[MOTOR_ID_A] = 0;  
     motor_state[MOTOR_ID_A].target_encoder  = 0;
@@ -412,10 +412,80 @@ void calculate_mean_and_variance(float value, int nvalues, float *pM2, float *pm
  * CALIBRATE_DONE
  */
 
-bool mm6_interrogate_limit_switch(motor_id_t motor_id) {
+bool mm6_calibrate(mm6_calibrate_data_t *pmm6_calibrate_data) {
+  // Returns true while calibration is running, false when complete.
+
+  motor_id_t motor_id = pmm6_calibrate_data->motor_id;
   assert((motor_id >= MOTOR_ID_FIRST) && (motor_id <= MOTOR_ID_LAST));
-  if (!config.motor[motor_id].configured)
+  if (!config.motor[motor_id].configured) {
+    pmm6_calibrate_data->error = MM6_CALIBRATE_ERROR_NOT_CONFIGURED;
     return false;
+  }
+
+  int encoder = noinit_data.encoder_value[motor_id];
+
+  switch (pmm6_calibrate_data->state) {
+    case MM6_CALIBRATE_STATE_INIT:
+      pmm6_calibrate_data->state = MM6_CALIBRATE_STATE_SEARCH;
+      pmm6_calibrate_data->delta = +100;
+      pmm6_calibrate_data->found_min_encoder = false;
+      pmm6_calibrate_data->found_max_encoder = false;
+      pmm6_calibrate_data->min_encoder = 0;
+      pmm6_calibrate_data->max_encoder = 0;
+      pmm6_calibrate_data->switch_triggered = false;
+
+      pmm6_calibrate_data->target = encoder + pmm6_calibrate_data->delta;
+      mm6_set_target_encoder(motor_id, pmm6_calibrate_data->target);      
+      break;
+    case MM6_CALIBRATE_STATE_SEARCH:
+      if (encoder < pmm6_calibrate_data->min_encoder)
+        pmm6_calibrate_data->min_encoder = encoder;
+
+      if (encoder > pmm6_calibrate_data->max_encoder)      
+        pmm6_calibrate_data->max_encoder = encoder;
+
+      if (pmm6_calibrate_data->switch_triggered != motor_state[motor_id].switch_previously_triggered) {
+        pmm6_calibrate_data->switch_triggered = motor_state[motor_id].switch_previously_triggered;
+        log_writeln(F("Motor %c switch %d at encoder %d"), 'A' + motor_id, pmm6_calibrate_data->switch_triggered, encoder);
+      }
+
+      if ((pmm6_calibrate_data->delta < 0) && 
+          ((encoder <= pmm6_calibrate_data->target) || 
+              pmm6_calibrate_data->found_min_encoder)) {
+        // Reached encoder target in negative direction.
+        if (!pmm6_calibrate_data->found_max_encoder) {
+          pmm6_calibrate_data->delta *= -1;
+          pmm6_calibrate_data->target = pmm6_calibrate_data->max_encoder + pmm6_calibrate_data->delta;                      
+        } else {
+          pmm6_calibrate_data->target = encoder + pmm6_calibrate_data->delta;                      
+        }
+        mm6_set_target_encoder(motor_id, pmm6_calibrate_data->target);
+      } else if ((pmm6_calibrate_data->delta > 0) && 
+          ((encoder >= pmm6_calibrate_data->target) || 
+              pmm6_calibrate_data->found_max_encoder)) {
+        // Reached encoder target in positive direction.
+        if (!pmm6_calibrate_data->found_min_encoder) {
+          pmm6_calibrate_data->delta = -pmm6_calibrate_data->delta;
+          pmm6_calibrate_data->target = pmm6_calibrate_data->min_encoder + pmm6_calibrate_data->delta;                      
+        } else {
+          pmm6_calibrate_data->target = pmm6_calibrate_data->target + pmm6_calibrate_data->delta;                      
+        }
+        mm6_set_target_encoder(motor_id, pmm6_calibrate_data->target);
+      }
+
+      if (pmm6_calibrate_data->found_min_encoder && pmm6_calibrate_data->found_max_encoder)
+        pmm6_calibrate_data->state = MM6_CALIBRATE_STATE_DONE;
+        
+      break;
+    case MM6_CALIBRATE_STATE_DONE:    
+      return false;
+      break;
+    default:
+      assert(false);
+      return true;
+  }
+
+  return true;
 
   // if (motor_id == MOTOR_ID_A)
   //  return mm6_interrogate_limit_switch_a();
@@ -424,9 +494,8 @@ bool mm6_interrogate_limit_switch(motor_id_t motor_id) {
   bool encoder_max_found = false;
   int encoder_min = noinit_data.encoder_value[motor_id];
   int encoder_max = encoder_min;
-  int encoder_delta = +100;
-  int encoder_target = noinit_data.encoder_value[motor_id] + encoder_delta;
   const int delta = 100;
+  int encoder_target = noinit_data.encoder_value[motor_id] + delta;
 
   int motor_current_draw = 0;
   int motor_current_draw_nvalues = 0;
@@ -448,6 +517,7 @@ bool mm6_interrogate_limit_switch(motor_id_t motor_id) {
   log_writeln(F("Motor %c encoder start:%d, switch_triggered=%d"), 
       'A' + motor_id, noinit_data.encoder_value[motor_id], switch_triggered);
 
+#if 0
   // Find the switch and limits.
   do {
     int encoder_value = noinit_data.encoder_value[motor_id];
@@ -476,6 +546,7 @@ bool mm6_interrogate_limit_switch(motor_id_t motor_id) {
     int ms = millis();
     if (ms - start_time_millis > 1000) {
       if (abs(encoder_value - start_encoder_value) < 5) {
+        /*
         if (encoder_delta < 0) {
           encoder_min_found = true;
           log_writeln(F("Motor %c minimum found at position %d"), 'A' + motor_id, encoder_value);
@@ -483,12 +554,12 @@ bool mm6_interrogate_limit_switch(motor_id_t motor_id) {
           encoder_max_found = true;
           log_writeln(F("Motor %c maximum found at position %d"), 'A' + motor_id, encoder_value);
         }
+        */
       }
 
       start_encoder_value = encoder_value;
       start_time_millis = ms;
     }
-
     // TODO: Deal with apparent PWM overflow when calibrating motor B.
     // TODO: Find switch centers, other switch values.
     // TODO: Zero motor angles to switch centers.
@@ -524,12 +595,13 @@ bool mm6_interrogate_limit_switch(motor_id_t motor_id) {
     }
 #endif
 
-    mm6_set_encoder_value(motor_id, encoder_target);
+    mm6_set_target_encoder(motor_id, encoder_target);
   } while (!(encoder_min_found && encoder_max_found)); // (!motor_state[motor_id].switch_previously_triggered);
 
   log_writeln(F("Motor %c encoder_min=%d, encoder_max=%d"), 'A' + motor_id, encoder_min, encoder_max);
+#endif
 
-  return true;
+  return false;  // Calibration complete.
 
 #if 0
 
@@ -545,14 +617,14 @@ bool mm6_interrogate_limit_switch(motor_id_t motor_id) {
     
     // Move to one side of switch and wait for the switch to be unpressed.
     log_write(F("  "));
-    mm6_set_encoder_value(motor_id, r - 130);
+    mm6_set_target_encoder(motor_id, r - 130);
     do { 
       mm6_track_report(motor_id); 
     } while (motor_state[motor_id].switch_previously_triggered);
 
     // Move to the other side of switch and wait for the switch to be pressed and then unpressed.
     log_write(F("  "));
-    mm6_set_encoder_value(motor_id, f + 130);
+    mm6_set_target_encoder(motor_id, f + 130);
     do {
       mm6_track_report(motor_id);
     } while (!motor_state[motor_id].switch_previously_triggered);
@@ -565,7 +637,7 @@ bool mm6_interrogate_limit_switch(motor_id_t motor_id) {
 
     // Move back to first side of switch and wait for the switch to be pressed and then unpressed.        
     log_write(F("  "));
-    mm6_set_encoder_value(motor_id, r - 130);
+    mm6_set_target_encoder(motor_id, r - 130);
     do {
       mm6_track_report(motor_id);
     } while (!motor_state[motor_id].switch_previously_triggered);
@@ -585,7 +657,7 @@ bool mm6_interrogate_limit_switch(motor_id_t motor_id) {
         motor_state[motor_id].switch_reverse_on,
         motor_state[motor_id].switch_forward_off,
         center_encoder);
-    mm6_set_encoder_value(motor_id, center_encoder);
+    mm6_set_target_encoder(motor_id, center_encoder);
     do { 
       TrackReport(motor_id); 
     } while (noinit_data.encoder_value[motor_id] != center_encoder);
@@ -597,17 +669,22 @@ bool mm6_interrogate_limit_switch(motor_id_t motor_id) {
     log_writeln(F(" Motor %c home switch not closed - skipping."), 'A' + motor_id);
   }
 #endif
-
 }
 
-bool mm6_interrogate_limit_switches()
+bool mm6_calibrate_motors()
 {
   bool ret = true;
   for (int i = MOTOR_ID_B; i <= MOTOR_ID_B; i++) {
     if (config.motor[i].configured) {
-      if (!mm6_interrogate_limit_switch(i)) {
-        LOG_E(F("configuration of motor switch %c failed."), 'A' + i);
+      mm6_calibrate_data_t calibrate_data = {};
+      calibrate_data.motor_id = i;
+      log_writeln(F("Calibrating motor %c ..."), 'A' + i);
+      while (mm6_calibrate(&calibrate_data)) {};
+      if (calibrate_data.error != MM6_CALIBRATE_ERROR_NONE) {
+        log_writeln(F("calibration of motor %c failed with error %d."), 'A' + i, calibrate_data.error);
         ret = false;
+      } else {
+        log_writeln(F("calibration of motor %c passed."), 'A' + i);        
       }
     }
   }

@@ -184,6 +184,31 @@ typedef enum {
   MOTOR_POLARITY_NOT_REVERSED = 1,
 } motor_polarity_t;
 
+typedef enum {
+  MM6_CALIBRATE_STATE_INIT = 0,
+  MM6_CALIBRATE_STATE_SEARCH,
+  MM6_CALIBRATE_STATE_CALIBRATE_SWITCH,
+  MM6_CALIBRATE_STATE_DONE,
+} mm6_calibrate_state_t;
+
+typedef enum {
+  MM6_CALIBRATE_ERROR_NONE = 0,
+  MM6_CALIBRATE_ERROR_NOT_CONFIGURED,
+} mm6_calibrate_error_t;
+
+typedef struct {
+  motor_id_t motor_id;
+  mm6_calibrate_state_t state; 
+  mm6_calibrate_error_t error;
+  int delta;
+  int target;
+  bool found_min_encoder;
+  bool found_max_encoder;
+  int min_encoder;
+  int max_encoder;
+  bool switch_triggered;
+} mm6_calibrate_data_t;
+
 typedef struct __attribute__((packed)) {
   bool configured;
   int angle_offset;
@@ -683,6 +708,7 @@ const menu_item_t menu_item_by_index[] = {  // TODO: F()
   { '5', "run calibration", NULL, true, command_config_calibrate, "[CALIBRATE] -- print or run robot calibration configuration data." },
   { '0', "write configuration", NULL, true, command_config_write, "Write configuration data to EEPROM." },
   { 'B', "heartbeat", NULL, true, command_heartbeat, "off / on -- enable heartbeat (only emitted when input mode is packet)." },
+  { 'C', "calibrate motors", NULL, false, command_calibrate_motors, "-- calibrate motor and switch limits." },
   { 'D', "PID mode", NULL, false, command_pid_mode, "-- Enable/disable motors" },
   { 'E', "emergency stop", NULL, false, command_emergency_stop, "-- execute hardware emergency stop (E-Stop). Enters 'error' state. Requires reboot to reset."},
   { 'G', "gripper encoder value", NULL, true, command_gripper_encoder_value, "" },
@@ -693,7 +719,6 @@ const menu_item_t menu_item_by_index[] = {  // TODO: F()
   { 'N', "motor angle", NULL, true, command_motor_angle, "motorid degrees -- degrees is 0.0 to 360.0, +15, -20, +, -, ++, --." },
   { 'P', "motor encoder value", NULL, true, command_motor_encoder_value, "motorid encoder_value -- encoder_value is in the range X - Y." },  // TODO
   { 'Q', "run test sequence", NULL, false, command_run_test_sequence, "" },
-  { 'S', "interrogate switches", NULL, false, command_interrogate_switches, "-- interrogate switch encoder values." },
   { 'T', "test motors", NULL, false, command_test_motors, "-- test motors." },
   { 'V', "version", NULL, false, command_print_software_version, "-- print software version." },
   { 'W', "waypoint", NULL, true, command_waypoint, "" },
@@ -1021,7 +1046,7 @@ int command_home_encoder_values(char *pargs, size_t args_nbytes)
   return nbytes;
 }
 
-int command_interrogate_switches(char *pargs, size_t args_nbytes)
+int command_calibrate_motors(char *pargs, size_t args_nbytes)
 {
   assert(pargs);
   size_t nbytes = parse_whitespace(pargs, args_nbytes);
@@ -1029,7 +1054,7 @@ int command_interrogate_switches(char *pargs, size_t args_nbytes)
     return -1;
   } 
   
-  log_writeln(F("Motor switch interrogration ... %s"), mm6_interrogate_limit_switches() ? "passed" : "FAILED");
+  log_writeln(F("Motor calibration ... %s"), mm6_calibrate_motors() ? "passed" : "FAILED");
 
   return nbytes;
 }
@@ -1105,7 +1130,7 @@ int command_motor_angle(char *pargs, size_t args_nbytes)
 
   if (mm6_configured(motor_id)) {
     log_writeln(F("Move Motor %c to an angle of %s degrees."), 'A' + motor_id, angle_str);
-    mm6_set_angle(motor_id, angle);
+    mm6_set_target_angle(motor_id, angle);
   } else {
     log_writeln(F("ERROR: Motor %c not configured."), 'A' + motor_id);
     // TODO: error state?
@@ -1152,7 +1177,7 @@ int command_motor_encoder_value(char *pargs, size_t args_nbytes)
 
   if (mm6_configured(motor_id)) {
     log_writeln(F("Move Motor %c to encoder_value %s."), 'A' + motor_id, encoder_value_str);
-    mm6_set_encoder_value(motor_id, encoder_value);
+    mm6_set_target_encoder(motor_id, encoder_value);
   } else {
     log_writeln(F("ERROR: Motor %c not configured."), 'A' + motor_id);
     // TODO: error state?
@@ -1924,10 +1949,10 @@ void loop()
               mm6_set_position(Command_Motor, Position);              
             } else if (WhatToDo=="++") {
               int Position = mm6_get_encoder_value(Command_Motor)+100;
-              mm6_set_encoder_value(Command_Motor, Position);              
+              mm6_set_target_encoder(Command_Motor, Position);              
             } else {              
               int Position = WhatToDo.toInt();
-              mm6_set_encoder_value(Command_Motor, Position);
+              mm6_set_target_encoder(Command_Motor, Position);
             }      
           } else {
             Serial.print("Command Motor Set to: ");
@@ -1941,7 +1966,7 @@ void loop()
           {
             InBuffer.setCharAt(0,32);
             float Angle = InBuffer.toFloat();
-            mm6_set_angle(Command_Motor, Angle);
+            mm6_set_target_angle(Command_Motor, Angle);
             //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
           }
         } else if (m==120) {
@@ -2408,19 +2433,19 @@ void TestSeq1b() {
 Serial.println("start");
   mm6_pid_enable(false);
   OpenGripper();
-  mm6_set_angle(MOTOR_ID_B, 90);
-  mm6_set_angle(MOTOR_ID_E, -130);
-  mm6_set_angle(MOTOR_ID_F, 45);
+  mm6_set_target_angle(MOTOR_ID_B, 90);
+  mm6_set_target_angle(MOTOR_ID_E, -130);
+  mm6_set_target_angle(MOTOR_ID_F, 45);
   mm6_pid_enable(true);
   do {delay(50);} while (motor_state[MOTOR_ID_E].progress > MOTOR_PROGRESS_APPROACHING_TARGET); 
-  mm6_set_angle(MOTOR_ID_D,17.1);
+  mm6_set_target_angle(MOTOR_ID_D,17.1);
   do {delay(50);} while (motor_state[MOTOR_ID_D].progress > MOTOR_PROGRESS_APPROACHING_TARGET); 
   CloseGripper();
   delay(1000);
-  mm6_set_angle(MOTOR_ID_D, 0);
-  mm6_set_angle(MOTOR_ID_E, -80);
+  mm6_set_target_angle(MOTOR_ID_D, 0);
+  mm6_set_target_angle(MOTOR_ID_E, -80);
   do {delay(50);} while (motor_state[MOTOR_ID_D].progress > MOTOR_PROGRESS_APPROACHING_TARGET); 
-  mm6_set_angle(MOTOR_ID_F,-45);
+  mm6_set_target_angle(MOTOR_ID_F,-45);
   do {delay(50);} while (motor_state[MOTOR_ID_E].progress > MOTOR_PROGRESS_APPROACHING_TARGET); 
   OpenGripper();
   delay(1000);
@@ -2669,7 +2694,7 @@ void MoveToWayPointAngle(int Position) {
           break;
         case MOTOR_ID_A: Angle = WayPoint.A;
       }      
-      mm6_set_angle(iMotor, Angle);  
+      mm6_set_target_angle(iMotor, Angle);  
     }  
   }  
 }
