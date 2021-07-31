@@ -106,6 +106,7 @@ typedef enum {
 } motor_error_flag_t;
 
 typedef struct {
+  bool enabled;
   int speed;
   int target_speed;
   int pwm;
@@ -187,7 +188,7 @@ typedef enum {
 typedef enum {
   MM6_CALIBRATE_STATE_INIT = 0,
   MM6_CALIBRATE_STATE_SEARCH,
-  MM6_CALIBRATE_STATE_CALIBRATE_SWITCH,
+  MM6_CALIBRATE_STATE_SWITCH,
   MM6_CALIBRATE_STATE_DONE,
 } mm6_calibrate_state_t;
 
@@ -207,6 +208,10 @@ typedef struct {
   int min_encoder;
   int max_encoder;
   bool switch_triggered;
+  int switch_forward_on_encoder;
+  int switch_forward_off_encoder;
+  int switch_reverse_on_encoder;
+  int switch_reverse_off_encoder;
 } mm6_calibrate_data_t;
 
 typedef struct __attribute__((packed)) {
@@ -295,7 +300,7 @@ void hardware_emergency_stop()
 {
   // TODO: call hardware_emergency_stop when entering ERROR state.
 
-  mm6_enable_motors(false);
+  mm6_enable_all(false);
 
   // Avoid extra log messages if emergency stop has already been executed.
   static bool stopped = false;
@@ -1054,7 +1059,7 @@ int command_calibrate_motors(char *pargs, size_t args_nbytes)
     return -1;
   } 
   
-  log_writeln(F("Motor calibration ... %s"), mm6_calibrate_motors() ? "passed" : "FAILED");
+  log_writeln(F("Motor calibration ... %s"), mm6_calibrate_all() ? "passed" : "FAILED");
 
   return nbytes;
 }
@@ -1128,11 +1133,11 @@ int command_set_motor_angle(char *pargs, size_t args_nbytes)
   char angle_str[15] = {};
   dtostrf(angle, 3, 2, angle_str);
 
-  if (mm6_configured(motor_id)) {
+  if (mm6_enabled(motor_id)) {
     log_writeln(F("Move Motor %c to an angle of %s degrees."), 'A' + motor_id, angle_str);
     mm6_set_target_angle(motor_id, angle);
   } else {
-    log_writeln(F("ERROR: Motor %c not configured."), 'A' + motor_id);
+    log_writeln(F("ERROR: Motor %c not enabled."), 'A' + motor_id);
     // TODO: error state?
   }
   return p - pargs;
@@ -1175,11 +1180,11 @@ int command_set_motor_encoder(char *pargs, size_t args_nbytes)
   char encoder_str[15] = {};
   dtostrf(encoder, 3, 2, encoder_str);
 
-  if (mm6_configured(motor_id)) {
+  if (mm6_enabled(motor_id)) {
     log_writeln(F("Move Motor %c to encoder %s."), 'A' + motor_id, encoder_str);
     mm6_set_target_encoder(motor_id, encoder);
   } else {
-    log_writeln(F("ERROR: Motor %c not configured."), 'A' + motor_id);
+    log_writeln(F("ERROR: Motor %c not enabled."), 'A' + motor_id);
     // TODO: error state?
   }
 
@@ -1214,7 +1219,7 @@ int command_test_motors(char *pargs, size_t args_nbytes)
     return -1;
   } 
 
-  mm6_test_motors();
+  mm6_test_all();
 
   return nbytes;
 }
@@ -1706,7 +1711,7 @@ state_t state_motors_off_execute()
 
 bool state_motors_on_enter()
 {
-  mm6_enable_motors(true);
+  mm6_enable_all(true);
   mm6_pid_enable(true);
   return true;
 }
@@ -1719,8 +1724,8 @@ state_t state_motors_on_execute()
 
 bool state_motors_on_exit()
 {
- mm6_pid_enable(false);
-  mm6_enable_motors(false);
+  mm6_pid_enable(false);
+  mm6_enable_all(false);
   return true;
 }
 

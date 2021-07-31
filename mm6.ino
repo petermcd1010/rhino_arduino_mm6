@@ -21,7 +21,7 @@ void mm6_init()
     pinMode(motor_pinout[i].in_quadrature_encoder_b, INPUT_PULLUP);
   }  
   
-  mm6_enable_motors(false);
+  mm6_enable_all(false);
 }
 
 void mm6_set_brake(motor_id_t motor_id, bool enable)
@@ -31,7 +31,14 @@ void mm6_set_brake(motor_id_t motor_id, bool enable)
   digitalWrite(motor_pinout[motor_id].out_brake, enable ? HIGH : LOW);
 }
 
-bool mm6_enable_motor(motor_id_t motor_id, bool enable)
+bool mm6_enabled(motor_id_t motor_id)
+{
+  assert((motor_id >= MOTOR_ID_FIRST) && (motor_id <= MOTOR_ID_LAST));
+
+  return motor_state[motor_id].enabled;
+}
+
+bool mm6_enable(motor_id_t motor_id, bool enable)
 {
   assert((motor_id >= MOTOR_ID_FIRST) && (motor_id <= MOTOR_ID_LAST));
 
@@ -39,29 +46,31 @@ bool mm6_enable_motor(motor_id_t motor_id, bool enable)
 
   if (enable && config.motor[motor_id].configured) {
     mm6_set_brake(motor_id, false);
+    motor_state[motor_id].enabled = true;
     return true;
   } else {
     mm6_set_brake(motor_id, true);
     digitalWrite(motor_pinout[motor_id].out_pwm, LOW);  // Set PWM speed to zero.  TODO: analogWrite() below?
     mm6_set_speed(motor_id, 0);
+    motor_state[motor_id].enabled = false;
     return !enable;  // Return false if motor wasn't configured but enble == true. Return true otherwise.
   }
 }
 
-void mm6_enable_motors(bool enable)
+void mm6_enable_all(bool enable)
 {
   static bool mm6_enabled = false;
-  int enabled_motor_count = 0;
+  int success_count = 0;
 
   for (int i = MOTOR_ID_FIRST; i <= MOTOR_ID_LAST; i++) {
-    if (mm6_enable_motor(i, enable))
-      enabled_motor_count++;
+    if (mm6_enable(i, enable))
+      success_count++;
   }
 
   // motor_sync_move_enabled = enable;
   mm6_pid_enabled = enable;  // TODO: What about mm6_pid_enable()?
   mm6_enabled = enable;
-  log_writeln(F("Motor electronics for %d motors %s."), enabled_motor_count, enable ? "enabled" : "disabled");
+  log_writeln(F("Motor electronics for %d motors %s."), success_count, enable ? "enabled" : "disabled");
 }
 
 bool mm6_configured(motor_id_t motor_id)
@@ -74,7 +83,7 @@ bool mm6_configured(motor_id_t motor_id)
 bool mm6_get_switch_triggered(motor_id_t motor_id)
 {
   assert((motor_id >= MOTOR_ID_FIRST) && (motor_id <= MOTOR_ID_LAST));
-  if (!mm6_configured(motor_id))
+  if (!mm6_enabled(motor_id))
     return false;
   return motor_state[motor_id].switch_triggered;
 }
@@ -82,7 +91,7 @@ bool mm6_get_switch_triggered(motor_id_t motor_id)
 int mm6_get_encoder(motor_id_t motor_id)
 {
   assert((motor_id >= MOTOR_ID_FIRST) && (motor_id <= MOTOR_ID_LAST));
-  if (!mm6_configured(motor_id))
+  if (!mm6_enabled(motor_id))
     return 0;
   
   return noinit_data.encoder[motor_id] * motor_state[motor_id].logic;
@@ -92,7 +101,7 @@ void mm6_set_target_encoder(motor_id_t motor_id, int encoder)
 {  
   assert((motor_id >= MOTOR_ID_FIRST) && (motor_id <= MOTOR_ID_LAST));
   // TODO: assert valid encoder?
-  if (!mm6_configured(motor_id))
+  if (!mm6_enabled(motor_id))
     return;
 
   motor_state[motor_id].target_encoder = encoder * motor_state[motor_id].logic;
@@ -111,7 +120,7 @@ void mm6_print_encoders()
 float mm6_get_encoder_steps_per_degree(motor_id_t motor_id) 
 {
   assert((motor_id >= MOTOR_ID_FIRST) && (motor_id <= MOTOR_ID_LAST));
-  if (!mm6_configured(motor_id))
+  if (!mm6_enabled(motor_id))
     return 0.0f;
 
   switch (motor_id) {
@@ -141,7 +150,7 @@ float mm6_get_encoder_steps_per_degree(motor_id_t motor_id)
 
 int mm6_angle_to_encoder(motor_id_t motor_id, float angle) {
   assert((motor_id >= MOTOR_ID_FIRST) && (motor_id <= MOTOR_ID_LAST));
-  if (!mm6_configured(motor_id))
+  if (!mm6_enabled(motor_id))
     return 0;
   
   return (angle * mm6_get_encoder_steps_per_degree(motor_id)) + config.motor[motor_id].angle_offset;
@@ -150,7 +159,7 @@ int mm6_angle_to_encoder(motor_id_t motor_id, float angle) {
 float mm6_get_angle(motor_id_t motor_id) 
 {  
   assert((motor_id >= MOTOR_ID_FIRST) && (motor_id <= MOTOR_ID_LAST));
-  if (!mm6_configured(motor_id))
+  if (!mm6_enabled(motor_id))
     return 0.0f;
   
   return (mm6_get_encoder(motor_id) - config.motor[motor_id].angle_offset) / mm6_get_encoder_steps_per_degree(motor_id);
@@ -159,7 +168,7 @@ float mm6_get_angle(motor_id_t motor_id)
 void mm6_set_target_angle(motor_id_t motor_id, float angle) 
 {
   assert((motor_id >= MOTOR_ID_FIRST) && (motor_id <= MOTOR_ID_LAST));
-  if (!mm6_configured(motor_id)) 
+  if (!mm6_enabled(motor_id)) 
     return;
 
   // TODO: assert valid angle?
@@ -170,7 +179,7 @@ void mm6_set_target_angle(motor_id_t motor_id, float angle)
 bool mm6_get_thermal_overload_active(motor_id_t motor_id)
 {
   assert((motor_id >= MOTOR_ID_FIRST) && (motor_id <= MOTOR_ID_LAST));
-  // Ignores mm6_configured(motor_id).
+  // Ignores mm6_enabled(motor_id).
 
   /* 
    * From the LMD18200 datasheet:
@@ -184,7 +193,7 @@ bool mm6_get_thermal_overload_active(motor_id_t motor_id)
 int mm6_get_current_draw(motor_id_t motor_id)
 {
   assert((motor_id >= MOTOR_ID_FIRST) && (motor_id <= MOTOR_ID_LAST));
-  // Ignores mm6_configured(motor_id).
+  // Ignores mm6_enabled(motor_id).
 
   // TODO: Convert to a float?
   // LMD18200 datasheet says 377uA/A. What's the resistance?
@@ -194,7 +203,7 @@ int mm6_get_current_draw(motor_id_t motor_id)
 bool mm6_get_overcurrent_active(motor_id_t motor_id)
 {
   assert((motor_id >= MOTOR_ID_FIRST) && (motor_id <= MOTOR_ID_LAST));
-  // Ignores mm6_configured(motor_id).
+  // Ignores mm6_enabled(motor_id).
 
   return false;
 }
@@ -210,7 +219,7 @@ static void print_motor_delta(int delta)
   }
 }
 
-void mm6_test_motor(motor_id_t motor_id) 
+void mm6_test(motor_id_t motor_id) 
 {
   assert((motor_id >= MOTOR_ID_FIRST) && (motor_id <= MOTOR_ID_LAST));
 
@@ -301,13 +310,13 @@ void mm6_test_motor(motor_id_t motor_id)
   }
 }
 
-void mm6_test_motors() {
+void mm6_test_all() {
   log_writeln(F("Testing motors"));    
   mm6_pid_enable(false);
   delay(250);
 
   for (int i = MOTOR_ID_FIRST; i <= MOTOR_ID_LAST; i++){    
-    mm6_test_motor(i);
+    mm6_test(i);
   }
   
   log_writeln(F("Done testing motors."));
@@ -447,6 +456,7 @@ bool mm6_calibrate(mm6_calibrate_data_t *pmm6_calibrate_data) {
       if (pmm6_calibrate_data->switch_triggered != motor_state[motor_id].switch_previously_triggered) {
         pmm6_calibrate_data->switch_triggered = motor_state[motor_id].switch_previously_triggered;
         log_writeln(F("Motor %c switch %d at encoder %d"), 'A' + motor_id, pmm6_calibrate_data->switch_triggered, encoder);
+        pmm6_calibrate_data->state = MM6_CALIBRATE_STATE_SWITCH;
       }
 
       if ((pmm6_calibrate_data->delta < 0) && 
@@ -476,6 +486,9 @@ bool mm6_calibrate(mm6_calibrate_data_t *pmm6_calibrate_data) {
       if (pmm6_calibrate_data->found_min_encoder && pmm6_calibrate_data->found_max_encoder)
         pmm6_calibrate_data->state = MM6_CALIBRATE_STATE_DONE;
         
+      break;
+    case MM6_CALIBRATE_STATE_SWITCH:
+      // switch_{forward,reverse}_{on,off}_encoder
       break;
     case MM6_CALIBRATE_STATE_DONE:    
       return false;
@@ -671,7 +684,7 @@ bool mm6_calibrate(mm6_calibrate_data_t *pmm6_calibrate_data) {
 #endif
 }
 
-bool mm6_calibrate_motors()
+bool mm6_calibrate_all()
 {
   bool ret = true;
   for (int i = MOTOR_ID_B; i <= MOTOR_ID_B; i++) {
@@ -746,10 +759,10 @@ void mm6_set_speed(motor_id_t motor_id, int speed)
 #endif
 }
 
-void mm6_dump_motor(motor_id_t motor_id) 
+void mm6_dump(motor_id_t motor_id) 
 {
   assert((motor_id >= MOTOR_ID_FIRST) && (motor_id <= MOTOR_ID_LAST));
-  if (!mm6_configured(motor_id))
+  if (!mm6_enabled(motor_id))
     return;
 
   log_writeln(F("%c: encoder:%d qe_prev:%d, speed:%d target_speed:%d logic:%d prev_dir:%d pid_dvalue:%d pid_perror:%d target_encoder:%d current:%d progress:%d"),
