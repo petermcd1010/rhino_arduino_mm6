@@ -421,8 +421,19 @@ void calculate_mean_and_variance(float value, int nvalues, float *pM2, float *pm
  * CALIBRATE_DONE
  */
 
+static mm6_calibrate_state_t get_calibrate_state(mm6_calibrate_data_t *pmm6_calibrate_data, bool forward, bool switch_on)
+{
+  return MM6_CALIBRATE_STATE_INIT;
+}
+
 bool mm6_calibrate(mm6_calibrate_data_t *pmm6_calibrate_data) {
   // Returns true while calibration is running, false when complete.
+
+  static mm6_calibrate_state_t prev_state = MM6_CALIBRATE_STATE_INIT;
+  if (prev_state != pmm6_calibrate_data->state) {
+    log_writeln(F("%s"), mm6_calibrate_state_name_by_index[pmm6_calibrate_data->state]);
+    prev_state = pmm6_calibrate_data->state;
+  }
 
   motor_id_t motor_id = pmm6_calibrate_data->motor_id;
   assert((motor_id >= MOTOR_ID_FIRST) && (motor_id <= MOTOR_ID_LAST));
@@ -454,9 +465,24 @@ bool mm6_calibrate(mm6_calibrate_data_t *pmm6_calibrate_data) {
         pmm6_calibrate_data->max_encoder = encoder;
 
       if (pmm6_calibrate_data->switch_triggered != motor_state[motor_id].switch_previously_triggered) {
+        pmm6_calibrate_data->state = get_calibrate_state(pmm6_calibrate_data, pmm6_calibrate_data->delta > 0, pmm6_calibrate_data->switch_triggered);
         pmm6_calibrate_data->switch_triggered = motor_state[motor_id].switch_previously_triggered;
+
+
         log_writeln(F("Motor %c switch %d at encoder %d"), 'A' + motor_id, pmm6_calibrate_data->switch_triggered, encoder);
-        pmm6_calibrate_data->state = MM6_CALIBRATE_STATE_SWITCH;
+        if (pmm6_calibrate_data->delta > 0) {
+          if (pmm6_calibrate_data->switch_triggered) {
+            pmm6_calibrate_data->state = MM6_CALIBRATE_STATE_SWITCH_FORWARD_ON;
+          } else {
+            pmm6_calibrate_data->state = MM6_CALIBRATE_STATE_SWITCH_FORWARD_OFF;
+          }
+        } else {
+          if (pmm6_calibrate_data->switch_triggered) {
+            pmm6_calibrate_data->state = MM6_CALIBRATE_STATE_SWITCH_REVERSE_ON;
+          } else {
+            pmm6_calibrate_data->state = MM6_CALIBRATE_STATE_SWITCH_REVERSE_OFF;
+          }
+        }
       }
 
       if ((pmm6_calibrate_data->delta < 0) && 
@@ -487,10 +513,20 @@ bool mm6_calibrate(mm6_calibrate_data_t *pmm6_calibrate_data) {
         pmm6_calibrate_data->state = MM6_CALIBRATE_STATE_DONE;
         
       break;
-    case MM6_CALIBRATE_STATE_SWITCH:
-      // switch_{forward,reverse}_{on,off}_encoder
+    case MM6_CALIBRATE_STATE_SWITCH_FORWARD_ON:
+      
+      // Move forward at full speed until off.     
+      return false;
       break;
-    case MM6_CALIBRATE_STATE_DONE:    
+    case MM6_CALIBRATE_STATE_SWITCH_FORWARD_OFF:    
+      // Forward a bit, then reverse.
+      return false;
+      break;
+    case MM6_CALIBRATE_STATE_SWITCH_REVERSE_ON:
+      // Reverse until off.
+      return false;
+      break;
+    case MM6_CALIBRATE_STATE_SWITCH_REVERSE_OFF:    
       return false;
       break;
     default:
