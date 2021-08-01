@@ -3,6 +3,10 @@
  * From https://stackoverflow.com/questions/27939882/fast-crc-algorithm.
  */
 
+#include <stdlib.h>
+#include "crc32c.h"
+#include "log.h"
+
 // CRC-32C (iSCSI) polynomial in reversed bit order.
 #define POLY 0x82f63b78
 

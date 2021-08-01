@@ -2,6 +2,8 @@
  * Configuration functions.
  */
 
+#include "crc32c.h"
+
 bool config_check()
 {
   // If there's an error in the header, all bets are off. Just return false.

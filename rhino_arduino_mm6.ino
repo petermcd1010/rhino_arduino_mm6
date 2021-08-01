@@ -20,6 +20,7 @@
 #include <stdarg.h>
 #include <EEPROM.h>
 
+#include "crc32c.h"
 #include "log.h"
 
 static const float rhino_arduino_mm6_version = 2.00;  
