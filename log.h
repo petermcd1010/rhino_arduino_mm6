@@ -1,7 +1,7 @@
 #pragma once
 
 /*
- * Declarations for non-logging and assert functionality.
+ * Declarations for logging and assert functionality.
  */
 
 #define __ASSERT_USE_STDERR

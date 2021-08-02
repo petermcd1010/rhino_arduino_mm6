@@ -1,5 +1,5 @@
 /*
- * Cyclical Redundancy Check (CRC) functions.
+ * Implementation for 32-bit Castagnoli Cyclical Redundancy Check (CRC32C) functionality.
  * From https://stackoverflow.com/questions/27939882/fast-crc-algorithm.
  */
 

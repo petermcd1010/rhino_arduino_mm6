@@ -1,5 +1,5 @@
 /*
- * Implementation for non-logging and assert functionality.
+ * Implementation for logging and assert functionality.
  */
 
 #include <assert.h>
