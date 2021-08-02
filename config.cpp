@@ -17,6 +17,18 @@ static const int config_magic = 0x5678FEAD;
 
 config_t config = {};
 
+static bool buffer_contains(char *pbuffer, size_t buffer_nbytes, char c)
+{
+  assert(pbuffer);
+
+  for (int i = 0; i < buffer_nbytes; i++) {
+    if (pbuffer[i] == c)
+      return true;
+  }
+
+  return false;
+}
+
 static void config_sign()
 {
   config.nbytes = sizeof(config_t);
@@ -76,12 +88,12 @@ bool config_check()
     ret = false;
   }
 
-  if (!util_buffer_contains(config.robot_serial, CONFIG_ROBOT_SERIAL_NBYTES, '\0')) {
+  if (!buffer_contains(config.robot_serial, CONFIG_ROBOT_SERIAL_NBYTES, '\0')) {
     log_writeln(F("ERROR: config_check: Robot serial isn't null-terminated."));
     ret = false;
   }
 
-  if (!util_buffer_contains(config.robot_name, CONFIG_ROBOT_NAME_NBYTES, '\0')) {
+  if (!buffer_contains(config.robot_name, CONFIG_ROBOT_NAME_NBYTES, '\0')) {
     log_writeln(F("ERROR: config_check: Robot name isn't null-terminated."));
     ret = false;
   }
@@ -146,7 +158,7 @@ void config_set_robot_id(robot_id_t robot_id)
 void config_set_robot_serial(char robot_serial[CONFIG_ROBOT_SERIAL_NBYTES])
 {
   assert(robot_serial);
-  assert(util_buffer_contains(robot_serial, CONFIG_ROBOT_SERIAL_NBYTES, 0));
+  assert(buffer_contains(robot_serial, CONFIG_ROBOT_SERIAL_NBYTES, 0));
   assert(config_check());
   memcpy(config.robot_serial, robot_serial, CONFIG_ROBOT_SERIAL_NBYTES);
   config_sign();
@@ -155,7 +167,7 @@ void config_set_robot_serial(char robot_serial[CONFIG_ROBOT_SERIAL_NBYTES])
 void config_set_robot_name(char robot_name[CONFIG_ROBOT_NAME_NBYTES])
 {
   assert(robot_name);
-  assert(util_buffer_contains(robot_name, CONFIG_ROBOT_NAME_NBYTES, 0));
+  assert(buffer_contains(robot_name, CONFIG_ROBOT_NAME_NBYTES, 0));
   assert(config_check());
   memcpy(config.robot_name, robot_name, CONFIG_ROBOT_NAME_NBYTES);
   config_sign();
