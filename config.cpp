@@ -9,7 +9,6 @@
 #include "config.h"
 #include "crc32c.h"
 #include "log.h"
-#include "util.h"
 
 static const int config_base_address = 4000;
 static const int config_version = 1;
