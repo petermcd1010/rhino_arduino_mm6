@@ -1,6 +1,10 @@
 /*
- * Logging functions and assert implementation.
+ * Implementation for non-logging and assert functionality.
  */
+
+#include <assert.h>
+#include "log.h"
+#include "mm6.h"
 
 // TODO: There's some repeated code here that can be reduced in size.
 
@@ -25,7 +29,7 @@ void log_string(const __FlashStringHelper *pstring)
   log_string(buffer);
 }
 
-void log_format_str_va_list(const char *pformat, va_list args) 
+static void log_format_str_va_list(const char *pformat, va_list args) 
 {
   assert(pformat);
 
@@ -94,7 +98,7 @@ static void print_file_name(const __FlashStringHelper *pfile_path)
   log_string(buffer);
 }
 
-void log_error_internal(int line_num, const char *pfunction_name, const __FlashStringHelper *pformat, va_list args)
+static void log_error_internal(int line_num, const char *pfunction_name, const __FlashStringHelper *pformat, va_list args)
 {
   assert(line_num > 0);
   assert(pfunction_name);
@@ -112,7 +116,6 @@ void log_error_internal(int line_num, const char *pfunction_name, const __FlashS
   log_format_str_va_list(buffer, args);
 
   log_string(F("\n\r"));
-  state = STATE_ERROR;
 }
 
 void log_error(const __FlashStringHelper *pfile_path, int line_num, const char *pfunction_name, const __FlashStringHelper *pformat, ...)
@@ -130,7 +133,7 @@ void log_error(const __FlashStringHelper *pfile_path, int line_num, const char *
   va_end(args);
 }
 
-void log_debug_internal(int line_num, const char *pfunction_name, const __FlashStringHelper *pformat, va_list args)
+static void log_debug_internal(int line_num, const char *pfunction_name, const __FlashStringHelper *pformat, va_list args)
 {
   assert(line_num > 0);
   assert(pfunction_name);
@@ -174,12 +177,11 @@ bool test_log()
 void __assert(const char *pfunction_name, const char *pfile_name, int line_num, const char *failedexpr)
 {
   // Don't check for valid arguments, because this function is what the assert() macro calls.
-  hardware_emergency_stop();
+  mm6_enable_all(false);
 
   log_string(pfunction_name);
   log_error_internal(line_num, pfunction_name, F("assertion failed: %s"), failedexpr);
 
   // TODO: Would it be better to write the assertion to persistent memory, reboot, and have it checked at boot?  
-  state = STATE_ERROR;
 }
 

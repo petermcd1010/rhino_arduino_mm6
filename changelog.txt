@@ -1,4 +1,4 @@
-Change log
+Change log (All work performed by Scott Savage unless otherwise indicated)
 1.02  3/19/2017 line 352: Excluded Motor A from the stall detect routine because it is the gripper and closing on an item is technically a stall.
 1.03  3/31/2017 line 792: Added TestMotors routine to test motors that are in an electrically unknown state.
 1.04  4/01/2017 line 792: Changed TestMotors routine so that all motor Drives are High-Z except the ones under test.

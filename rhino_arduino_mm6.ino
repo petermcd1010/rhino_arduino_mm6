@@ -15,242 +15,24 @@
  */
 
 #define __ASSERT_USE_STDERR
+#include <EEPROM.h>
 #include <assert.h>
 #include <stdio.h>
 #include <stdarg.h>
-#include <EEPROM.h>
 
+#include "config.h"
 #include "crc32c.h"
+#include "hardware.h"
 #include "log.h"
+#include "mm6.h"
 
 static const float rhino_arduino_mm6_version = 2.00;  
 
-// Used to select per-robot config information.
-typedef enum {
-  ROBOT_ID_FIRST = 0,
-  ROBOT_ID_NOT_CONFIGURED = ROBOT_ID_FIRST,
-  ROBOT_ID_RHINO_XR_1,
-  ROBOT_ID_RHINO_XR_2,
-  ROBOT_ID_RHINO_XR_3,
-  ROBOT_ID_RHINO_XR_4,
-  ROBOT_ID_RHINO_SCARA,
-  ROBOT_ID_RHINO_LINEAR_SLIDE_TABLE,
-  ROBOT_ID_RHINO_XY_SLIDE_TABLE,
-  ROBOT_ID_RHINO_TILT_CAROUSEL,
-  ROBOT_ID_RHINO_CONVEYOR_BELT,
-  ROBOT_ID_COUNT,
-  ROBOT_ID_LAST = ROBOT_ID_COUNT - 1,
-  ROBOT_ID_DEFAULT = ROBOT_ID_NOT_CONFIGURED,
-} robot_id_t;
-
-static const char* const robot_name_by_robot_id[ROBOT_ID_COUNT] = { 
-  "Not configured",
-  "Rhino XR-1 6-axis arm",
-  "Rhino XR-2 6-axis arm",
-  "Rhino XR-3 6-axis arm",
-  "Rhino XR-4 6-axis arm",
-  "Rhino SCARA 5-axis arm",
-  "Rhino linear slide table",
-  "Rhino XY slide table",
-  "Rhino tilt carousel",
-  "Rhino conveyor belt"
-};
-
-// Motor IDs are used to select an element from the arrays that hold motor information.
-typedef enum {
-  MOTOR_ID_FIRST = 0,
-  MOTOR_ID_A = MOTOR_ID_FIRST,
-  MOTOR_ID_B,
-  MOTOR_ID_C,
-  MOTOR_ID_D,
-  MOTOR_ID_E,
-  MOTOR_ID_F,
-  MOTOR_ID_COUNT,
-  MOTOR_ID_LAST = MOTOR_ID_COUNT - 1
-} motor_id_t;
-
-// MM6 motor I/O lines.
-typedef struct {
-  unsigned short out_direction;  // Digital. LOW = forward direction. HIGH = reverse direction.
-  unsigned short out_pwm;  // Digital.
-  unsigned short out_brake;  // Digital. LOW = disable brake. HIGH = enable brake.
-  unsigned short in_current_draw;  // Analog. 377uA/A. What's the resistance?
-  unsigned short in_thermal_overload;  // Digital. Becomes active at 145C. Chip shuts off at 170C.
-  unsigned short in_switch;  // Digital. LOW = switch triggered. HIGH = switch not triggered.
-  unsigned short in_quadrature_encoder_a;  // Digital.
-  unsigned short in_quadrature_encoder_b;  // Digital.
-} motor_pinout_t;
-
-static const motor_pinout_t motor_pinout[MOTOR_ID_COUNT] = {
-  {  11,  10,  12,  A5,  14,  A8,  47,  46 },  // Motor A.
-  {  A9,   7,  39,  A0, A11,  26,  32,  33 },  // Motor B.
-  {   3,   5,   4,  A6,   6,  28,  45,  44 },  // Motor C.
-  {  A1,   8,  A2,  A4,  A3,  30,  34,  35 },  // Motor D.
-  {  17,   2,  16,  A7,  15,  40,  43,  42 },  // Motor E.
-  {  51,   9,  50, A10,  52,  38,  36,  37 },  // Motor F.
-};
-
-static const int expansion_io_pinout[] = { A15, A14, A13, A12, 53, 49, 48, 41 };
-
-// State for  motor.
-typedef enum {
-  MOTOR_PROGRESS_AT_TARGET = 0,
-  MOTOR_PROGRESS_BESIDE_TARGET,  // Within 1 click.
-  MOTOR_PROGRESS_NEAR_TARGET,  // between 2 and 30 clicks.
-  MOTOR_PROGRESS_APPROACHING_TARGET,  // between 30 and 200 clicks.
-  MOTOR_PROGRESS_ON_WAY_TO_TARGET, // More than 200 clicks away.
-} motor_progress_t;
-
-typedef enum {
-  MOTOR_ERROR_FLAG_INVALID_ENCODER_TRANSITION = 1 << 0,  // only 0->1->3->2 and 0->2->3->1 are valid.
-  MOTOR_ERROR_FLAG_OPPOSITE_DIRECTION = 1 << 1,
-} motor_error_flag_t;
-
-typedef struct {
-  bool enabled;
-  int speed;
-  int target_speed;
-  int pwm;
-  int logic;  // -1 or +1.
-  int previous_direction;
-  int pid_dvalue;
-  int pid_perror;  // Proportional Error (Difference between Current and Target)
-  int target_encoder;
-  int current_draw;  // TODO: units? counts?
-  motor_progress_t progress;
-
-  bool switch_previously_triggered;  // Alignment switch previous value used for debounce.
-  bool switch_triggered;  // Alignment switch previous value used for debounce.
-  int switch_forward_on;  // Alighment switch forward direction high value.
-  int switch_forward_off;  // Alignment switch forward direction low value.
-  int switch_reverse_on;  // Alignment switch reverse direction high value.
-  int switch_reverse_off;  // Alignment switch reverse direction low value.
-
-  motor_error_flag_t error_flags;
-} motor_state_t;
-
-static motor_state_t motor_state[MOTOR_ID_COUNT] = {}; 
-
-// For motor direction pin.
-static const int mm6_direction_forward = LOW;
-static const int mm6_direction_reverse = HIGH;
-
-static const int motor_min_speed = 55;
 static bool motor_sync_move_enabled = false;
-
-static bool mm6_pid_enabled = false;
-static const int OPRLED = 13;
-static int Motor_PID[MOTOR_ID_COUNT] = {0, 0, 0, 0, 0, 0}; // PID on or off.
-
 int End[] = {0,0,0,0,0,0};
-int Gripper_StallC = 0;
 int LeadMotor = 0;
 int Start[] = {0,0,0,0,0,0};
 float Ratio[] = {0,0,0,0,0,0};
-int Gripper_StallE = 0;
-int Gripper_StallX = 0;
-int SyncMove_Status = 0;
-int Forward_Logic[] = {0,0,0,0,0,0}; // Forward Logic - The value for the Direction IO Line when the motor needs to move forward to sync with encoders.
-int Reverse_Logic[] = {1,1,1,1,1,1}; // Reverse Logic - The value for the Direction IO Line when the motor needs to move Reverse to sync with encoders.
-
-// Configuration stored in RAM and saved across reset/reboot that don't include a power-cycle of the board.
-const int noinit_data_version = 2;
-const int noinit_data_magic = 0xABCD1234;
-typedef struct {
-  // nbytes, version, magic are used to verify valid data.
-  size_t nbytes;
-  int version;
-  int magic;
-  int previous_quadrature_encoder[MOTOR_ID_COUNT];
-  int encoder[MOTOR_ID_COUNT];
-} noinit_data_t;
-
-static noinit_data_t noinit_data __attribute__ ((section (".noinit")));  // NOT reset to 0 when the CPU is reset.
-
-// Configuration stored in EEPROM.
-static const int config_base_address = 4000;
-static const int config_version = 1;
-static const int config_magic = 0x5678FEAD;
-static const int config_robot_serial_nbytes = 15;
-static const int config_robot_name_nbytes = 20;
-
-// Mechanical orientation based on motor installation side.
-typedef enum {
-  MOTOR_ORIENTATION_INVERTED = -1,
-  MOTOR_ORIENTATION_NOT_INVERTED = 1
-} motor_orientation_t;
-
-// Motor wiring polarity. Corrects for motors being wired backwards.
-typedef enum {
-  MOTOR_POLARITY_REVERSED = -1,
-  MOTOR_POLARITY_NOT_REVERSED = 1,
-} motor_polarity_t;
-
-typedef enum {
-  MM6_CALIBRATE_STATE_INIT = 0,
-  MM6_CALIBRATE_STATE_SEARCH,
-  MM6_CALIBRATE_STATE_SWITCH_FORWARD_ON,
-  MM6_CALIBRATE_STATE_SWITCH_FORWARD_OFF,
-  MM6_CALIBRATE_STATE_SWITCH_REVERSE_ON,
-  MM6_CALIBRATE_STATE_SWITCH_REVERSE_OFF,
-  MM6_CALIBRATE_STATE_DONE,
-} mm6_calibrate_state_t;
-
-const char* mm6_calibrate_state_name_by_index[] = {
-  "MM6_CALIBRATE_STATE_INIT",
-  "MM6_CALIBRATE_STATE_SEARCH",
-  "MM6_CALIBRATE_STATE_SWITCH_FORWARD_ON",
-  "MM6_CALIBRATE_STATE_SWITCH_FORWARD_OFF",
-  "MM6_CALIBRATE_STATE_SWITCH_REVERSE_ON",
-  "MM6_CALIBRATE_STATE_SWITCH_REVERSE_OFF",
-  "MM6_CALIBRATE_STATE_DONE",
-};
-
-typedef enum {
-  MM6_CALIBRATE_ERROR_NONE = 0,
-  MM6_CALIBRATE_ERROR_NOT_CONFIGURED,
-} mm6_calibrate_error_t;
-
-typedef struct {
-  motor_id_t motor_id;
-  mm6_calibrate_state_t state; 
-  mm6_calibrate_error_t error;
-  int delta;
-  int target;
-  bool found_min_encoder;
-  bool found_max_encoder;
-  int min_encoder;
-  int max_encoder;
-  bool switch_triggered;
-  int switch_forward_on_encoder;
-  int switch_forward_off_encoder;
-  int switch_reverse_on_encoder;
-  int switch_reverse_off_encoder;
-} mm6_calibrate_data_t;
-
-typedef struct __attribute__((packed)) {
-  bool configured;
-  int angle_offset;
-  motor_orientation_t orientation;  
-  motor_polarity_t polarity;  // Easy to wire motors backwards.
-} motor_config_t;
-
-typedef struct __attribute__((packed)) {
-  // nbytes, version, magic, and crc are used to verify a valid config.
-  size_t nbytes;
-  int version;
-  long magic;
-  long crc;
-
-  robot_id_t robot_id;
-  char robot_serial[config_robot_serial_nbytes];  // To help user confirm board/robot match.
-  char robot_name[config_robot_name_nbytes];  // Optional robot name for user.
-  motor_config_t motor[MOTOR_ID_COUNT];
-  int gripper_open_location;
-  int gripper_close_location;
-} config_t;
-
-config_t config = {};
 
 typedef struct {
   char command_char;
@@ -293,23 +75,7 @@ typedef struct {
   motor_status_t motor[MOTOR_ID_COUNT];
 } status_t;
 
-// TODO: Get rid of the following two globals.
-int tracking = 0;
-int tracked[] = { 0, 0, 0, 0, 0, 0 }; // Last value while tracking.
-
-/*
- * Non-MegaMotor6-specific hardware functions.
- */
-
-void hardware_erase_eeprom()
-{
-  log_write(F("Erasing EEPROM... "));
-  for (int i = 0; i < EEPROM.length(); i++) {
-    EEPROM.write(i, 0);    
-  }
-  log_writeln(F("Completed. Zeroed %d bytes."), EEPROM.length());
-}
-
+void hardware_emergency_stop();  // TODO: Move to mm6_stop_all()?
 void hardware_emergency_stop()
 {
   // TODO: call hardware_emergency_stop when entering ERROR state.
@@ -324,31 +90,6 @@ void hardware_emergency_stop()
   }
 
   state = STATE_ERROR;
-}
-
-void hardware_reset()
-{
-  hardware_emergency_stop();
-  hardware_erase_eeprom();
-  hardware_reboot();
-}
-
-void (*hardware_really_reboot)(void) = 0;  // Call hardware_really_reboot() to reset the board.
-void hardware_reboot() 
-{
-  hardware_emergency_stop();
-  delay(1000);  // Wait 1s for log output to complete writing.
-  hardware_really_reboot();
-}
-
-void hardware_set_led(bool enable)
-{
-  digitalWrite(OPRLED, enable);
-}
-
-bool hardware_get_led()
-{
-  return digitalRead(OPRLED) != 0;
 }
 
 /*
@@ -701,7 +442,7 @@ void extended_menu_robot_name()
 {
   log_writeln(F(""));  
   log_writeln(F("Current robot name is '%s'."), config.robot_name);
-  log_writeln(F("Enter new robot name shorter than %d characters, or press [RETURN] to keep current name."), config_robot_name_nbytes);
+  log_writeln(F("Enter new robot name shorter than %d characters, or press [RETURN] to keep current name."), CONFIG_ROBOT_NAME_NBYTES);
   log_write(F(">"));
 }
 
@@ -953,8 +694,8 @@ int command_config_robot_serial(char *pargs, size_t args_nbytes)
     return p - pargs;
   }  
 
-  char robot_serial[config_robot_serial_nbytes];
-  nbytes = parse_string(p, args_nbytes, robot_serial, config_robot_serial_nbytes);
+  char robot_serial[CONFIG_ROBOT_SERIAL_NBYTES];
+  nbytes = parse_string(p, args_nbytes, robot_serial, CONFIG_ROBOT_SERIAL_NBYTES);
   if (nbytes < 0)  // TODO: is this ever true?
     return -1;
   args_nbytes -= nbytes;
@@ -988,8 +729,8 @@ int command_config_robot_name(char *pargs, size_t args_nbytes)  // TODO: should 
     return p - pargs;
   }  
 
-  char robot_name[config_robot_name_nbytes];
-  nbytes = parse_string(p, args_nbytes, robot_name, config_robot_name_nbytes);
+  char robot_name[CONFIG_ROBOT_NAME_NBYTES];
+  nbytes = parse_string(p, args_nbytes, robot_name, CONFIG_ROBOT_NAME_NBYTES);
   if (nbytes < 0)  // TODO: is this ever true?
     return -1;
   args_nbytes -= nbytes;
@@ -1408,64 +1149,6 @@ void check_noinit_data()
   }
 }
 
-void hardware_init() {
-  mm6_init();
-  check_noinit_data();
-  pinMode(OPRLED, OUTPUT);
-  pinMode(expansion_io_pinout[0], OUTPUT); // Tone
-
-  // Timer setup: Allows preceise timed measurements of the quadrature encoder.
-  cli();  // Disable interrupts.
-
-  // Configure timer1 interrupt at 1kHz.
-  TCCR1A = 0;  // Set entire TCCR1A register to 0.
-  TCCR1B = 0;  // Same for TCCR1B.
-  TCNT1  = 0;  // Initialize counter value to 0.
-
-  // Set timer count for 2khz increments.
-  OCR1A = 1000;  // = (16*10^6) / (2000*8) - 1
-
-  TCCR1B |= (1 << WGM12);  // Turn on CTC mode.
-  TCCR1B |= (1 << CS11);  // Set CS11 bit for 8 prescaler.
-  TIMSK1 |= (1 << OCIE1A);  // Enable timer compare interrupt.
-  sei();  // Enable interrupts.
-
-  // Get the Angle Offsets and Forward_Logic for ALL motors
-  for (int i = MOTOR_ID_FIRST; i <= MOTOR_ID_LAST; i++){    
-    int logic = 0;
-    
-    // The Angle Offset is used in the Position-to-Angle and Angle-to-Position calculations
-    //   Each Rhino Robot may have mechanical differences in the positions of the home swithes, 
-    //   so the encoder count when the arm is straight up is stored as an "AngleOffset" so that the
-    //   MegaMotor6 Angle Values will work the actual physical position of the robot
-    //   while the Position Values work with positions relative to the home switches.
-    //     The values for the AngleOffets come from the "~" Command.
-
-    // EEPROM.get(AngleOffsetELoc[iMotor], AngleOffset[iMotor]);
-
-    // The Forward and Reverse Locic is used to turn the motors in the right direction to sync with the encoders.
-    //   Each Rhino Robot may have the wires to the motors reversed.
-    //   So the Forward and Reverse Logic is used to correct that.    
-    //     The values for the Direction Logic come from the "t" command.
-    //       Since the Forward and Reverse Locic are used for an I/O line the values are 0 or 1'
-#if 0
-    logic = config.motor[i].direction_logic;  // 0 = forward, 1 = reverse.
-    if (logic != 0) 
-      logic = !0;  
-    Reverse_Logic[i] = logic; // Reverse Logic - The value for the Direction IO Line when the motor needs to move Reverse. Defaults to 1.
-    Forward_Logic[i] = !logic; // Forward Logic - The value for the Direction IO Line when the motor needs to move forward. Defaults to 0.
-#endif
-
-    // The Motor Locic is used to contol which way the motors turn in responce to the Positions.
-    //   Each Rhino Robot may have the motor assembled on either side - which winds up reversing the motors direction mechanically.
-    //   So the motor locic is used to correct that.    
-    //     The values for the Motor Logic are set by the setup.
-    //       Since the Forward and Reverse Locic are used to invert the position the values are 1 or -1
-    motor_state[i].logic = config.motor[i].orientation; 
-    // LOG_D(F("%d"), motor_state[i].logic);
-  }  
-}
-
 void gather_status(status_t *pstatus)
 {
   assert(pstatus);
@@ -1700,6 +1383,8 @@ state_t state_init_execute()
   }
 
   config_print();
+  mm6_init();
+  check_noinit_data();
   hardware_init();
 
   bool self_test_success = run_self_test();
@@ -1892,9 +1577,9 @@ void loop()
     Serial.print("  Cur=");
     Serial.print(Gripper_StallC);
     Serial.print("  Open=");
-    Serial.print(config.gripper_open_location);
+    Serial.print(config.gripper_open_encoder);
     Serial.print("  Closed=");
-    Serial.print(config.gripper_close_location);   
+    Serial.print(config.gripper_close_encoder);   
     Serial.println(".");
     Gripper_StallX=0;
     motor_state[MOTOR_ID_A].target_encoder = noinit_data.encoder[MOTOR_ID_A];
@@ -2155,13 +1840,13 @@ void ShowHelp() {
 
 void OpenGripper(){
   Gripper_StallX=0;
-  motor_state[MOTOR_ID_A].target_encoder = config.gripper_open_location;
+  motor_state[MOTOR_ID_A].target_encoder = config.gripper_open_encoder;
   Serial.println("Opening Gripper.");
 }
 
 void CloseGripper(){
   Gripper_StallX=0;
-  motor_state[MOTOR_ID_A].target_encoder = config.gripper_close_location;
+  motor_state[MOTOR_ID_A].target_encoder = config.gripper_close_encoder;
   Serial.println("Closing Gripper.");
 }
 
@@ -2342,8 +2027,8 @@ void InterrogateLimitSwitchA() {
     motor_state[MOTOR_ID_A].target_encoder  = 0;
     motor_state[MOTOR_ID_A].logic = -1;
     // config_set_motor_orientation(MOTOR_ID_A, motor_state[MOTOR_ID_A].orientation);
-    config_set_gripper_open_location(-140);
-    config_set_gripper_close_location(-310);
+    config_set_gripper_open_encoder(-140);
+    config_set_gripper_close_encoder(-310);
     Serial.println("Done");
   } else {
     // Encoder goes Negative towards switch.
@@ -2354,8 +2039,8 @@ void InterrogateLimitSwitchA() {
     motor_state[MOTOR_ID_A].target_encoder  = 0;
     motor_state[MOTOR_ID_A].logic = 1;
     // config_set_motor_orientation(MOTOR_ID_A, motor_state[MOTOR_ID_A].orientation);
-    config_set_gripper_open_location(140);
-    config_set_gripper_close_location(310);
+    config_set_gripper_open_encoder(140);
+    config_set_gripper_close_encoder(310);
     Serial.println("Done");
   }
 }
@@ -2520,8 +2205,8 @@ void RunWayPointSeq() {
           Serial.print(" If I/O[");
           Serial.print(Pin);
           Serial.println("]");
-          pinMode(expansion_io_pinout[Pin-1], INPUT);
-          val = digitalRead(expansion_io_pinout[Pin-1]);
+          // pinMode(expansion_io_pinout[Pin-1], INPUT);
+          // val = digitalRead(expansion_io_pinout[Pin-1]);
           if (val == 0) Step = Stp - 1;
           break;
           

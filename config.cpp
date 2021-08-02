@@ -1,8 +1,45 @@
 /*
- * Configuration functions.
+ * Implementation for persistent configuration stored in EEPROM.
  */
 
+#define __ASSERT_USE_STDERR
+#include <assert.h>
+#include <EEPROM.h>
+
+#include "config.h"
 #include "crc32c.h"
+#include "log.h"
+#include "util.h"
+
+static const int config_base_address = 4000;
+static const int config_version = 1;
+static const int config_magic = 0x5678FEAD;
+
+config_t config = {};
+
+static void config_sign()
+{
+  config.nbytes = sizeof(config_t);
+  config.version = config_version;
+  config.magic = config_magic;
+  config.crc = 0;  
+  config.crc = crc32c_calculate(&config, sizeof(config_t)); 
+}
+
+bool config_read() 
+{
+  EEPROM.get(config_base_address, config);
+  return config_check();
+}
+
+bool config_write()
+{
+  if (!config_check())
+    return false;
+
+  EEPROM.put(config_base_address, config);  // Doesn't return success/failure indiction.
+  return true;
+}
 
 bool config_check()
 {
@@ -39,12 +76,12 @@ bool config_check()
     ret = false;
   }
 
-  if (!util_buffer_contains(config.robot_serial, config_robot_serial_nbytes, '\0')) {
+  if (!util_buffer_contains(config.robot_serial, CONFIG_ROBOT_SERIAL_NBYTES, '\0')) {
     log_writeln(F("ERROR: config_check: Robot serial isn't null-terminated."));
     ret = false;
   }
 
-  if (!util_buffer_contains(config.robot_name, config_robot_name_nbytes, '\0')) {
+  if (!util_buffer_contains(config.robot_name, CONFIG_ROBOT_NAME_NBYTES, '\0')) {
     log_writeln(F("ERROR: config_check: Robot name isn't null-terminated."));
     ret = false;
   }
@@ -70,32 +107,17 @@ bool config_check()
     }
   }
 
-  if ((config.gripper_open_location < min_count) || (config.gripper_open_location > max_count)) {
+  if ((config.gripper_open_encoder < min_count) || (config.gripper_open_encoder > max_count)) {
     log_writeln(F("ERROR: config_check: Invalid gripper_open."));
     ret = false;
   }
 
-  if ((config.gripper_close_location < min_count) || (config.gripper_close_location > max_count)) {
+  if ((config.gripper_close_encoder < min_count) || (config.gripper_close_encoder > max_count)) {
     log_writeln(F("ERROR: config_check: Invalid gripper_open."));
     ret = false;
   }
 
   return ret;
-}
-
-bool config_read() 
-{
-  EEPROM.get(config_base_address, config);
-  return config_check();
-}
-
-void config_sign()
-{
-  config.nbytes = sizeof(config_t);
-  config.version = config_version;
-  config.magic = config_magic;
-  config.crc = 0;  
-  config.crc = crc32c_calculate(&config, sizeof(config_t)); 
 }
 
 void config_clear() 
@@ -106,18 +128,9 @@ void config_clear()
     config.motor[i].orientation = MOTOR_ORIENTATION_NOT_INVERTED;
     config.motor[i].polarity = MOTOR_POLARITY_NOT_REVERSED;
   }
-  config.gripper_open_location = -130;
-  config.gripper_close_location = -310;
+  config.gripper_open_encoder = -130;
+  config.gripper_close_encoder = -310;
   config_sign();
-}
-
-bool config_write()
-{
-  if (!config_check())
-    return false;
-
-  EEPROM.put(config_base_address, config);  // Doesn't return success/failure indiction.
-  return true;
 }
 
 void config_set_robot_id(robot_id_t robot_id)
@@ -130,21 +143,21 @@ void config_set_robot_id(robot_id_t robot_id)
   config_sign();
 }
 
-void config_set_robot_serial(char robot_serial[config_robot_serial_nbytes])
+void config_set_robot_serial(char robot_serial[CONFIG_ROBOT_SERIAL_NBYTES])
 {
   assert(robot_serial);
-  assert(util_buffer_contains(robot_serial, config_robot_serial_nbytes, 0));
+  assert(util_buffer_contains(robot_serial, CONFIG_ROBOT_SERIAL_NBYTES, 0));
   assert(config_check());
-  memcpy(config.robot_serial, robot_serial, config_robot_serial_nbytes);
+  memcpy(config.robot_serial, robot_serial, CONFIG_ROBOT_SERIAL_NBYTES);
   config_sign();
 }
 
-void config_set_robot_name(char robot_name[config_robot_name_nbytes])
+void config_set_robot_name(char robot_name[CONFIG_ROBOT_NAME_NBYTES])
 {
   assert(robot_name);
-  assert(util_buffer_contains(robot_name, config_robot_name_nbytes, 0));
+  assert(util_buffer_contains(robot_name, CONFIG_ROBOT_NAME_NBYTES, 0));
   assert(config_check());
-  memcpy(config.robot_name, robot_name, config_robot_name_nbytes);
+  memcpy(config.robot_name, robot_name, CONFIG_ROBOT_NAME_NBYTES);
   config_sign();
 }
 
@@ -178,21 +191,21 @@ void config_set_motor_polarity(motor_id_t motor_id, motor_polarity_t motor_polar
   config_sign();
 }
 
-void config_set_gripper_open_location(int location)
+void config_set_gripper_open_encoder(int encoder)
 {  
-  // TODO: assert location is in valid range.
+  // TODO: assert encoder is in valid range.
   
   assert(config_check());
-  config.gripper_open_location = location;
+  config.gripper_open_encoder = encoder;
   config_sign();
 }
 
-void config_set_gripper_close_location(int location)
+void config_set_gripper_close_encoder(int encoder)
 {  
-  // TODO: assert location is in valid range.
+  // TODO: assert encoder is in valid range.
   
   assert(config_check());
-  config.gripper_close_location = location;
+  config.gripper_close_encoder = encoder;
   config_sign();
 }
 
@@ -234,8 +247,8 @@ void config_print()
     }
   }
 
-  log_writeln(F("  Gripper open location: %d"), config.gripper_open_location);
-  log_writeln(F("  Gripper close location: %d"), config.gripper_close_location);
+  log_writeln(F("  Gripper open encoder: %d"), config.gripper_open_encoder);
+  log_writeln(F("  Gripper close encoder: %d"), config.gripper_close_encoder);
 
   log_writeln(F(""));
 }

@@ -1,8 +1,102 @@
 /*
- * MegaMotor6 functions. 
- * Written by Scott Savage, Peter McDermott.
- * Feb 2017-21 GNU General Public License (GPL).
+ * Implementation for MegaMotor6-specific hardware functionality.
  */
+
+#define __ASSERT_USE_STDERR
+#include <assert.h>
+#include <stdlib.h>
+#include "config.h"
+#include "hardware.h"
+#include "log.h"
+#include "mm6.h"
+
+extern void TrackReport(motor_id_t motor_id);  // TODO: remove.
+
+const char* const robot_name_by_robot_id[ROBOT_ID_COUNT] = { 
+  "Not configured",
+  "Rhino XR-1 6-axis arm",
+  "Rhino XR-2 6-axis arm",
+  "Rhino XR-3 6-axis arm",
+  "Rhino XR-4 6-axis arm",
+  "Rhino SCARA 5-axis arm",
+  "Rhino linear slide table",
+  "Rhino XY slide table",
+  "Rhino tilt carousel",
+  "Rhino conveyor belt"
+};
+
+const motor_pinout_t motor_pinout[MOTOR_ID_COUNT] = {
+  {  11,  10,  12,  A5,  14,  A8,  47,  46 },  // Motor A.
+  {  A9,   7,  39,  A0, A11,  26,  32,  33 },  // Motor B.
+  {   3,   5,   4,  A6,   6,  28,  45,  44 },  // Motor C.
+  {  A1,   8,  A2,  A4,  A3,  30,  34,  35 },  // Motor D.
+  {  17,   2,  16,  A7,  15,  40,  43,  42 },  // Motor E.
+  {  51,   9,  50, A10,  52,  38,  36,  37 },  // Motor F.
+};
+
+typedef enum {
+  MM6_CALIBRATE_STATE_INIT = 0,
+  MM6_CALIBRATE_STATE_SEARCH,
+  MM6_CALIBRATE_STATE_SWITCH_FORWARD_ON,
+  MM6_CALIBRATE_STATE_SWITCH_FORWARD_OFF,
+  MM6_CALIBRATE_STATE_SWITCH_REVERSE_ON,
+  MM6_CALIBRATE_STATE_SWITCH_REVERSE_OFF,
+  MM6_CALIBRATE_STATE_DONE,
+} mm6_calibrate_state_t;
+
+const char* mm6_calibrate_state_name_by_index[] = {
+  "MM6_CALIBRATE_STATE_INIT",
+  "MM6_CALIBRATE_STATE_SEARCH",
+  "MM6_CALIBRATE_STATE_SWITCH_FORWARD_ON",
+  "MM6_CALIBRATE_STATE_SWITCH_FORWARD_OFF",
+  "MM6_CALIBRATE_STATE_SWITCH_REVERSE_ON",
+  "MM6_CALIBRATE_STATE_SWITCH_REVERSE_OFF",
+  "MM6_CALIBRATE_STATE_DONE",
+};
+
+typedef enum {
+  MM6_CALIBRATE_ERROR_NONE = 0,
+  MM6_CALIBRATE_ERROR_NOT_CONFIGURED,
+} mm6_calibrate_error_t;
+
+typedef struct {
+  motor_id_t motor_id;
+  mm6_calibrate_state_t state; 
+  mm6_calibrate_error_t error;
+  int delta;
+  int target;
+  bool found_min_encoder;
+  bool found_max_encoder;
+  int min_encoder;
+  int max_encoder;
+  bool switch_triggered;
+  int switch_forward_on_encoder;
+  int switch_forward_off_encoder;
+  int switch_reverse_on_encoder;
+  int switch_reverse_off_encoder;
+} mm6_calibrate_data_t;
+
+// For motor direction pin.
+static const int mm6_direction_forward = LOW;
+static const int mm6_direction_reverse = HIGH;
+
+motor_state_t motor_state[MOTOR_ID_COUNT] = {};   // TODO: mm6_motor_state?
+
+bool mm6_pid_enabled = false;
+const int motor_min_speed = 55;
+// TODO: Get rid of the following two globals.
+int tracking = 0;
+int tracked[] = { 0, 0, 0, 0, 0, 0 }; // Last value while tracking.
+static int Motor_PID[MOTOR_ID_COUNT] = {0, 0, 0, 0, 0, 0}; // PID on or off.
+int Gripper_StallC = 0;
+int Gripper_StallE = 0;
+int Gripper_StallX = 0;
+int SyncMove_Status = 0;
+int Forward_Logic[] = {0,0,0,0,0,0}; // Forward Logic - The value for the Direction IO Line when the motor needs to move forward to sync with encoders.
+int Reverse_Logic[] = {1,1,1,1,1,1}; // Reverse Logic - The value for the Direction IO Line when the motor needs to move Reverse to sync with encoders.
+
+static noinit_data_t noinit_data __attribute__ ((section (".noinit")));  // NOT reset to 0 when the CPU is reset.
+
 
 void mm6_init()
 {
@@ -364,8 +458,8 @@ bool mm6_interrogate_limit_switch_a() {
     motor_state[MOTOR_ID_A].target_encoder  = 0;
     motor_state[MOTOR_ID_A].logic = -1;
     // config_set_motor_orientation(MOTOR_ID_A, motor_state[MOTOR_ID_A].orientation);
-    config_set_gripper_open_location(-140);
-    config_set_gripper_close_location(-310);
+    config_set_gripper_open_encoder(-140);
+    config_set_gripper_close_encoder(-310);
     Serial.println("Done");
   } else {
     // Encoder goes Negative towards switch.
@@ -376,8 +470,8 @@ bool mm6_interrogate_limit_switch_a() {
     motor_state[MOTOR_ID_A].target_encoder  = 0;
     motor_state[MOTOR_ID_A].logic = 1;
     // config_set_motor_orientation(MOTOR_ID_A, motor_state[MOTOR_ID_A].orientation);
-    config_set_gripper_open_location(140);
-    config_set_gripper_close_location(310);
+    config_set_gripper_open_encoder(140);
+    config_set_gripper_close_encoder(310);
     Serial.println("Done");
   }
   return true;
@@ -831,7 +925,7 @@ void isr_blink_led(bool pid_enabled)
   if (led_counter > 1000) {
     bool led_state = !hardware_get_led();
     hardware_set_led(led_state);
-    digitalWrite(expansion_io_pinout[0], led_state);  // Also output the LED onto expansion_io_pinout 1 which can be wired to a speaker.
+    // digitalWrite(expansion_io_pinout[0], led_state);  // TODO: ? Also output the LED onto expansion_io_pinout 1 which can be wired to a speaker.
     led_counter = 0;
   }
 }
