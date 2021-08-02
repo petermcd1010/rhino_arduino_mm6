@@ -1358,10 +1358,9 @@ bool overcurrent_detected()
 
 void print_software_version()
 {
-  const size_t version_string_nbytes = 32;
-  char version_string[version_string_nbytes] = {};
-  version_get_string(version_string, version_string_nbytes, rhino_arduino_mm6_version);
-  log_writeln(F("Version: %s."), version_string);  
+  char version_number_string[10] = {};
+  dtostrf(rhino_arduino_mm6_version, 3, 2, version_number_string);
+  log_writeln(F("Version: %s (%s %s)"), version_number_string, __DATE__, __TIME__);
 }
 
 state_t state_init_execute()
