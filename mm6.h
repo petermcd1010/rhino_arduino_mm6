@@ -6,26 +6,6 @@
 
 #include <Arduino.h>
 
-// Used to select per-robot config information.
-typedef enum {
-  ROBOT_ID_FIRST = 0,
-  ROBOT_ID_NOT_CONFIGURED = ROBOT_ID_FIRST,
-  ROBOT_ID_RHINO_XR_1,
-  ROBOT_ID_RHINO_XR_2,
-  ROBOT_ID_RHINO_XR_3,
-  ROBOT_ID_RHINO_XR_4,
-  ROBOT_ID_RHINO_SCARA,
-  ROBOT_ID_RHINO_LINEAR_SLIDE_TABLE,
-  ROBOT_ID_RHINO_XY_SLIDE_TABLE,
-  ROBOT_ID_RHINO_TILT_CAROUSEL,
-  ROBOT_ID_RHINO_CONVEYOR_BELT,
-  ROBOT_ID_COUNT,
-  ROBOT_ID_LAST = ROBOT_ID_COUNT - 1,
-  ROBOT_ID_DEFAULT = ROBOT_ID_NOT_CONFIGURED,
-} robot_id_t; 
-
-extern const char* const robot_name_by_robot_id[ROBOT_ID_COUNT]; 
-
 // Motor IDs are used to select an element from the arrays that hold motor information.
 typedef enum {
   MOTOR_ID_FIRST = 0,
@@ -39,6 +19,7 @@ typedef enum {
   MOTOR_ID_LAST = MOTOR_ID_COUNT - 1
 } motor_id_t;
 
+// TODO: Put motor_pinout_t in mm6.h when its no longer used in rhino_arduino_mm6.ino.
 // MM6 motor I/O lines.
 typedef struct {
   unsigned short out_direction;  // Digital. LOW = forward direction. HIGH = reverse direction.
@@ -64,6 +45,7 @@ typedef enum {
 typedef enum {
   MOTOR_ERROR_FLAG_INVALID_ENCODER_TRANSITION = 1 << 0,  // only 0->1->3->2 and 0->2->3->1 are valid.
   MOTOR_ERROR_FLAG_OPPOSITE_DIRECTION = 1 << 1,
+  MOTOR_ERROR_FLAG_UNEXPECTED_SWITCH_ENCODER = 1 << 2,
 } motor_error_flag_t;
 
 typedef struct {

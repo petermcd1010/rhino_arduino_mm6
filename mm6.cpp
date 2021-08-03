@@ -12,19 +12,6 @@
 
 extern void TrackReport(motor_id_t motor_id);  // TODO: remove.
 
-const char* const robot_name_by_robot_id[ROBOT_ID_COUNT] = { 
-  "Not configured",
-  "Rhino XR-1 6-axis arm",
-  "Rhino XR-2 6-axis arm",
-  "Rhino XR-3 6-axis arm",
-  "Rhino XR-4 6-axis arm",
-  "Rhino SCARA 5-axis arm",
-  "Rhino linear slide table",
-  "Rhino XY slide table",
-  "Rhino tilt carousel",
-  "Rhino conveyor belt"
-};
-
 const motor_pinout_t motor_pinout[MOTOR_ID_COUNT] = {
   {  11,  10,  12,  A5,  14,  A8,  47,  46 },  // Motor A.
   {  A9,   7,  39,  A0, A11,  26,  32,  33 },  // Motor B.
@@ -35,34 +22,34 @@ const motor_pinout_t motor_pinout[MOTOR_ID_COUNT] = {
 };
 
 typedef enum {
-  MM6_CALIBRATE_STATE_INIT = 0,
-  MM6_CALIBRATE_STATE_SEARCH,
-  MM6_CALIBRATE_STATE_SWITCH_FORWARD_ON,
-  MM6_CALIBRATE_STATE_SWITCH_FORWARD_OFF,
-  MM6_CALIBRATE_STATE_SWITCH_REVERSE_ON,
-  MM6_CALIBRATE_STATE_SWITCH_REVERSE_OFF,
-  MM6_CALIBRATE_STATE_DONE,
-} mm6_calibrate_state_t;
+  CAL_STATE_INIT = 0,
+  CAL_STATE_SEARCH,
+  CAL_STATE_SWITCH_FORWARD_ON,
+  CAL_STATE_SWITCH_FORWARD_OFF,
+  CAL_STATE_SWITCH_REVERSE_ON,
+  CAL_STATE_SWITCH_REVERSE_OFF,
+  CAL_STATE_DONE,
+} cal_state_t;
 
-const char* mm6_calibrate_state_name_by_index[] = {
-  "MM6_CALIBRATE_STATE_INIT",
-  "MM6_CALIBRATE_STATE_SEARCH",
-  "MM6_CALIBRATE_STATE_SWITCH_FORWARD_ON",
-  "MM6_CALIBRATE_STATE_SWITCH_FORWARD_OFF",
-  "MM6_CALIBRATE_STATE_SWITCH_REVERSE_ON",
-  "MM6_CALIBRATE_STATE_SWITCH_REVERSE_OFF",
-  "MM6_CALIBRATE_STATE_DONE",
+static const char* cal_state_name_by_index[] = {
+  "CAL_STATE_INIT",
+  "CAL_STATE_SEARCH",
+  "CAL_STATE_SWITCH_FORWARD_ON",
+  "CAL_STATE_SWITCH_FORWARD_OFF",
+  "CAL_STATE_SWITCH_REVERSE_ON",
+  "CAL_STATE_SWITCH_REVERSE_OFF",
+  "CAL_STATE_DONE",
 };
 
 typedef enum {
-  MM6_CALIBRATE_ERROR_NONE = 0,
-  MM6_CALIBRATE_ERROR_NOT_CONFIGURED,
-} mm6_calibrate_error_t;
+  CAL_ERROR_NONE = 0,
+  CAL_ERROR_NOT_CONFIGURED,
+} cal_error_t;
 
 typedef struct {
   motor_id_t motor_id;
-  mm6_calibrate_state_t state; 
-  mm6_calibrate_error_t error;
+  cal_state_t state; 
+  cal_error_t error;
   int delta;
   int target;
   bool found_min_encoder;
@@ -74,7 +61,7 @@ typedef struct {
   int switch_forward_off_encoder;
   int switch_reverse_on_encoder;
   int switch_reverse_off_encoder;
-} mm6_calibrate_data_t;
+} cal_data_t;
 
 // For motor direction pin.
 static const int mm6_direction_forward = LOW;
@@ -96,7 +83,6 @@ int Forward_Logic[] = {0,0,0,0,0,0}; // Forward Logic - The value for the Direct
 int Reverse_Logic[] = {1,1,1,1,1,1}; // Reverse Logic - The value for the Direction IO Line when the motor needs to move Reverse to sync with encoders.
 
 static noinit_data_t noinit_data __attribute__ ((section (".noinit")));  // NOT reset to 0 when the CPU is reset.
-
 
 void mm6_init()
 {
@@ -219,7 +205,7 @@ float mm6_get_encoder_steps_per_degree(motor_id_t motor_id)
 
   switch (motor_id) {
     case MOTOR_ID_F: 
-      if (config.robot_id == ROBOT_ID_RHINO_XR_4)
+      if (config.robot_id == CONFIG_ROBOT_ID_RHINO_XR_4)
         return 17.5;  // (4.4)(66.1/1) XR4        
       else
         return 29.5;  // (4.4)(66.1/1) XR3
@@ -227,7 +213,7 @@ float mm6_get_encoder_steps_per_degree(motor_id_t motor_id)
     case MOTOR_ID_E:  // Fallthrough.
     case MOTOR_ID_D:  // Fallthrough.
     case MOTOR_ID_C:
-      if (config.robot_id == ROBOT_ID_RHINO_XR_4)
+      if (config.robot_id == CONFIG_ROBOT_ID_RHINO_XR_4)
         return 35;  // (8.8)(66.1/1) XR4
       else
         return 36;  // (8.8)(66.1/1) XR3
@@ -510,119 +496,119 @@ void calculate_mean_and_variance(float value, int nvalues, float *pM2, float *pm
 // Track per-motor mean and variance for qe-transitions/second
 
 /*
- * CALIBRATE_LIMIT_FORWARD
- * CALIBRATE_LIMIT_BACKWARD
- * CALIBRATE_SWITCH_FORWARD
- * CALIBRATE_SWITCH_BACKWARD
- * CALIBRATE_DONE
+ * CAL_LIMIT_FORWARD
+ * CAL_LIMIT_BACKWARD
+ * CAL_SWITCH_FORWARD
+ * CAL_SWITCH_BACKWARD
+ * CAL_DONE
  */
 
-static mm6_calibrate_state_t get_calibrate_state(mm6_calibrate_data_t *pmm6_calibrate_data, bool forward, bool switch_on)
+static cal_state_t get_cal_state(cal_data_t *pcal_data, bool forward, bool switch_on, bool stuck)
 {
-  return MM6_CALIBRATE_STATE_INIT;
+  return CAL_STATE_INIT;
 }
 
-bool mm6_calibrate(mm6_calibrate_data_t *pmm6_calibrate_data) {
+static bool calibrate(cal_data_t *pcal_data) {
   // Returns true while calibration is running, false when complete.
 
-  static mm6_calibrate_state_t prev_state = MM6_CALIBRATE_STATE_INIT;
-  if (prev_state != pmm6_calibrate_data->state) {
-    log_writeln(F("%s"), mm6_calibrate_state_name_by_index[pmm6_calibrate_data->state]);
-    prev_state = pmm6_calibrate_data->state;
+  static cal_state_t prev_state = CAL_STATE_INIT;
+  if (prev_state != pcal_data->state) {
+    log_writeln(F("%s"), cal_state_name_by_index[pcal_data->state]);
+    prev_state = pcal_data->state;
   }
 
-  motor_id_t motor_id = pmm6_calibrate_data->motor_id;
+  motor_id_t motor_id = pcal_data->motor_id;
   assert((motor_id >= MOTOR_ID_FIRST) && (motor_id <= MOTOR_ID_LAST));
   if (!config.motor[motor_id].configured) {
-    pmm6_calibrate_data->error = MM6_CALIBRATE_ERROR_NOT_CONFIGURED;
+    pcal_data->error = CAL_ERROR_NOT_CONFIGURED;
     return false;
   }
 
   int encoder = noinit_data.encoder[motor_id];
 
-  switch (pmm6_calibrate_data->state) {
-    case MM6_CALIBRATE_STATE_INIT:
-      pmm6_calibrate_data->state = MM6_CALIBRATE_STATE_SEARCH;
-      pmm6_calibrate_data->delta = +100;
-      pmm6_calibrate_data->found_min_encoder = false;
-      pmm6_calibrate_data->found_max_encoder = false;
-      pmm6_calibrate_data->min_encoder = 0;
-      pmm6_calibrate_data->max_encoder = 0;
-      pmm6_calibrate_data->switch_triggered = false;
+  switch (pcal_data->state) {
+    case CAL_STATE_INIT:
+      pcal_data->state = CAL_STATE_SEARCH;
+      pcal_data->delta = +100;
+      pcal_data->found_min_encoder = false;
+      pcal_data->found_max_encoder = false;
+      pcal_data->min_encoder = 0;
+      pcal_data->max_encoder = 0;
+      pcal_data->switch_triggered = false;
 
-      pmm6_calibrate_data->target = encoder + pmm6_calibrate_data->delta;
-      mm6_set_target_encoder(motor_id, pmm6_calibrate_data->target);      
+      pcal_data->target = encoder + pcal_data->delta;
+      mm6_set_target_encoder(motor_id, pcal_data->target);      
       break;
-    case MM6_CALIBRATE_STATE_SEARCH:
-      if (encoder < pmm6_calibrate_data->min_encoder)
-        pmm6_calibrate_data->min_encoder = encoder;
+    case CAL_STATE_SEARCH:
+      if (encoder < pcal_data->min_encoder)
+        pcal_data->min_encoder = encoder;
 
-      if (encoder > pmm6_calibrate_data->max_encoder)      
-        pmm6_calibrate_data->max_encoder = encoder;
+      if (encoder > pcal_data->max_encoder)      
+        pcal_data->max_encoder = encoder;
 
-      if (pmm6_calibrate_data->switch_triggered != motor_state[motor_id].switch_previously_triggered) {
-        pmm6_calibrate_data->state = get_calibrate_state(pmm6_calibrate_data, pmm6_calibrate_data->delta > 0, pmm6_calibrate_data->switch_triggered);
-        pmm6_calibrate_data->switch_triggered = motor_state[motor_id].switch_previously_triggered;
+      if (pcal_data->switch_triggered != motor_state[motor_id].switch_previously_triggered) {
+        pcal_data->state = get_cal_state(pcal_data, pcal_data->delta > 0, pcal_data->switch_triggered, false);
+        pcal_data->switch_triggered = motor_state[motor_id].switch_previously_triggered;
 
 
-        log_writeln(F("Motor %c switch %d at encoder %d"), 'A' + motor_id, pmm6_calibrate_data->switch_triggered, encoder);
-        if (pmm6_calibrate_data->delta > 0) {
-          if (pmm6_calibrate_data->switch_triggered) {
-            pmm6_calibrate_data->state = MM6_CALIBRATE_STATE_SWITCH_FORWARD_ON;
+        log_writeln(F("Motor %c switch %d at encoder %d"), 'A' + motor_id, pcal_data->switch_triggered, encoder);
+        if (pcal_data->delta > 0) {
+          if (pcal_data->switch_triggered) {
+            pcal_data->state = CAL_STATE_SWITCH_FORWARD_ON;
           } else {
-            pmm6_calibrate_data->state = MM6_CALIBRATE_STATE_SWITCH_FORWARD_OFF;
+            pcal_data->state = CAL_STATE_SWITCH_FORWARD_OFF;
           }
         } else {
-          if (pmm6_calibrate_data->switch_triggered) {
-            pmm6_calibrate_data->state = MM6_CALIBRATE_STATE_SWITCH_REVERSE_ON;
+          if (pcal_data->switch_triggered) {
+            pcal_data->state = CAL_STATE_SWITCH_REVERSE_ON;
           } else {
-            pmm6_calibrate_data->state = MM6_CALIBRATE_STATE_SWITCH_REVERSE_OFF;
+            pcal_data->state = CAL_STATE_SWITCH_REVERSE_OFF;
           }
         }
       }
 
-      if ((pmm6_calibrate_data->delta < 0) && 
-          ((encoder <= pmm6_calibrate_data->target) || 
-              pmm6_calibrate_data->found_min_encoder)) {
+      if ((pcal_data->delta < 0) && 
+          ((encoder <= pcal_data->target) || 
+              pcal_data->found_min_encoder)) {
         // Reached encoder target in negative direction.
-        if (!pmm6_calibrate_data->found_max_encoder) {
-          pmm6_calibrate_data->delta *= -1;
-          pmm6_calibrate_data->target = pmm6_calibrate_data->max_encoder + pmm6_calibrate_data->delta;                      
+        if (!pcal_data->found_max_encoder) {
+          pcal_data->delta *= -1;
+          pcal_data->target = pcal_data->max_encoder + pcal_data->delta;                      
         } else {
-          pmm6_calibrate_data->target = encoder + pmm6_calibrate_data->delta;                      
+          pcal_data->target = encoder + pcal_data->delta;                      
         }
-        mm6_set_target_encoder(motor_id, pmm6_calibrate_data->target);
-      } else if ((pmm6_calibrate_data->delta > 0) && 
-          ((encoder >= pmm6_calibrate_data->target) || 
-              pmm6_calibrate_data->found_max_encoder)) {
+        mm6_set_target_encoder(motor_id, pcal_data->target);
+      } else if ((pcal_data->delta > 0) && 
+          ((encoder >= pcal_data->target) || 
+              pcal_data->found_max_encoder)) {
         // Reached encoder target in positive direction.
-        if (!pmm6_calibrate_data->found_min_encoder) {
-          pmm6_calibrate_data->delta = -pmm6_calibrate_data->delta;
-          pmm6_calibrate_data->target = pmm6_calibrate_data->min_encoder + pmm6_calibrate_data->delta;                      
+        if (!pcal_data->found_min_encoder) {
+          pcal_data->delta = -pcal_data->delta;
+          pcal_data->target = pcal_data->min_encoder + pcal_data->delta;                      
         } else {
-          pmm6_calibrate_data->target = pmm6_calibrate_data->target + pmm6_calibrate_data->delta;                      
+          pcal_data->target = pcal_data->target + pcal_data->delta;                      
         }
-        mm6_set_target_encoder(motor_id, pmm6_calibrate_data->target);
+        mm6_set_target_encoder(motor_id, pcal_data->target);
       }
 
-      if (pmm6_calibrate_data->found_min_encoder && pmm6_calibrate_data->found_max_encoder)
-        pmm6_calibrate_data->state = MM6_CALIBRATE_STATE_DONE;
+      if (pcal_data->found_min_encoder && pcal_data->found_max_encoder)
+        pcal_data->state = CAL_STATE_DONE;
         
       break;
-    case MM6_CALIBRATE_STATE_SWITCH_FORWARD_ON:
+    case CAL_STATE_SWITCH_FORWARD_ON:
       
       // Move forward at full speed until off.     
       return false;
       break;
-    case MM6_CALIBRATE_STATE_SWITCH_FORWARD_OFF:    
+    case CAL_STATE_SWITCH_FORWARD_OFF:    
       // Forward a bit, then reverse.
       return false;
       break;
-    case MM6_CALIBRATE_STATE_SWITCH_REVERSE_ON:
+    case CAL_STATE_SWITCH_REVERSE_ON:
       // Reverse until off.
       return false;
       break;
-    case MM6_CALIBRATE_STATE_SWITCH_REVERSE_OFF:    
+    case CAL_STATE_SWITCH_REVERSE_OFF:    
       return false;
       break;
     default:
@@ -821,12 +807,12 @@ bool mm6_calibrate_all()
   bool ret = true;
   for (int i = MOTOR_ID_B; i <= MOTOR_ID_B; i++) {
     if (config.motor[i].configured) {
-      mm6_calibrate_data_t calibrate_data = {};
-      calibrate_data.motor_id = i;
+      cal_data_t cal_data = {};
+      cal_data.motor_id = i;
       log_writeln(F("Calibrating motor %c ..."), 'A' + i);
-      while (mm6_calibrate(&calibrate_data)) {};
-      if (calibrate_data.error != MM6_CALIBRATE_ERROR_NONE) {
-        log_writeln(F("calibration of motor %c failed with error %d."), 'A' + i, calibrate_data.error);
+      while (calibrate(&cal_data)) {};
+      if (cal_data.error != CAL_ERROR_NONE) {
+        log_writeln(F("calibration of motor %c failed with error %d."), 'A' + i, cal_data.error);
         ret = false;
       } else {
         log_writeln(F("calibration of motor %c passed."), 'A' + i);        

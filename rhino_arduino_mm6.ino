@@ -421,10 +421,10 @@ static const int menu_item_max_name_nbytes = 25;
 void extended_menu_robot_id()
 {
   log_writeln(F(""));  
-  log_writeln(F("Current robot ID: %s."), robot_name_by_robot_id[config.robot_id]);
+  log_writeln(F("Current robot ID: %s."), config_robot_name_by_id[config.robot_id]);
   log_writeln(F("Available robot IDs:"));
-  for (int i = ROBOT_ID_FIRST; i < ROBOT_ID_COUNT; i++) {
-    log_writeln(F("  %d. %s."), i, robot_name_by_robot_id[i]);
+  for (int i = CONFIG_ROBOT_ID_FIRST; i <= CONFIG_ROBOT_ID_LAST; i++) {
+    log_writeln(F("  %d. %s."), i, config_robot_name_by_id[i]);
   }
   log_writeln(F("Select new robot ID, or press [RETURN] to keep current robot ID."));
   log_write(F(">"));
@@ -646,11 +646,11 @@ int command_config_robot_id(char *pargs, size_t args_nbytes)
   p += nbytes;
 
   if (args_nbytes == 0) {
-    log_writeln(F("Maintaining robot ID as '%s'."), robot_name_by_robot_id[config.robot_id]);    
+    log_writeln(F("Maintaining robot ID as '%s'."), config_robot_name_by_id[config.robot_id]);    
     return p - pargs;
   }  
 
-  robot_id_t robot_id = ROBOT_ID_FIRST - 1;
+  config_robot_id_t robot_id = CONFIG_ROBOT_ID_FIRST - 1;
   nbytes = parse_int(p, args_nbytes, (int*)(&robot_id));
   if (nbytes < 0)  // TODO: is this ever true?
     return -1;
@@ -661,7 +661,7 @@ int command_config_robot_id(char *pargs, size_t args_nbytes)
   args_nbytes -= nbytes;
   p += nbytes;
 
-  if ((robot_id <= ROBOT_ID_FIRST) || (robot_id >= ROBOT_ID_LAST)) {
+  if ((robot_id < CONFIG_ROBOT_ID_FIRST) || (robot_id > CONFIG_ROBOT_ID_LAST)) {
     log_writeln(F("ERROR: Invalid robot ID."));
     goto error;
   }
@@ -669,7 +669,7 @@ int command_config_robot_id(char *pargs, size_t args_nbytes)
   if (args_nbytes > 0)
     goto error;
 
-  log_writeln(F("Setting robot ID to '%s'."), robot_name_by_robot_id[robot_id]);
+  log_writeln(F("Setting robot ID to '%s'."), config_robot_name_by_id[robot_id]);
 
   config_set_robot_id(robot_id);  // TODO: return value?
 
@@ -1377,7 +1377,7 @@ state_t state_init_execute()
     config_clear();
   } else {
     log_writeln(F("Read %d bytes of configuration data from EEPROM. Configuration is valid."), sizeof(config_t));
-    log_writeln(F("Configured for '%s'."), robot_name_by_robot_id[config.robot_id]);
+    log_writeln(F("Configured for '%s'."), config_robot_name_by_id[config.robot_id]);
     mm6_print_encoders();
   }
 
@@ -1505,9 +1505,9 @@ bool check_system_integrity()
   if (previous_ok)
     ok = config_check();
 
-  if (config.robot_id == ROBOT_ID_NOT_CONFIGURED) {
+  if (config.robot_id == CONFIG_ROBOT_ID_NOT_CONFIGURED) {
     if (previous_ok)
-      log_writeln(F("ERROR: robot_id == ROBOT_ID_NOT_CONFIGURED. Configure robot and restart."));
+      log_writeln(F("ERROR: robot_id == CONFIG_ROBOT_ID_NOT_CONFIGURED. Configure robot and restart."));
     ok = false;
   }
 
@@ -1604,9 +1604,9 @@ void loop()
         TestSeq1();
       } else if ((InBuffer=="R") || (InBuffer=="r")){
         if (InBuffer=="R"){
-          config_set_robot_id(ROBOT_ID_RHINO_XR_4);  
+          config_set_robot_id(CONFIG_ROBOT_ID_RHINO_XR_4);  
         } else {
-          config_set_robot_id(ROBOT_ID_RHINO_XR_3);  
+          config_set_robot_id(CONFIG_ROBOT_ID_RHINO_XR_3);  
         }        
       } else if ((InBuffer=="S") || (InBuffer=="s")){
         mm6_pid_enable(false);

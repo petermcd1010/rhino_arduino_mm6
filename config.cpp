@@ -10,6 +10,19 @@
 #include "crc32c.h"
 #include "log.h"
 
+const char* const config_robot_name_by_id[CONFIG_ROBOT_ID_COUNT] = { 
+  "Not configured",
+  "Rhino XR-1 6-axis arm",
+  "Rhino XR-2 6-axis arm",
+  "Rhino XR-3 6-axis arm",
+  "Rhino XR-4 6-axis arm",
+  "Rhino SCARA 5-axis arm",
+  "Rhino linear slide table",
+  "Rhino XY slide table",
+  "Rhino tilt carousel",
+  "Rhino conveyor belt"
+};
+
 static const int config_base_address = 4000;
 static const int config_version = 1;
 static const int config_magic = 0x5678FEAD;
@@ -82,7 +95,7 @@ bool config_check()
   // If there's an error in the contents, keep going, but return false.
   bool ret = true;
 
-  if ((config.robot_id < ROBOT_ID_FIRST) || (config.robot_id > ROBOT_ID_LAST)) {
+  if ((config.robot_id < CONFIG_ROBOT_ID_FIRST) || (config.robot_id > CONFIG_ROBOT_ID_LAST)) {
     log_writeln(F("ERROR: config_check: Invalid robot ID %d."), config.robot_id);
     ret = false;
   }
@@ -134,7 +147,7 @@ bool config_check()
 void config_clear() 
 {
   memset(&config, 0, sizeof(config_t));
-  config.robot_id = ROBOT_ID_DEFAULT;
+  config.robot_id = CONFIG_ROBOT_ID_DEFAULT;
   for (int i = MOTOR_ID_FIRST; i <= MOTOR_ID_LAST; i++) {
     config.motor[i].orientation = MOTOR_ORIENTATION_NOT_INVERTED;
     config.motor[i].polarity = MOTOR_POLARITY_NOT_REVERSED;
@@ -144,10 +157,10 @@ void config_clear()
   config_sign();
 }
 
-void config_set_robot_id(robot_id_t robot_id)
+void config_set_robot_id(config_robot_id_t robot_id)
 {
-  assert(robot_id >= ROBOT_ID_FIRST);
-  assert(robot_id <= ROBOT_ID_LAST);
+  assert(robot_id >= CONFIG_ROBOT_ID_FIRST);
+  assert(robot_id <= CONFIG_ROBOT_ID_LAST);
 
   assert(config_check());
   config.robot_id = robot_id;
@@ -239,7 +252,7 @@ void config_print()
   // TODO: check for valid config.
 
   log_writeln(F("Configuration:"));
-  log_writeln(F("  Robot ID: %s"), robot_name_by_robot_id[config.robot_id]);
+  log_writeln(F("  Robot ID: %s"), config_robot_name_by_id[config.robot_id]);
   log_writeln(F("  Robot serial: %s"), config.robot_serial);
   log_writeln(F("  Robot name: %s"), config.robot_name);
 
