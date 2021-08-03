@@ -323,6 +323,7 @@ void mm6_test(motor_id_t motor_id)
   // Mark motor as configured, so motor-control commands will execute.
   bool was_configured = config.motor[motor_id].configured;
   config.motor[motor_id].configured = true;
+  motor_state[motor_id].enabled = true;
 
   mm6_set_brake(motor_id, false);
   mm6_set_speed(motor_id, 0);
@@ -391,8 +392,9 @@ void mm6_test(motor_id_t motor_id)
     pfailure_message = F("Motor +/- wired backwards");
   }    
 
-  config.motor[motor_id].configured = was_configured;  // Restore configuration status.
+  config.motor[motor_id].configured = was_configured;
   config_set_motor_configured(motor_id, pfailure_message == NULL);
+  mm6_enable(motor_id, config.motor[motor_id].configured);
   if (pfailure_message) {
     log_write(F(" ... FAILED ("));
     log_write(pfailure_message);
