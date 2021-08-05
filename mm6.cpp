@@ -44,6 +44,8 @@ static const char* cal_state_name_by_index[] = {
 typedef enum {
   CAL_ERROR_NONE = 0,
   CAL_ERROR_NOT_CONFIGURED,
+  CAL_ERROR_UNEXPECTED_MIN_ENCODER,
+  CAL_ERROR_UNEXPECTED_MAX_ENCODER,
 } cal_error_t;
 
 typedef struct {
@@ -52,6 +54,8 @@ typedef struct {
   cal_error_t error;
   int delta;
   int target;
+  int stuck_check_start_encoder;
+  int stuck_check_start_ms;
   bool found_min_encoder;
   bool found_max_encoder;
   int min_encoder;
@@ -508,6 +512,30 @@ static cal_state_t get_cal_state(cal_data_t *pcal_data, bool forward, bool switc
   return CAL_STATE_INIT;
 }
 
+static bool is_stuck(cal_data_t *pcal_data)
+{
+  bool ret = false;
+
+  const int stuck_check_interval_ms = 500;
+  const int stuck_check_encoder_count = 5;
+
+  int encoder = noinit_data.encoder[pcal_data->motor_id];
+  int ms = millis();
+
+  if ((ms - pcal_data->stuck_check_start_ms >= stuck_check_interval_ms)) {
+    log_writeln(F("ms:%d, encoder:%d, stuck_check_start_encoder:%d"), ms, encoder, pcal_data->stuck_check_start_encoder);
+    if (abs(encoder - pcal_data->stuck_check_start_encoder) <= stuck_check_encoder_count) {
+      LOG_D(F("stuck"));
+      ret = true;
+    }
+
+    pcal_data->stuck_check_start_encoder = encoder;
+    pcal_data->stuck_check_start_ms = ms;
+  }
+
+  return ret;
+}
+
 static bool calibrate(cal_data_t *pcal_data) {
   // Returns true while calibration is running, false when complete.
 
@@ -536,20 +564,43 @@ static bool calibrate(cal_data_t *pcal_data) {
       pcal_data->max_encoder = 0;
       pcal_data->switch_triggered = false;
 
+      pcal_data->stuck_check_start_encoder = noinit_data.encoder[pcal_data->motor_id];
+      pcal_data->stuck_check_start_ms = millis();
       pcal_data->target = encoder + pcal_data->delta;
       mm6_set_target_encoder(motor_id, pcal_data->target);      
       break;
     case CAL_STATE_SEARCH:
-      if (encoder < pcal_data->min_encoder)
+      // TODO: What about wrap-around on encoder values?
+      if (encoder < pcal_data->min_encoder) {
+        if (pcal_data->found_min_encoder) {
+          LOG_E(F("Unexpected minimum encoder %d lower than previous minimum encoder %d"), encoder, pcal_data->min_encoder);
+          pcal_data->error = CAL_ERROR_UNEXPECTED_MIN_ENCODER;
+        }
         pcal_data->min_encoder = encoder;
+      }
 
-      if (encoder > pcal_data->max_encoder)      
+      if (encoder > pcal_data->max_encoder) {
+        if (pcal_data->found_max_encoder) {
+          LOG_E(F("Unexpected maximum encoder %d higher than previous maximum encoder %d"), encoder, pcal_data->max_encoder);
+          pcal_data->error = CAL_ERROR_UNEXPECTED_MAX_ENCODER;
+        }
         pcal_data->max_encoder = encoder;
+      }
 
+      if (is_stuck(pcal_data)) {
+        if (pcal_data->delta > 0) {
+          log_writeln(F("Motor %c found maximum encoder %d"), 'A' + pcal_data->motor_id, encoder);
+          pcal_data->found_max_encoder = true;
+        } else {
+          log_writeln(F("Motor %c found minimum encoder %d"), 'A' + pcal_data->motor_id, encoder);
+          pcal_data->found_min_encoder = true;
+        }
+      } 
+
+#if FALSE
       if (pcal_data->switch_triggered != motor_state[motor_id].switch_previously_triggered) {
         pcal_data->state = get_cal_state(pcal_data, pcal_data->delta > 0, pcal_data->switch_triggered, false);
         pcal_data->switch_triggered = motor_state[motor_id].switch_previously_triggered;
-
 
         log_writeln(F("Motor %c switch %d at encoder %d"), 'A' + motor_id, pcal_data->switch_triggered, encoder);
         if (pcal_data->delta > 0) {
@@ -566,6 +617,7 @@ static bool calibrate(cal_data_t *pcal_data) {
           }
         }
       }
+#endif
 
       if ((pcal_data->delta < 0) && 
           ((encoder <= pcal_data->target) || 
@@ -609,6 +661,10 @@ static bool calibrate(cal_data_t *pcal_data) {
       return false;
       break;
     case CAL_STATE_SWITCH_REVERSE_OFF:    
+      return false;
+      break;
+    case CAL_STATE_DONE:
+      log_writeln(F("Motor %c calibration complete."), 'A' + pcal_data->motor_id);
       return false;
       break;
     default:
@@ -805,7 +861,7 @@ static bool calibrate(cal_data_t *pcal_data) {
 bool mm6_calibrate_all()
 {
   bool ret = true;
-  for (int i = MOTOR_ID_B; i <= MOTOR_ID_B; i++) {
+  for (int i = MOTOR_ID_A; i <= MOTOR_ID_A; i++) {
     if (config.motor[i].configured) {
       cal_data_t cal_data = {};
       cal_data.motor_id = i;

@@ -75,8 +75,7 @@ typedef struct {
   motor_status_t motor[MOTOR_ID_COUNT];
 } status_t;
 
-void hardware_emergency_stop();  // TODO: Move to mm6_stop_all()?
-void hardware_emergency_stop()
+void hardware_emergency_stop()  // TODO: Move to mm6_stop_all()?
 {
   // TODO: call hardware_emergency_stop when entering ERROR state.
 
@@ -465,10 +464,9 @@ const menu_item_t menu_item_by_index[] = {  // TODO: F()
   { '2', "configure robot ID", extended_menu_robot_id, true, command_config_robot_id, "[id] print or set configured robot ID." },
   { '3', "configure robot serial", extended_menu_robot_serial, true, command_config_robot_serial, "[string] -- print or set configured robot serial." },  
   { '4', "configure robot name", extended_menu_robot_name, true, command_config_robot_name, "[name] -- print or set configured robot name." },
-  { '5', "run calibration", NULL, true, command_config_calibrate, "[CALIBRATE] -- print or run robot calibration configuration data." },
   { '0', "write configuration", NULL, true, command_config_write, "Write configuration data to EEPROM." },
   { 'B', "heartbeat", NULL, true, command_heartbeat, "off / on -- enable heartbeat (only emitted when input mode is packet)." },
-  { 'C', "calibrate motors", NULL, false, command_calibrate_motors, "-- calibrate motor and switch limits." },
+  { 'C', "run calibration", NULL, true, command_run_calibration, "-- calibrate motor and switch limits." },
   { 'D', "PID mode", NULL, false, command_pid_mode, "-- Enable/disable motors" },
   { 'E', "emergency stop", NULL, false, command_emergency_stop, "-- execute hardware emergency stop (E-Stop). Enters 'error' state. Requires reboot to reset."},
   { 'G', "set gripper position", NULL, true, command_set_gripper_position, "-- set current encoders as gripper?" },
@@ -749,12 +747,6 @@ error:
   return -1;
 }
 
-int command_config_calibrate(char *pargs, size_t args_nbytes)
-{
-  assert(pargs);
-  assert(false);
-}
-
 int command_config_write(char *pargs, size_t args_nbytes)
 {
   assert(pargs);
@@ -806,15 +798,15 @@ int command_set_home_position(char *pargs, size_t args_nbytes)
   return nbytes;
 }
 
-int command_calibrate_motors(char *pargs, size_t args_nbytes)
+int command_run_calibration(char *pargs, size_t args_nbytes)
 {
   assert(pargs);
   size_t nbytes = parse_whitespace(pargs, args_nbytes);
   if (nbytes != args_nbytes) {
     return -1;
-  } 
+  }
   
-  log_writeln(F("Motor calibration ... %s"), mm6_calibrate_all() ? "passed" : "FAILED");
+  log_writeln(F("Calibration ... %s"), mm6_calibrate_all() ? "passed" : "FAILED");
 
   return nbytes;
 }
