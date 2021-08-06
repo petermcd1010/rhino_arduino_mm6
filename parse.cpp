@@ -99,24 +99,6 @@ size_t parse_int(char *pbuf, size_t buf_nbytes, int *pout_int)
   return p - pbuf;
 }
 
-size_t parse_string(char *pbuf, size_t buf_nbytes, char *pout_string, size_t out_string_nbytes)
-{
-  assert(pbuf);
-  assert(pout_string);
-  bool is_valid = false;
-  char *p = pbuf;
-
-  size_t nbytes = strlen(pbuf);
-  if (nbytes >= out_string_nbytes) {
-    log_writeln(F("ERROR: string too long."));
-    return 0;
-  }
-
-  memcpy(pout_string, pbuf, nbytes + 1);
-
-  return nbytes;
-}
-
 size_t parse_float(char *pbuf, size_t buf_nbytes, float *pout_float)
 {
   assert(pbuf);
@@ -209,25 +191,22 @@ static bool test_parse_float()
   return ret;
 }
 
-size_t parse_motor_id(char *pbuf, size_t buf_nbytes,  motor_id_t *pout_motor_id)
+size_t parse_string(char *pbuf, size_t buf_nbytes, char *pout_string, size_t out_string_nbytes)
 {
   assert(pbuf);
-  assert(pout_motor_id);
+  assert(pout_string);
+  bool is_valid = false;
+  char *p = pbuf;
 
-  char id;
-  if (parse_char(pbuf, buf_nbytes, &id) == 0)
-    goto error;
+  size_t nbytes = strlen(pbuf);
+  if (nbytes >= out_string_nbytes) {
+    log_writeln(F("ERROR: string too long."));
+    return 0;
+  }
 
-  id = toupper(id);
-  if ((id < 'A') || (id > 'F'))
-    goto error;
+  memcpy(pout_string, pbuf, nbytes + 1);
 
-  *pout_motor_id = id - 'A';
-  return 1;
-
-error:
-  log_writeln(F("ERROR: Invalid motor ID. Expected 'A'-'F'."));
-  return 0;
+  return nbytes;
 }
 
 size_t parse_string_in_table(char *pbuf, size_t buf_nbytes, char *ptable[], int ntable_entries, int *pout_entry_num)
@@ -247,6 +226,27 @@ size_t parse_string_in_table(char *pbuf, size_t buf_nbytes, char *ptable[], int 
     }
   }
 
+  return 0;
+}
+
+size_t parse_motor_id(char *pbuf, size_t buf_nbytes,  motor_id_t *pout_motor_id)
+{
+  assert(pbuf);
+  assert(pout_motor_id);
+
+  char id;
+  if (parse_char(pbuf, buf_nbytes, &id) == 0)
+    goto error;
+
+  id = toupper(id);
+  if ((id < 'A') || (id > 'F'))
+    goto error;
+
+  *pout_motor_id = id - 'A';
+  return 1;
+
+error:
+  log_writeln(F("ERROR: Invalid motor ID. Expected 'A'-'F'."));
   return 0;
 }
 
