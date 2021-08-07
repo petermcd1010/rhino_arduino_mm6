@@ -103,6 +103,7 @@ void mm6_print_encoders();
 int mm6_angle_to_encoder(motor_id_t motor_id, float angle);
 float mm6_get_angle(motor_id_t motor_id);
 void mm6_set_target_angle(motor_id_t motor_id, float angle);
+void mm6_set_position_to_home(motor_id_t motor_id);
 bool mm6_get_thermal_overload_active(motor_id_t motor_id);
 int mm6_get_current_draw(motor_id_t motor_id);
 bool mm6_get_overcurrent_active(motor_id_t motor_id);
@@ -111,4 +112,5 @@ bool mm6_calibrate_all();
 void mm6_pid_enable(bool enable);
 void mm6_set_speed(motor_id_t motor_id, int speed);
 void mm6_dump(motor_id_t motor_id);
+void mm6_exec_all(void(*fn)(motor_id_t motor_id));
 

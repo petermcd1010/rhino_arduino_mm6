@@ -4,17 +4,18 @@
 
 #include <assert.h>
 
+#include "command.h"
+#include "crc32c.h"
 #include "config.h"
 #include "hardware.h"
 #include "log.h"
 #include "mm6.h"
 #include "menu.h"
+#include "parse.h"
 #include "sm.h"
 
-extern void print_software_version();  // TODO: remove.
 extern void process_serial_input();  // TODO: remove.
 extern void check_noinit_data();  // TODO: remove.
-extern bool run_self_test();  // TODO: remove.
 
 static char* sm_state_name_by_state[] = { 
   "init", 
@@ -32,12 +33,50 @@ const char* sm_get_state_name(sm_state_t state)
   return sm_state_name_by_state[state];
 }
 
+/*
+ * Self-test functions.
+ */
+
+typedef struct {
+  bool (*test_function)();
+  char *pname;
+} test_case_t;
+
+static test_case_t test_case[] = {
+  { config_test, "config" },
+  { crc32c_test, "crc32c" },
+  { log_test, "log" },
+  { menu_test, "menu" },
+  { parse_test, "parse" },
+  { sm_test, "sm (state smachine" },
+};
+#define TEST_CASE_COUNT sizeof(test_case) / sizeof(test_case[0])
+
+static bool run_self_test() {
+  bool ret = true;
+  int failure_count = 0;
+  log_writeln(F("Running self test:"));
+  for (int i = 0; i < TEST_CASE_COUNT; i ++) {
+    if (test_case[i].test_function()) {
+      log_writeln(F("  %d. %s ... pass."), i, test_case[i].pname);
+    } else {
+      log_writeln(F("  %d. %s ... fail."), i, test_case[i].pname);
+      ret = false;
+      failure_count++;
+    }
+  }
+
+  log_writeln(F("%d test cases run, %d passed, %d failed."), TEST_CASE_COUNT, TEST_CASE_COUNT - failure_count, failure_count);
+
+  return ret;
+}
+
 static sm_state_t init_execute()
 {
   Serial.begin(38400);
 
   log_writeln(F("\n\rBooting Arduino Mega 2560 MegaMotor6 controller for Rhino Robots arms and accessories."));
-  print_software_version();
+  command_print_software_version("", 0);
   log_writeln();
 
   bool config_read_success = config_read();

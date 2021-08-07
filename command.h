@@ -31,4 +31,3 @@ int command_reboot(char *pargs, size_t args_nbytes);
 int command_print_software_version(char *pargs, size_t args_nbytes);
 int command_waypoint(char *pargs, size_t args_nbytes);
 int command_expansion_io(char *pargs, size_t args_nbytes);
-int command_set_zero_position(char *pargs, size_t args_nbytes);

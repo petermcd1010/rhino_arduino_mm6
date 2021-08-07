@@ -73,7 +73,6 @@ static const menu_item_t menu_item_by_index[] = {  // TODO: F()
   { 'V', "print software version", NULL, false, command_print_software_version, "-- print software version." },
   { 'W', "waypoint", NULL, true, command_waypoint, "" },
   { 'X', "expansion I/O", NULL, true, command_expansion_io, ""},
-  { 'Z', "set zero position", NULL, false, command_set_zero_position, "-- set current encoders as zero position." },
   { '*', "factory reset", extended_menu_factory_reset, false, command_factory_reset, "RESET -- factory reset system, clearing EEPROM and rebooting."},
   { '!', "reboot", extended_menu_reboot, true, command_reboot, "REBOOT -- reboot system. Requires typing the 'REBOOT' keyword." }, 
   { '?', "print help", NULL, false, command_print_help, "-- print this help message." },

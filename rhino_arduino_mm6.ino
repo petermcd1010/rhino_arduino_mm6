@@ -29,8 +29,6 @@
 #include "parse.h"
 #include "sm.h"
 
-static const float rhino_arduino_mm6_version = 2.00;  
-
 // Used for status messages.
 typedef struct {
   float angle;
@@ -43,44 +41,6 @@ typedef struct {
   sm_state_t state;
   motor_status_t motor[MOTOR_ID_COUNT];
 } status_t;
-
-/*
- * Self-test functions.
- */
-
-typedef struct {
-  bool (*test_function)();
-  char *pname;
-} test_case_t;
-
-test_case_t test_case[] = {
-  { config_test, "config" },
-  { crc32c_test, "crc32c" },
-  { log_test, "log" },
-  { menu_test, "menu" },
-  { parse_test, "parse" },
-  { sm_test, "sm (state smachine" },
-};
-#define TEST_CASE_COUNT sizeof(test_case) / sizeof(test_case[0])
-
-bool run_self_test() {
-  bool ret = true;
-  int failure_count = 0;
-  log_writeln(F("Running self test:"));
-  for (int i = 0; i < TEST_CASE_COUNT; i ++) {
-    if (test_case[i].test_function()) {
-      log_writeln(F("  %d. %s ... pass."), i, test_case[i].pname);
-    } else {
-      log_writeln(F("  %d. %s ... fail."), i, test_case[i].pname);
-      ret = false;
-      failure_count++;
-    }
-  }
-
-  log_writeln(F("%d test cases run, %d passed, %d failed."), TEST_CASE_COUNT, TEST_CASE_COUNT - failure_count, failure_count);
-
-  return ret;
-}
 
 void check_noinit_data()
 {
@@ -307,13 +267,6 @@ bool overcurrent_detected()
   }
 
   return detected;
-}
-
-void print_software_version()
-{
-  char version_number_string[10] = {};
-  dtostrf(rhino_arduino_mm6_version, 3, 2, version_number_string);
-  log_writeln(F("Version: %s (%s %s)"), version_number_string, __DATE__, __TIME__);
 }
 
 void setup() 

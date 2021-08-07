@@ -13,23 +13,7 @@
 #include "parse.h"
 #include "sm.h"
 
-extern void print_software_version();  // TODO: remove.
-
-// TODO: Move the following two functions somewhere else.
-void SetPositionToHome() {
-  for (int iMotor = MOTOR_ID_FIRST; iMotor <= MOTOR_ID_LAST; iMotor++){
-    motor_state[iMotor].target_encoder = 0;
-  }  
-  log_writeln(F("Setting Targets to Home Position."));
-}
-
-void ZeroPositions() {
-  for (int iMotor = MOTOR_ID_FIRST; iMotor <= MOTOR_ID_LAST; iMotor++){
-    noinit_data.encoder[iMotor] = 0;
-    motor_state[iMotor].target_encoder = 0;
-  }
-  log_writeln(F("Current Positions set to Zero."));
-}
+const float software_version = 2.00;  
 
 int command_clock(char *pargs, unsigned nybtes_args)
 {
@@ -234,7 +218,7 @@ int command_set_home_position(char *pargs, size_t args_nbytes)
     return -1;
   } 
 
-  SetPositionToHome();
+  mm6_exec_all(mm6_set_position_to_home);
 
   return nbytes;
 }
@@ -488,8 +472,9 @@ int command_print_software_version(char *pargs, size_t args_nbytes)
   if (args_nbytes > 0)
     return -1;
 
-  print_software_version();
-  log_writeln();
+  char version_number_string[10] = {};
+  dtostrf(software_version, 3, 2, version_number_string);
+  log_writeln(F("Version: %s (%s %s)."), version_number_string, __DATE__, __TIME__);
 
   return 0;
 }
@@ -509,19 +494,4 @@ int command_expansion_io(char *pargs, size_t args_nbytes)
   assert(false);
 
   return -1;
-}
-
-int command_set_zero_position(char *pargs, size_t args_nbytes)
-{
-  assert(pargs);
-
-  // Confirm arguments are empty.
-  size_t nbytes = parse_whitespace(pargs, args_nbytes);
-  if (nbytes != args_nbytes) {
-    return -1;
-  } 
-  
-  ZeroPositions();
-
-  return nbytes;
 }

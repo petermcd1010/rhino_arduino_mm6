@@ -5,7 +5,7 @@
  */
 
 typedef enum {
-  SM_STATE_FIRST = 0,  // TODO: remove when config is crc'd?
+  SM_STATE_FIRST = 0,
   SM_STATE_INIT = SM_STATE_FIRST,
   SM_STATE_MOTORS_OFF,
   SM_STATE_MOTORS_ON,

@@ -289,6 +289,14 @@ void mm6_set_target_angle(motor_id_t motor_id, float angle)
   mm6_set_target_encoder(motor_id, encoder);
 }
 
+void mm6_set_position_to_home(motor_id_t motor_id)
+{
+  assert((motor_id >= MOTOR_ID_FIRST) && (motor_id <= MOTOR_ID_LAST));
+  
+  motor_state[motor_id].target_encoder = 0;
+  log_writeln(F("Setting motor %c current position to home."), 'A' + motor_id);
+}
+
 bool mm6_get_thermal_overload_active(motor_id_t motor_id)
 {
   assert((motor_id >= MOTOR_ID_FIRST) && (motor_id <= MOTOR_ID_LAST));
@@ -563,6 +571,15 @@ static bool is_stuck(cal_data_t *pcal_data)
   }
 
   return ret;
+}
+
+static void set_zero_position(motor_id_t motor_id) 
+{
+  assert((motor_id >= MOTOR_ID_FIRST) && (motor_id <= MOTOR_ID_LAST));
+
+  noinit_data.encoder[motor_id] = 0;
+  motor_state[motor_id].target_encoder = 0;
+  log_writeln(F("Motor %c position set to zero."), motor_id);
 }
 
 static bool calibrate(cal_data_t *pcal_data) {
@@ -962,6 +979,8 @@ void mm6_set_speed(motor_id_t motor_id, int speed)
 #endif
 }
 
+
+
 void mm6_dump(motor_id_t motor_id) 
 {
   assert((motor_id >= MOTOR_ID_FIRST) && (motor_id <= MOTOR_ID_LAST));
@@ -982,6 +1001,15 @@ void mm6_dump(motor_id_t motor_id)
     motor_state[motor_id].current_draw,
     motor_state[motor_id].progress);
 }
+
+void mm6_exec_all(void(*fn)(motor_id_t motor_id))
+{
+  assert(fn);
+
+  for (int motor_id = MOTOR_ID_FIRST; motor_id <= MOTOR_ID_LAST; motor_id++) {    
+    fn(motor_id);
+  }
+} 
 
 void isr_blink_led(bool pid_enabled) 
 {
