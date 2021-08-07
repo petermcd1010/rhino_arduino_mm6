@@ -11,8 +11,8 @@
 #include "menu.h"
 #include "mm6.h"
 #include "parse.h"
+#include "sm.h"
 
-extern void hardware_emergency_stop();  // TODO: remove.
 extern void print_software_version();  // TODO: remove.
 
 // TODO: Move the following two functions somewhere else.
@@ -45,7 +45,8 @@ int command_emergency_stop(char *pargs, size_t args_nbytes)
     return -1;
   } 
 
-  hardware_emergency_stop();
+  mm6_enable_all(false);
+  sm_state_current = SM_STATE_ERROR;
 
   return 0;
 }

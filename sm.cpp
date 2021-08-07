@@ -7,10 +7,10 @@
 #include "config.h"
 #include "hardware.h"
 #include "log.h"
+#include "mm6.h"
 #include "menu.h"
 #include "sm.h"
 
-extern void hardware_emergency_stop();  // TODO: remove.
 extern void print_software_version();  // TODO: remove.
 extern void process_serial_input();  // TODO: remove.
 extern void check_noinit_data();  // TODO: remove.
@@ -98,7 +98,7 @@ bool motors_on_exit()
 
 bool error_enter()
 {
-  hardware_emergency_stop();
+  mm6_enable_all(false);
   return true;
 }
 

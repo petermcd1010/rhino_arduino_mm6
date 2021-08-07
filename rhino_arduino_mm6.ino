@@ -44,22 +44,6 @@ typedef struct {
   motor_status_t motor[MOTOR_ID_COUNT];
 } status_t;
 
-void hardware_emergency_stop()  // TODO: Move to mm6_stop_all()?
-{
-  // TODO: call hardware_emergency_stop when entering ERROR state.
-
-  mm6_enable_all(false);
-
-  // Avoid extra log messages if emergency stop has already been executed.
-  static bool stopped = false;
-  if (stopped) {
-    log_writeln(F("Emergency stop completed."));
-    stopped = true;
-  }
-
-  sm_state_current = SM_STATE_ERROR;
-}
-
 /*
  * Self-test functions.
  */
