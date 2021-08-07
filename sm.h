@@ -18,3 +18,4 @@ extern sm_state_t sm_state_current;
 
 const char* sm_get_state_name(sm_state_t state);
 sm_state_t sm_execute(sm_state_t current_state);
+bool sm_test();

@@ -75,7 +75,7 @@ test_case_t test_case[] = {
   { log_test, "log" },
   { menu_test, "menu" },
   { parse_test, "parse" },
-  { time_test, "time" },
+  { sm_test, "sm (state smachine" },
 };
 #define TEST_CASE_COUNT sizeof(test_case) / sizeof(test_case[0])
 

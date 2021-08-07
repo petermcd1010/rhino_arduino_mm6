@@ -1092,7 +1092,7 @@ ISR(TIMER1_COMPA_vect)
           motor_state[motor_id].current = 0;  // TODO: Why is this zero?
         } else if (motor_state[motor_id].previous_direction == -1) {
           motor_state[motor_id].target_encoder = noinit_data.encoder[motor_id] + 50;
-          motor_state[motor_id].current = 0;  // TOOD: Why is this zero?
+          motor_state[motor_id].current = 0;  // TODO: Why is this zero?
         }
       }
 #endif

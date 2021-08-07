@@ -155,3 +155,9 @@ sm_state_t sm_execute(sm_state_t current_state)
   assert(sm_entry_by_state[current_state].execute);
   return sm_entry_by_state[current_state].execute();
 }
+
+bool sm_test()
+{ 
+  // TODO: Implement.
+  return true;
+}
