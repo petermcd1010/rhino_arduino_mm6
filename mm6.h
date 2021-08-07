@@ -86,9 +86,6 @@ extern noinit_data_t noinit_data;
 
 extern bool mm6_pid_enabled;
 extern const int motor_min_speed;
-// TODO: Get rid of the following two globals.
-extern int tracking;
-extern int tracked[MOTOR_ID_COUNT];
 
 extern int Gripper_StallC;
 extern int Gripper_StallE;

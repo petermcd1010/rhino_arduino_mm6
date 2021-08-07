@@ -10,8 +10,6 @@
 #include "log.h"
 #include "mm6.h"
 
-extern void TrackReport(motor_id_t motor_id);  // TODO: remove.
-
 // MM6 motor I/O lines.
 typedef struct {
   unsigned short out_direction;  // Digital. LOW = forward direction. HIGH = reverse direction.
@@ -83,22 +81,41 @@ typedef struct {
 static const int mm6_direction_forward = LOW;
 static const int mm6_direction_reverse = HIGH;
 
-motor_state_t motor_state[MOTOR_ID_COUNT] = {};   // TODO: mm6_motor_state?
+static motor_state_t motor_state[MOTOR_ID_COUNT] = {};   // TODO: mm6_motor_state?
 
-bool mm6_pid_enabled = false;
-const int motor_min_speed = 55;
-// TODO: Get rid of the following two globals.
-int tracking = 0;
-int tracked[] = { 0, 0, 0, 0, 0, 0 }; // Last value while tracking.
+static bool mm6_pid_enabled = false;
+static const int motor_min_speed = 55;
+static int tracking = 0;
+static int tracked[] = { 0, 0, 0, 0, 0, 0 }; // Last value while tracking.
 static int Motor_PID[MOTOR_ID_COUNT] = {0, 0, 0, 0, 0, 0}; // PID on or off.
-int Gripper_StallC = 0;
-int Gripper_StallE = 0;
-int Gripper_StallX = 0;
-int SyncMove_Status = 0;
-int Forward_Logic[] = {0,0,0,0,0,0}; // Forward Logic - The value for the Direction IO Line when the motor needs to move forward to sync with encoders.
-int Reverse_Logic[] = {1,1,1,1,1,1}; // Reverse Logic - The value for the Direction IO Line when the motor needs to move Reverse to sync with encoders.
+static int Gripper_StallC = 0;
+static int Gripper_StallE = 0;
+static int Gripper_StallX = 0;
+static int SyncMove_Status = 0;
+static int Forward_Logic[] = {0,0,0,0,0,0}; // Forward Logic - The value for the Direction IO Line when the motor needs to move forward to sync with encoders.
+static int Reverse_Logic[] = {1,1,1,1,1,1}; // Reverse Logic - The value for the Direction IO Line when the motor needs to move Reverse to sync with encoders.
 
 static noinit_data_t noinit_data __attribute__ ((section (".noinit")));  // NOT reset to 0 when the CPU is reset.
+
+static void track_report(motor_id_t motor_id) {
+  if (tracking>0){
+    int Position = mm6_get_encoder(motor_id);
+    if (tracked[motor_id]!=Position) {
+      Serial.print("@");
+      if (tracking==1) {
+        Serial.print(char(motor_id+65));
+        Serial.print(mm6_get_encoder(motor_id));
+      } else if (tracking==2) {
+        Serial.print(char(motor_id+97));
+        Serial.print(mm6_get_angle(motor_id));
+      }
+      Serial.print(":HS");
+      Serial.print(motor_state[motor_id].switch_previously_triggered);
+      Serial.println(":");
+      tracked[motor_id]=Position;
+    }
+  }
+}
 
 void mm6_init()
 {
@@ -457,7 +474,7 @@ bool mm6_interrogate_limit_switch_a() {
     // Encoder goes Positive towards switch.
     int OverSwitch = ((motor_state[MOTOR_ID_A].switch_forward_on + EncF ) / 2);      
     mm6_set_target_encoder(MOTOR_ID_A, OverSwitch);
-    do {TrackReport(MOTOR_ID_A);} while (noinit_data.encoder[MOTOR_ID_A] != OverSwitch);
+    do {track_report(MOTOR_ID_A);} while (noinit_data.encoder[MOTOR_ID_A] != OverSwitch);
     noinit_data.encoder[MOTOR_ID_A] = 0;  
     motor_state[MOTOR_ID_A].target_encoder  = 0;
     motor_state[MOTOR_ID_A].logic = -1;
@@ -469,7 +486,7 @@ bool mm6_interrogate_limit_switch_a() {
     // Encoder goes Negative towards switch.
     int OverSwitch = ((motor_state[MOTOR_ID_A].switch_reverse_on + EncR ) / 2);      
     mm6_set_target_encoder(MOTOR_ID_A, OverSwitch);
-    do {TrackReport(MOTOR_ID_A);} while (noinit_data.encoder[MOTOR_ID_A] != OverSwitch);
+    do {track_report(MOTOR_ID_A);} while (noinit_data.encoder[MOTOR_ID_A] != OverSwitch);
     noinit_data.encoder[MOTOR_ID_A] = 0;  
     motor_state[MOTOR_ID_A].target_encoder  = 0;
     motor_state[MOTOR_ID_A].logic = 1;
@@ -858,7 +875,7 @@ static bool calibrate(cal_data_t *pcal_data) {
         center_encoder);
     mm6_set_target_encoder(motor_id, center_encoder);
     do { 
-      TrackReport(motor_id); 
+      track_report(motor_id); 
     } while (noinit_data.encoder[motor_id] != center_encoder);
 
     // Set Encoder and Target Values to 0.
