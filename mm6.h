@@ -19,21 +19,6 @@ typedef enum {
   MOTOR_ID_LAST = MOTOR_ID_COUNT - 1
 } motor_id_t;
 
-// TODO: Put motor_pinout_t in mm6.h when its no longer used in rhino_arduino_mm6.ino.
-// MM6 motor I/O lines.
-typedef struct {
-  unsigned short out_direction;  // Digital. LOW = forward direction. HIGH = reverse direction.
-  unsigned short out_pwm;  // Digital.
-  unsigned short out_brake;  // Digital. LOW = disable brake. HIGH = enable brake.
-  unsigned short in_current_draw;  // Analog. 377uA/A. What's the resistance?
-  unsigned short in_thermal_overload;  // Digital. Becomes active at 145C. Chip shuts off at 170C.
-  unsigned short in_switch;  // Digital. LOW = switch triggered. HIGH = switch not triggered.
-  unsigned short in_quadrature_encoder_a;  // Digital.
-  unsigned short in_quadrature_encoder_b;  // Digital.
-} motor_pinout_t;
-
-extern const motor_pinout_t motor_pinout[MOTOR_ID_COUNT];
-
 typedef enum {
   MOTOR_PROGRESS_AT_TARGET = 0,
   MOTOR_PROGRESS_BESIDE_TARGET,  // Within 1 click.

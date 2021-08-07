@@ -12,7 +12,19 @@
 
 extern void TrackReport(motor_id_t motor_id);  // TODO: remove.
 
-const motor_pinout_t motor_pinout[MOTOR_ID_COUNT] = {
+// MM6 motor I/O lines.
+typedef struct {
+  unsigned short out_direction;  // Digital. LOW = forward direction. HIGH = reverse direction.
+  unsigned short out_pwm;  // Digital.
+  unsigned short out_brake;  // Digital. LOW = disable brake. HIGH = enable brake.
+  unsigned short in_current_draw;  // Analog. 377uA/A. What's the resistance?
+  unsigned short in_thermal_overload;  // Digital. Becomes active at 145C. Chip shuts off at 170C.
+  unsigned short in_switch;  // Digital. LOW = switch triggered. HIGH = switch not triggered.
+  unsigned short in_quadrature_encoder_a;  // Digital.
+  unsigned short in_quadrature_encoder_b;  // Digital.
+} motor_pinout_t;
+
+static const motor_pinout_t motor_pinout[MOTOR_ID_COUNT] = {
   {  11,  10,  12,  A5,  14,  A8,  47,  46 },  // Motor A.
   {  A9,   7,  39,  A0, A11,  26,  32,  33 },  // Motor B.
   {   3,   5,   4,  A6,   6,  28,  45,  44 },  // Motor C.
