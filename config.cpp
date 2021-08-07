@@ -277,7 +277,7 @@ void config_print()
   log_writeln(F(""));
 }
 
-bool test_config() {
+bool config_test() {
   // TODO.
   // test_config_check
   // test_config_read -- skip, as we don't want to exercise the EEPROM.

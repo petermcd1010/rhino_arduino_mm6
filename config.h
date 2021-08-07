@@ -67,4 +67,4 @@ void config_set_gripper_open_encoder(int encoder);
 void config_set_gripper_close_encoder(int encoder);
 void config_set_angle_offsets(int B, int C, int D, int E, int F);
 void config_print();
-bool test_config();
+bool config_test();

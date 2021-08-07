@@ -15,13 +15,4 @@ size_t parse_string(char *pbuf, size_t buf_nbytes, char *pout_string, size_t out
 size_t parse_string_in_table(char *pbuf, size_t buf_nbytes, char *ptable[], int ntable_entries, int *pout_entry_num);
 size_t parse_motor_id(char *pbuf, size_t buf_nbytes,  motor_id_t *pout_motor_id);
 size_t parse_motor_angle_or_encoder(char *pargs, size_t args_nbytes, float *pvalue);
-bool test_parse();
-
-
-
-
-
-
-
-
-
+bool parse_test();

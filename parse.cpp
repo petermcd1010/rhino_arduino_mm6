@@ -309,7 +309,7 @@ error:
   return 0;
 }
 
-bool test_parse()
+bool parse_test()
 {
   float ret = true;
 

@@ -30,7 +30,7 @@ uint32_t crc32c_calculate(void *pdata, size_t nbytes)
 
 #define TEST_ASSERT(test, format, args ...) do { if (!(test)) { LOG_E(format, ## args); ret = false; } } while (0)
 
-bool test_crc32c() {
+bool crc32c_test() {
   bool ret = true;
   long value = 55;
   uint32_t crc32c;

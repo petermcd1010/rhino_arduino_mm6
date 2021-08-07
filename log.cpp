@@ -168,7 +168,7 @@ void log_debug(const __FlashStringHelper *pfile_path, int line_num, const char *
   va_end(args);
 }
 
-bool test_log() 
+bool log_test() 
 {
   // TODO.
   return true;

@@ -16,7 +16,7 @@ unsigned long time_millis_since(unsigned long previous_millis)
 
 #define TEST_ASSERT(test, format, args ...) do { if (!(test)) { LOG_E(format, ## args); ret = false; } } while (0)
 
-bool test_time()
+bool time_test()
 {
   bool ret = true;
 

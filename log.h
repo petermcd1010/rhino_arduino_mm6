@@ -17,4 +17,4 @@ void log_writeln(const __FlashStringHelper *pformat, ...);
 void log_error(const __FlashStringHelper *pfile_path, int line_num, const char *pfunction_name, const __FlashStringHelper *pformat, ...);
 void log_debug(const __FlashStringHelper *pfile_path, int line_num, const char *pfunction_name, const __FlashStringHelper *pformat, ...);
 
-bool test_log();
+bool log_test();
