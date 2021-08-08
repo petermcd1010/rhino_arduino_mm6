@@ -28,7 +28,7 @@ uint32_t crc32c_calculate(void *pdata, size_t nbytes)
   return ~crc;
 }
 
-#define TEST_ASSERT(test, format, args ...) do { if (!(test)) { LOG_E(format, ## args); ret = false; } } while (0)
+#define TEST_ASSERT(test, format, args ...) do { if (!(test)) { LOG_ERROR(format, ## args); ret = false; } } while (0)
 
 bool crc32c_test() {
   bool ret = true;

@@ -119,19 +119,19 @@ bool menu_test()
   for (int i = 0; i < MENU_ITEM_COUNT; i++) {
     menu_item_t *pitem = &menu_item_by_index[i];
     if (!pitem->pname) {
-      LOG_E(F("%d NULL pname"), i);
+      LOG_ERROR(F("%d NULL pname"), i);
       ret = false;
     }
     if (strlen(pitem->pname) > menu_item_max_name_nbytes) {
-      LOG_E(F("%d pname too long"), i);
+      LOG_ERROR(F("%d pname too long"), i);
       ret = false;
     }
     if (!pitem->pfunction) {
-      LOG_E(F("%d NULL pfunction"), i);
+      LOG_ERROR(F("%d NULL pfunction"), i);
       ret = false;
     }
     if (!pitem->phelp) {
-      LOG_E(F("%d NULL phelp"), i);
+      LOG_ERROR(F("%d NULL phelp"), i);
       ret = false;
     }
   }

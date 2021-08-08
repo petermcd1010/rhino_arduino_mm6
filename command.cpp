@@ -315,7 +315,7 @@ int command_set_motor_angle(char *pargs, size_t args_nbytes)
   return p - pargs;
 
 error:
-  LOG_E(F(""));
+  LOG_ERROR(F(""));
   return -1;
 }
 
@@ -363,7 +363,7 @@ int command_set_motor_encoder(char *pargs, size_t args_nbytes)
   return p - pargs;
 
 error:
-  LOG_E(F(""));
+  LOG_ERROR(F(""));
   return -1;
 }
 

@@ -8,8 +8,8 @@
 
 #include <Arduino.h>
 
-#define LOG_D(format, args ...) do { log_debug(F(__FILE__), __LINE__, __FUNCTION__, format, ## args); } while (0)
-#define LOG_E(format, args ...) do { log_error(F(__FILE__), __LINE__, __FUNCTION__, format, ## args); } while (0)
+#define LOG_DEBUG(format, args ...) do { log_debug(F(__FILE__), __LINE__, __FUNCTION__, format, ## args); } while (0)
+#define LOG_ERROR(format, args ...) do { log_error(F(__FILE__), __LINE__, __FUNCTION__, format, ## args); } while (0)
 
 void log_write(const __FlashStringHelper *pformat, ...);
 void log_writeln();

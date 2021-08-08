@@ -66,7 +66,7 @@ void hardware_init() {
     //     The values for the Motor Logic are set by the setup.
     //       Since the Forward and Reverse Locic are used to invert the position the values are 1 or -1
     motor_state[i].logic = config.motor[i].orientation; 
-    // LOG_D(F("%d"), motor_state[i].logic);
+    // LOG_DEBUG(F("%d"), motor_state[i].logic);
   }  
 }
 

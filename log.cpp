@@ -2,43 +2,50 @@
  * Implementation for logging and assert functionality.
  */
 
+#define __ASSERT_USE_STDERR
 #include <assert.h>
 #include "log.h"
 #include "mm6.h"
 
-// TODO: There's some repeated code here that can be reduced in size.
+const int progmem_copy_buffer_nbytes = 256;
 
-#include "log.h"
-
-const int log_progmem_copy_buffer_nbytes = 256;
-
-void log_string(const char *pstring)
+static void write_string_serial(const char *pstring)
 {
+  assert(pstring);
   Serial.print(pstring);
 }
 
-void log_string(const __FlashStringHelper *pstring)
+// This function pointer provides a way to confirm log output in log_test() below.
+static void (*write_string_function)(const char *pstring) = write_string_serial;
+
+static void write_string(const char *pstring)
+{
+  assert(pstring);
+  write_string_function(pstring);
+}
+
+static void write_string(const __FlashStringHelper *pstring)
 {
   assert(pstring);
 
-  char buffer[log_progmem_copy_buffer_nbytes];
-  strncpy_P(buffer, (char*)pstring, log_progmem_copy_buffer_nbytes);
-  buffer[log_progmem_copy_buffer_nbytes - 1] = '\0';
-  assert(strlen(buffer) != log_progmem_copy_buffer_nbytes - 1);
+  char buffer[progmem_copy_buffer_nbytes];
+  strncpy_P(buffer, (char*)pstring, progmem_copy_buffer_nbytes);
+  buffer[progmem_copy_buffer_nbytes - 1] = '\0';  // Force null-termination.
+  assert(strlen(buffer) != progmem_copy_buffer_nbytes - 1);
 
-  log_string(buffer);
+  write_string_function(buffer);
 }
 
-static void log_format_str_va_list(const char *pformat, va_list args) 
+static void log_format_string_va_list(const char *pformat, va_list args) 
 {
   assert(pformat);
 
-  char buffer[log_progmem_copy_buffer_nbytes];
-  vsnprintf(buffer, log_progmem_copy_buffer_nbytes, pformat, args);
-  buffer[log_progmem_copy_buffer_nbytes - 1] = '\0';  // Force null-termination.
-  assert(strlen(buffer) != log_progmem_copy_buffer_nbytes - 1);
+  char buffer[progmem_copy_buffer_nbytes];
+  vsnprintf(buffer, progmem_copy_buffer_nbytes, pformat, args);
+  buffer[progmem_copy_buffer_nbytes - 1] = '\0';  // Force null-termination.
+  assert(strlen(buffer) != progmem_copy_buffer_nbytes - 1);
 
-  log_string(buffer);
+  write_string(buffer);
 }
 
 void log_write(const __FlashStringHelper *pformat, ...)
@@ -46,19 +53,19 @@ void log_write(const __FlashStringHelper *pformat, ...)
   assert(pformat);
   va_list args;
 
-  char buffer[log_progmem_copy_buffer_nbytes];
-  strncpy_P(buffer, (char*)pformat, log_progmem_copy_buffer_nbytes);
-  buffer[log_progmem_copy_buffer_nbytes - 1] = '\0';
-  assert(strlen(buffer) != log_progmem_copy_buffer_nbytes - 1);
+  char buffer[progmem_copy_buffer_nbytes];
+  strncpy_P(buffer, (char*)pformat, progmem_copy_buffer_nbytes);
+  buffer[progmem_copy_buffer_nbytes - 1] = '\0';  // Force null-termination.
+  assert(strlen(buffer) != progmem_copy_buffer_nbytes - 1);
 
   va_start(args, pformat);
-  log_format_str_va_list(buffer, args);
+  log_format_string_va_list(buffer, args);
   va_end(args);
 }
 
 void log_writeln()
 {
-  log_string(F("\n\r"));
+  write_string(F("\n\r"));
 }
 
 void log_writeln(const __FlashStringHelper *pformat, ...)
@@ -66,21 +73,22 @@ void log_writeln(const __FlashStringHelper *pformat, ...)
   assert(pformat);
   va_list args;
 
-  char buffer[log_progmem_copy_buffer_nbytes];
-  strncpy_P(buffer, (char*)pformat, log_progmem_copy_buffer_nbytes);
-  buffer[log_progmem_copy_buffer_nbytes - 1] = '\0';
-  assert(strlen(buffer) != log_progmem_copy_buffer_nbytes - 1);
+  char buffer[progmem_copy_buffer_nbytes];
+  strncpy_P(buffer, (char*)pformat, progmem_copy_buffer_nbytes);
+  buffer[progmem_copy_buffer_nbytes - 1] = '\0';  // Force null-termination.
+  assert(strlen(buffer) != progmem_copy_buffer_nbytes - 1);
 
   va_start(args, pformat);
-  log_format_str_va_list(buffer, args);
+  log_format_string_va_list(buffer, args);
   va_end(args);
 
   log_writeln();
 }
 
-static void print_file_name(const __FlashStringHelper *pfile_path)
+static void write_file_name(const __FlashStringHelper *pfile_path)
 {
-  assert(pfile_path);
+  if (!pfile_path)
+    return;  
 
   // Find the last '/' in the pfile_path.
   void *pfile_name = pfile_path;
@@ -90,32 +98,32 @@ static void print_file_name(const __FlashStringHelper *pfile_path)
     pfile_path = (const __FlashStringHelper*)((char*)pfile_path + 1);
   }
 
-  // Print the file name.
-  char buffer[log_progmem_copy_buffer_nbytes];
-  strncpy_P(buffer, (char*)pfile_name, log_progmem_copy_buffer_nbytes);
-  buffer[log_progmem_copy_buffer_nbytes - 1] = '\0';
-  assert(strlen(buffer) != log_progmem_copy_buffer_nbytes - 1);
-  log_string(buffer);
+  // Write the file name.
+  char buffer[progmem_copy_buffer_nbytes];
+  strncpy_P(buffer, (char*)pfile_name, progmem_copy_buffer_nbytes);
+  buffer[progmem_copy_buffer_nbytes - 1] = '\0';  // Force null-termination.
+  assert(strlen(buffer) != progmem_copy_buffer_nbytes - 1);
+  write_string(buffer);
 }
 
-static void log_error_internal(int line_num, const char *pfunction_name, const __FlashStringHelper *pformat, va_list args)
+static void log_internal(int line_num, const char *pfunction_name, bool is_error, const __FlashStringHelper *pformat, va_list args)
 {
   assert(line_num > 0);
   assert(pfunction_name);
   assert(pformat);
 
-  char buffer[log_progmem_copy_buffer_nbytes];
-  snprintf(buffer, log_progmem_copy_buffer_nbytes, ":%d:%s: ERROR: ", line_num, pfunction_name);
-  buffer[log_progmem_copy_buffer_nbytes - 1] = '\0';
-  log_string(buffer);
+  char buffer[progmem_copy_buffer_nbytes];
+  snprintf(buffer, progmem_copy_buffer_nbytes, ":%d:%s:%s ", line_num, pfunction_name, is_error ?  "ERROR:" : "");
+  buffer[progmem_copy_buffer_nbytes - 1] = '\0';  // Force null-termination.
+  write_string(buffer);
 
-  strncpy_P(buffer, (char*)pformat, log_progmem_copy_buffer_nbytes);
-  buffer[log_progmem_copy_buffer_nbytes - 1] = '\0';
-  assert(strlen(buffer) != log_progmem_copy_buffer_nbytes - 1);
+  strncpy_P(buffer, (char*)pformat, progmem_copy_buffer_nbytes);
+  buffer[progmem_copy_buffer_nbytes - 1] = '\0';  // Force null-termination.
+  assert(strlen(buffer) != progmem_copy_buffer_nbytes - 1);
 
-  log_format_str_va_list(buffer, args);
+  log_format_string_va_list(buffer, args);
 
-  log_string(F("\n\r"));
+  write_string(F("\n\r"));
 }
 
 void log_error(const __FlashStringHelper *pfile_path, int line_num, const char *pfunction_name, const __FlashStringHelper *pformat, ...)
@@ -125,32 +133,12 @@ void log_error(const __FlashStringHelper *pfile_path, int line_num, const char *
   assert(pfunction_name);
   assert(pformat);
 
-  print_file_name(pfile_path);
+  write_file_name(pfile_path);
 
   va_list args;
   va_start(args, pformat);
-  log_error_internal(line_num, pfunction_name, pformat, args);
+  log_internal(line_num, pfunction_name, true, pformat, args);
   va_end(args);
-}
-
-static void log_debug_internal(int line_num, const char *pfunction_name, const __FlashStringHelper *pformat, va_list args)
-{
-  assert(line_num > 0);
-  assert(pfunction_name);
-  assert(pformat);
-
-  char buffer[log_progmem_copy_buffer_nbytes];
-  snprintf(buffer, log_progmem_copy_buffer_nbytes, ":%d:%s: ", line_num, pfunction_name);
-  buffer[log_progmem_copy_buffer_nbytes - 1] = '\0';
-  assert(strlen(buffer) != log_progmem_copy_buffer_nbytes - 1);
-  log_string(buffer);
-
-  strncpy_P(buffer, (char*)pformat, log_progmem_copy_buffer_nbytes);
-  buffer[log_progmem_copy_buffer_nbytes - 1] = '\0';
-  assert(strlen(buffer) != log_progmem_copy_buffer_nbytes - 1);
-  log_format_str_va_list(buffer, args);
-
-  log_string(F("\n\r"));
 }
 
 void log_debug(const __FlashStringHelper *pfile_path, int line_num, const char *pfunction_name, const __FlashStringHelper *pformat, ...)
@@ -160,28 +148,36 @@ void log_debug(const __FlashStringHelper *pfile_path, int line_num, const char *
   assert(pfunction_name);
   assert(pformat);
 
-  print_file_name(pfile_path);
+  write_file_name(pfile_path);
 
   va_list args;
   va_start(args, pformat);
-  log_debug_internal(line_num, pfunction_name, pformat, args);
+  log_internal(line_num, pfunction_name, false, pformat, args);
   va_end(args);
 }
 
 bool log_test() 
 {
-  // TODO.
+  // TODO: Override write_string_function() to check that logs output as expected.
   return true;
 }
 
-void __assert(const char *pfunction_name, const char *pfile_name, int line_num, const char *failedexpr)
+void __assert(const char *pfunction_name, const char *pfile_path, int line_num, const char *failedexpr)
 {
   // Don't check for valid arguments, because this function is what the assert() macro calls.
+  
+  static bool in_assert = false;
+  if (in_assert) 
+    return;  // Avoid infinite assert() loops.
+  in_assert = true;
+
   mm6_enable_all(false);
 
-  log_string(pfunction_name);
-  log_error_internal(line_num, pfunction_name, F("assertion failed: %s"), failedexpr);
+  write_string(pfile_path);  // TODO: Is this printing what's expected?
+  write_string(F(":"));
+  log_internal(line_num, pfunction_name, true, F("assertion failed: %s"), failedexpr);
 
+  in_assert = false;
   // TODO: Would it be better to write the assertion to persistent memory, reboot, and have it checked at boot?  
+  //   assert_get(), assert_clear()?
 }
-

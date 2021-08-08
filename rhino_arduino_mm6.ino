@@ -202,7 +202,7 @@ void process_serial_input()
         command_args[command_args_nbytes++] = input_char;
       } else {
         log_writeln(F(""));
-        LOG_E(F("Too many characters in input buffer."));
+        LOG_ERROR(F("Too many characters in input buffer."));
         reset_prompt = true;
       }
     }
@@ -252,7 +252,7 @@ bool overcurrent_detected()
         detected = true;
 
       if (current_draw > max_current) {
-        LOG_D(F("max_current: %d"), current_draw);  // TODO: Why does this never print?
+        LOG_DEBUG(F("max_current: %d"), current_draw);  // TODO: Why does this never print?
         max_current = current_draw;
       }
 

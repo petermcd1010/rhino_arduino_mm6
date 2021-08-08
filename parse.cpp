@@ -178,12 +178,12 @@ static bool test_parse_float()
     float f = -1.0f;
     size_t nbytes = parse_float(ptest_case->pstring, strlen(ptest_case->pstring), &f);
     if (ptest_case->expected_nbytes != nbytes) {
-      LOG_E(F("Expected nbytes=%d, but got %d"), ptest_case->expected_nbytes, nbytes);
+      LOG_ERROR(F("Expected nbytes=%d, but got %d"), ptest_case->expected_nbytes, nbytes);
       ret = false;
     }
 
     if ((nbytes != 0 ) && (ptest_case->expected_value != f)) {
-      LOG_E(F("Expected value=%f, but got %f"), ptest_case->expected_value, f);
+      LOG_ERROR(F("Expected value=%f, but got %f"), ptest_case->expected_value, f);
       ret = false;
     }
   }

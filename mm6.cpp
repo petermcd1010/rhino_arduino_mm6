@@ -562,7 +562,7 @@ static bool is_stuck(cal_data_t *pcal_data)
   if ((ms - pcal_data->stuck_check_start_ms >= stuck_check_interval_ms)) {
     log_writeln(F("ms:%d, encoder:%d, stuck_check_start_encoder:%d"), ms, encoder, pcal_data->stuck_check_start_encoder);
     if (abs(encoder - pcal_data->stuck_check_start_encoder) <= stuck_check_encoder_count) {
-      LOG_D(F("stuck"));
+      LOG_DEBUG(F("stuck"));
       ret = true;
     }
 
@@ -619,7 +619,7 @@ static bool calibrate(cal_data_t *pcal_data) {
       // TODO: What about wrap-around on encoder values?
       if (encoder < pcal_data->min_encoder) {
         if (pcal_data->found_min_encoder) {
-          LOG_E(F("Unexpected minimum encoder %d lower than previous minimum encoder %d"), encoder, pcal_data->min_encoder);
+          LOG_ERROR(F("Unexpected minimum encoder %d lower than previous minimum encoder %d"), encoder, pcal_data->min_encoder);
           pcal_data->error = CAL_ERROR_UNEXPECTED_MIN_ENCODER;
         }
         pcal_data->min_encoder = encoder;
@@ -627,7 +627,7 @@ static bool calibrate(cal_data_t *pcal_data) {
 
       if (encoder > pcal_data->max_encoder) {
         if (pcal_data->found_max_encoder) {
-          LOG_E(F("Unexpected maximum encoder %d higher than previous maximum encoder %d"), encoder, pcal_data->max_encoder);
+          LOG_ERROR(F("Unexpected maximum encoder %d higher than previous maximum encoder %d"), encoder, pcal_data->max_encoder);
           pcal_data->error = CAL_ERROR_UNEXPECTED_MAX_ENCODER;
         }
         pcal_data->max_encoder = encoder;
@@ -1178,7 +1178,7 @@ ISR(TIMER1_COMPA_vect)
     // TODO: Make this work.
     if ((motor_state[motor_id].pid_perror != 0) &&
         (abs(PIDPError) > abs(motor_state[motor_id].pid_perror))) {
-      LOG_D(F("%d %d"), PIDPError, motor_state[motor_id].pid_perror);
+      LOG_DEBUG(F("%d %d"), PIDPError, motor_state[motor_id].pid_perror);
       // Motor is getting further away from target, not closer.
       motor_state[motor_id].error_flags |= MOTOR_ERROR_FLAG_OPPOSITE_DIRECTION;
     }
