@@ -84,7 +84,7 @@ static const int mm6_direction_reverse = HIGH;
 static motor_state_t motor_state[MOTOR_ID_COUNT] = {};   // TODO: mm6_motor_state?
 
 static bool mm6_pid_enabled = false;
-static const int motor_min_speed = 55;
+static const int motor_min_pwm = 55;
 static int tracking = 0;
 static int tracked[] = { 0, 0, 0, 0, 0, 0 }; // Last value while tracking.
 static int Motor_PID[MOTOR_ID_COUNT] = {0, 0, 0, 0, 0, 0}; // PID on or off.
@@ -344,7 +344,7 @@ void mm6_test(motor_id_t motor_id)
 {
   assert((motor_id >= MOTOR_ID_FIRST) && (motor_id <= MOTOR_ID_LAST));
 
-  const int test_speed = 255 - motor_min_speed;
+  const int test_speed = 255 - motor_min_pwm;
   const int delay_ms = 50;
 
   // Mark motor as configured, so motor-control commands will execute.
@@ -944,42 +944,24 @@ void mm6_pid_enable(bool enable)
 void mm6_set_speed(motor_id_t motor_id, int speed)
 {
   assert((motor_id >= MOTOR_ID_FIRST) && (motor_id <= MOTOR_ID_LAST));
-  // TODO: Range-check speed.
+  assert((speed >= mm6_min_speed) && (speed <= mm6_max_speed));
 
-  if (!config.motor[motor_id].configured) {
+  if (!config.motor[motor_id].configured || !motor_state[motor_id].enabled) {
     motor_state[motor_id].pwm = 0;
     analogWrite(motor_pinout[motor_id].out_pwm, 0);          
     return;
   }
 
-  // Calculate the PWM and Direction for the Speed
-  // Converts the speed's +/- 255 value to PWM and Direction.
-  motor_state[motor_id].speed = speed;
-
-  if (speed > 0) {      
-    motor_state[motor_id].pwm = speed + motor_min_speed;
-    digitalWrite(motor_pinout[motor_id].out_direction, mm6_direction_forward);          
-  } else if (speed < 0) {      
-    motor_state[motor_id].pwm = -speed + motor_min_speed;
-    digitalWrite(motor_pinout[motor_id].out_direction, mm6_direction_reverse);        
-  } else {
+  // Convert speed's +/- 255 value to PWM and Direction.
+  if (speed == 0) {
     motor_state[motor_id].pwm = 0;
-  }  
-
-  analogWrite(motor_pinout[motor_id].out_pwm, motor_state[motor_id].pwm);    
-#if 0
-  log_writeln(F("\r\nmm6_set_speed %c speed:%d f:%d r:%d dir:%d encoder:%d logic:%d"), 
-    'A' + motor_id, 
-    speed, 
-    Forward_Logic[motor_id], 
-    Reverse_Logic[motor_id], 
-    digitalRead(motor_pinout[motor_id].out_direction),
-    noinit_data.encoder[motor_id],
-    motor_state[motor_id].logic);        
-#endif
+  } else {
+    int pwm = abs(speed);
+    motor_state[motor_id].pwm = pwm < motor_min_pwm ? motor_min_pwm : pwm;
+  }
+  digitalWrite(motor_pinout[motor_id].out_direction, speed >= 0 ? mm6_direction_forward : mm6_direction_reverse);          
+  motor_state[motor_id].speed = speed;
 }
-
-
 
 void mm6_dump(motor_id_t motor_id) 
 {
@@ -1041,8 +1023,8 @@ ISR(TIMER1_COMPA_vect)
   static int tf = 0;
   static motor_id_t motor_id = 0;
 
-  const int max_error = 255 - motor_min_speed;
-  const int min_error = -(255 - motor_min_speed);
+  const int max_error = 255 - motor_min_pwm;
+  const int min_error = -(255 - motor_min_pwm);
   const int qe_inc_states[] = {1, 3, 0, 2};  // 01 -> 11 -> 00 -> 10.
   const int qe_dec_states[] = {2, 0, 3, 1};  // 10 -> 00 -> 11 -> 01.
 
@@ -1240,20 +1222,20 @@ ISR(TIMER1_COMPA_vect)
       //============================================
       int CurrentSpeedChanged = 0;
       if (motor_state[motor_id].target_speed > motor_state[motor_id].speed) {
-        if (motor_state[motor_id].speed < (255 - motor_min_speed)){
+        if (motor_state[motor_id].speed < (255 - motor_min_pwm)){
           motor_state[motor_id].speed++; // if the target is higher, then inc up to the target.
           if (motor_state[motor_id].target_speed > motor_state[motor_id].speed) {
-            if (motor_state[motor_id].speed < (255 - motor_min_speed)){
+            if (motor_state[motor_id].speed < (255 - motor_min_pwm)){
               motor_state[motor_id].speed++; // if the target is higher, then inc up to the target a second time.
             }
           }
           CurrentSpeedChanged = 1;
         }
       } else if (motor_state[motor_id].target_speed < motor_state[motor_id].speed) {
-        if (motor_state[motor_id].speed > -(255 - motor_min_speed)){
+        if (motor_state[motor_id].speed > -(255 - motor_min_pwm)){
           motor_state[motor_id].speed--; // if the target is lower, then inc down to the target.
           if (motor_state[motor_id].target_speed < motor_state[motor_id].speed) {
-            if (motor_state[motor_id].speed > -(255 - motor_min_speed)){
+            if (motor_state[motor_id].speed > -(255 - motor_min_pwm)){
               motor_state[motor_id].speed--; // if the target is lower, then inc down to the target a second time.
             }
           }

@@ -85,12 +85,15 @@ typedef struct {
 extern noinit_data_t noinit_data;
 
 extern bool mm6_pid_enabled;
-extern const int motor_min_speed;
 
 extern int Gripper_StallC;
 extern int Gripper_StallE;
 extern int Gripper_StallX;
 extern int SyncMove_Status;
+
+// The speed sign bit is used to set the LMD18200 direction pin. So the PWM register accepts the full [0, 255] range.
+const int mm6_min_speed = -255;
+const int mm6_max_speed = 255;
 
 void mm6_init();
 void mm6_set_brake(motor_id_t motor_id, bool enable);
@@ -110,7 +113,7 @@ bool mm6_get_overcurrent_active(motor_id_t motor_id);
 void mm6_test_all();
 bool mm6_calibrate_all();
 void mm6_pid_enable(bool enable);
-void mm6_set_speed(motor_id_t motor_id, int speed);
+void mm6_set_speed(motor_id_t motor_id, int speed);  // For speed in [mm6_min_speed, mm6_max_speed].
 void mm6_dump(motor_id_t motor_id);
 void mm6_exec_all(void(*fn)(motor_id_t motor_id));
 
