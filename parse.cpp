@@ -5,7 +5,7 @@
 #define __ASSERT_USE_STDERR
 #include <assert.h>
 #include "log.h"
-#include "mm6.h"
+#include "motor.h"
 #include "parse.h"
 
 size_t parse_whitespace(char *pbuf, size_t buf_nbytes)

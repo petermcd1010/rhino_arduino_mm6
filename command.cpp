@@ -9,7 +9,7 @@
 #include "hardware.h"
 #include "log.h"
 #include "menu.h"
-#include "mm6.h"
+#include "motor.h"
 #include "parse.h"
 #include "sm.h"
 
@@ -29,7 +29,7 @@ int command_emergency_stop(char *pargs, size_t args_nbytes)
     return -1;
   } 
 
-  mm6_set_pid_enable_all(false);
+  motor_set_pid_enable_all(false);
   sm_state_current = SM_STATE_ERROR;
 
   return 0;
@@ -218,7 +218,7 @@ int command_set_home_position(char *pargs, size_t args_nbytes)
     return -1;
   } 
 
-  mm6_exec_all(mm6_set_position_to_home);
+  motor_exec_all(motor_set_position_to_home);
 
   return nbytes;
 }
@@ -231,7 +231,7 @@ int command_run_calibration(char *pargs, size_t args_nbytes)
     return -1;
   }
   
-  log_writeln(F("Calibration ... %s"), mm6_calibrate_all() ? "passed" : "FAILED");
+  log_writeln(F("Calibration ... %s"), motor_calibrate_all() ? "passed" : "FAILED");
 
   return nbytes;
 }
@@ -246,13 +246,13 @@ int command_print_motor_status(char *pargs, size_t args_nbytes)
 {  
   for (int i = MOTOR_ID_FIRST; i <= MOTOR_ID_LAST; i++) {    
     char angle_str[15] = {};
-    dtostrf(mm6_get_angle(i), 3, 2, angle_str);
+    dtostrf(motor_get_angle(i), 3, 2, angle_str);
     log_writeln(F("%c: home:%d sta:%d enc:%d tar:%d err:%d spd:%d PWM:%d cur:%d hs:%d,%d,%d,%d->%d angle:%s"), 
         'A' + i, 
         motor_state[i].switch_previously_triggered,  // home.
         motor_state[i].progress,  // sta. Report whether or not the Motor has reached the target location.
-        /* mm6_get_encoder(iMotor), */  // pos.
-        mm6_get_encoder(i) * motor_state[i].logic,  // enc.
+        /* motor_get_encoder(iMotor), */  // pos.
+        motor_get_encoder(i) * motor_state[i].logic,  // enc.
         motor_state[i].target_encoder * motor_state[i].logic,  // tar.
         motor_state[i].pid_perror * motor_state[i].logic,  // err.
         motor_state[i].speed * motor_state[i].logic,  // spd.
@@ -286,7 +286,7 @@ int command_set_motor_angle(char *pargs, size_t args_nbytes)
   args_nbytes -= nbytes;
   p += nbytes;
 
-  float angle = mm6_get_angle(motor_id);
+  float angle = motor_get_angle(motor_id);
   nbytes = parse_motor_angle_or_encoder(p, args_nbytes, &angle);
   if (nbytes <= 0)
     goto error;  // parse_motor_angle_or_encoder will emit message if error.   
@@ -303,9 +303,9 @@ int command_set_motor_angle(char *pargs, size_t args_nbytes)
   char angle_str[15] = {};
   dtostrf(angle, 3, 2, angle_str);
 
-  if (mm6_get_pid_enable(motor_id)) {
+  if (motor_get_pid_enable(motor_id)) {
     log_writeln(F("Move Motor %c to an angle of %s degrees."), 'A' + motor_id, angle_str);
-    mm6_set_target_angle(motor_id, angle);
+    motor_set_target_angle(motor_id, angle);
   } else {
     log_writeln(F("ERROR: Motor %c not enabled."), 'A' + motor_id);
     // TODO: error state?
@@ -333,7 +333,7 @@ int command_set_motor_encoder(char *pargs, size_t args_nbytes)
   args_nbytes -= nbytes;
   p += nbytes;
 
-  float encoder = mm6_get_encoder(motor_id);
+  float encoder = motor_get_encoder(motor_id);
   nbytes = parse_motor_angle_or_encoder(p, args_nbytes, &encoder);
   if (nbytes <= 0)
     return -1;
@@ -350,9 +350,9 @@ int command_set_motor_encoder(char *pargs, size_t args_nbytes)
   char encoder_str[15] = {};
   dtostrf(encoder, 3, 2, encoder_str);
 
-  if (mm6_get_pid_enable(motor_id)) {
+  if (motor_get_pid_enable(motor_id)) {
     log_writeln(F("Move Motor %c to encoder %s."), 'A' + motor_id, encoder_str);
-    mm6_set_target_encoder(motor_id, encoder);
+    motor_set_target_encoder(motor_id, encoder);
   } else {
     log_writeln(F("ERROR: Motor %c not enabled."), 'A' + motor_id);
     // TODO: error state?
@@ -389,7 +389,7 @@ int command_test_motors(char *pargs, size_t args_nbytes)
     return -1;
   } 
 
-  mm6_test_all();
+  motor_test_all();
 
   return nbytes;
 }

@@ -9,8 +9,8 @@
 #include "config.h"
 #include "hardware.h"
 #include "log.h"
-#include "mm6.h"
 #include "menu.h"
+#include "motor.h"
 #include "parse.h"
 #include "sm.h"
 
@@ -90,10 +90,10 @@ void gather_status(status_t *pstatus)
   pstatus->state = sm_state_current;
   for (int i = 0; i < MOTOR_ID_COUNT; i++) {
     if (config.motor[i].configured) {
-      pstatus->motor[i].angle = mm6_get_angle(i);
-      pstatus->motor[i].switch_triggered = mm6_get_switch_triggered(i);
-      pstatus->motor[i].thermal_overload_active = mm6_get_thermal_overload_active(i);
-      pstatus->motor[i].overcurrent_active = mm6_get_overcurrent_active(i);
+      pstatus->motor[i].angle = motor_get_angle(i);
+      pstatus->motor[i].switch_triggered = motor_get_switch_triggered(i);
+      pstatus->motor[i].thermal_overload_active = motor_get_thermal_overload_active(i);
+      pstatus->motor[i].overcurrent_active = motor_get_overcurrent_active(i);
     } else {
       memset(&pstatus->motor[i], 0, sizeof(motor_status_t));
     }
@@ -134,8 +134,8 @@ void process_serial_input()
     if (status_updated && !reset_prompt)
       log_writeln(F(""));
 
-    // mm6_dump_motor(MOTOR_ID_E);
-    // mm6_dump_motor(MOTOR_ID_F);
+    // motor_dump_motor(MOTOR_ID_E);
+    // motor_dump_motor(MOTOR_ID_F);
 
     pprev_menu_item = NULL;
     command_args_nbytes = 0;
@@ -150,7 +150,7 @@ void process_serial_input()
         dtostrf(status.motor[i].angle, 3, 2, angle_str);
         char motor_name = (status.motor[i].switch_triggered ? 'A' : 'a') + i;
 
-        log_write(F("%c:%s,%d,%d "), motor_name, angle_str, mm6_get_current_draw(i), motor_state[i].pid_perror);
+        log_write(F("%c:%s,%d,%d "), motor_name, angle_str, motor_get_current_draw(i), motor_state[i].pid_perror);
       }
     }
 
@@ -245,11 +245,11 @@ static sm_state_t init_execute()
   } else {
     log_writeln(F("Read %d bytes of configuration data from EEPROM. Configuration is valid."), sizeof(config_t));
     log_writeln(F("Configured for '%s'."), config_robot_name_by_id[config.robot_id]);
-    mm6_print_encoders();
+    motor_print_encoders();
   }
 
   config_print();
-  mm6_init();
+  motor_init_megamotor6();
   hardware_init();
 
   bool self_test_success = run_self_test();
@@ -262,7 +262,7 @@ static sm_state_t init_execute()
 
 static bool motors_off_enter()
 {
-  // mm6_enable_motors(false);  !! TODO
+  // motor_enable_motors(false);  !! TODO
   return true;
 }
 
@@ -275,7 +275,7 @@ static sm_state_t motors_off_execute()
 
 static bool motors_on_enter()
 {
-  mm6_set_pid_enable_all(true);
+  motor_set_pid_enable_all(true);
   return true;
 }
 
@@ -287,13 +287,13 @@ sm_state_t motors_on_execute()
 
 bool motors_on_exit()
 {
-  mm6_set_pid_enable_all(false);
+  motor_set_pid_enable_all(false);
   return true;
 }
 
 bool error_enter()
 {
-  mm6_set_pid_enable_all(false);
+  motor_set_pid_enable_all(false);
   return true;
 }
 

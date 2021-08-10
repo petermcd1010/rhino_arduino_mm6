@@ -17,7 +17,7 @@
 
 #include "config.h"
 #include "log.h"
-#include "mm6.h"
+#include "motor.h"
 #include "sm.h"
 
 void setup() 
@@ -44,7 +44,7 @@ static bool check_system_integrity()
     ok = false;
   }
 
-  ok = (mm6_thermal_overload_detected() || mm6_overcurrent_detected()) ? false : ok;
+  ok = (motor_thermal_overload_detected() || motor_overcurrent_detected()) ? false : ok;
 
   for (int i = MOTOR_ID_FIRST; i <= MOTOR_ID_LAST; i++) {
     if (motor_state[i].error_flags != 0) {

@@ -1,7 +1,7 @@
 #pragma once
 
 /*
- * Declarations for MegaMotor6-specific hardware functionality.
+ * Declarations for MegaMotor6 hardware functionality.
  */
 
 #include <Arduino.h>
@@ -78,30 +78,30 @@ extern int Gripper_StallX;
 extern int SyncMove_Status;
 
 // The speed sign bit is used to set the LMD18200 direction pin. So the PWM register accepts 0-255 for + and -.
-const int mm6_min_speed = -255;
-const int mm6_max_speed = 255;
+const int motor_min_speed = -255;
+const int motor_max_speed = 255;
 
-void mm6_init();
-bool mm6_thermal_overload_detected();
-bool mm6_overcurrent_detected();
-void mm6_set_brake(motor_id_t motor_id, bool enable);
-bool mm6_set_pid_enable(motor_id_t motor_id, bool enable);
-void mm6_set_pid_enable_all(bool enable);
-bool mm6_get_pid_enable(motor_id_t motor_id);
-bool mm6_get_switch_triggered(motor_id_t motor_id);
-int mm6_get_encoder(motor_id_t motor_id);
-void mm6_set_target_encoder(motor_id_t motor_id, int encoder);
-void mm6_print_encoders();
-int mm6_angle_to_encoder(motor_id_t motor_id, float angle);
-float mm6_get_angle(motor_id_t motor_id);
-void mm6_set_target_angle(motor_id_t motor_id, float angle);
-void mm6_set_position_to_home(motor_id_t motor_id);
-bool mm6_get_thermal_overload_active(motor_id_t motor_id);
-int mm6_get_current_draw(motor_id_t motor_id);
-bool mm6_get_overcurrent_active(motor_id_t motor_id);
-void mm6_test_all();
-bool mm6_calibrate_all();
-void mm6_set_speed(motor_id_t motor_id, int speed);  // For speed in [mm6_min_speed, mm6_max_speed]. Sets speed to 0 if motor not enabled/configured.
-void mm6_dump(motor_id_t motor_id);
-void mm6_exec_all(void(*fn)(motor_id_t motor_id));
+void motor_init_megamotor6();
+bool motor_thermal_overload_detected();
+bool motor_overcurrent_detected();
+void motor_set_brake(motor_id_t motor_id, bool enable);
+bool motor_set_pid_enable(motor_id_t motor_id, bool enable);
+void motor_set_pid_enable_all(bool enable);
+bool motor_get_pid_enable(motor_id_t motor_id);
+bool motor_get_switch_triggered(motor_id_t motor_id);
+int motor_get_encoder(motor_id_t motor_id);
+void motor_set_target_encoder(motor_id_t motor_id, int encoder);
+void motor_print_encoders();
+int motor_angle_to_encoder(motor_id_t motor_id, float angle);
+float motor_get_angle(motor_id_t motor_id);
+void motor_set_target_angle(motor_id_t motor_id, float angle);
+void motor_set_position_to_home(motor_id_t motor_id);
+bool motor_get_thermal_overload_active(motor_id_t motor_id);
+int motor_get_current_draw(motor_id_t motor_id);
+bool motor_get_overcurrent_active(motor_id_t motor_id);
+void motor_test_all();
+bool motor_calibrate_all();
+void motor_set_speed(motor_id_t motor_id, int speed);  // For speed in [motor_min_speed, motor_max_speed]. Sets speed to 0 if motor not enabled/configured.
+void motor_dump(motor_id_t motor_id);
+void motor_exec_all(void(*fn)(motor_id_t motor_id));
 

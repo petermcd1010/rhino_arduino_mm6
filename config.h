@@ -5,7 +5,7 @@
  */
 
 #include <Arduino.h>
-#include "mm6.h"
+#include "motor.h"
 
 #define CONFIG_ROBOT_SERIAL_NBYTES 15
 #define CONFIG_ROBOT_NAME_NBYTES 20

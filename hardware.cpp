@@ -8,7 +8,7 @@
 #include <EEPROM.h>
 #include "hardware.h"
 #include "log.h"
-#include "mm6.h"
+#include "motor.h"
 
 static const int OPRLED = 13;
 static const int expansion_io_pinout[] = { A15, A14, A13, A12, 53, 49, 48, 41 };
@@ -29,7 +29,7 @@ void hardware_erase_eeprom()
 
 void hardware_reset()
 {
-  mm6_set_pid_enable_all(false);
+  motor_set_pid_enable_all(false);
   hardware_erase_eeprom();
   hardware_reboot();
 }
@@ -37,7 +37,7 @@ void hardware_reset()
 void (*hardware_really_reboot)(void) = 0;  // Call hardware_really_reboot() to reset the board.
 void hardware_reboot() 
 {
-  mm6_set_pid_enable_all(false);
+  motor_set_pid_enable_all(false);
   delay(1000);  // Wait 1s for log output to complete writing.
   hardware_really_reboot();
 }
