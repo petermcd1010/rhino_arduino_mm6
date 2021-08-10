@@ -223,6 +223,24 @@ void mm6_init()
   mm6_exec_all(init_motor);
 }
 
+bool mm6_thermal_overload_detected()
+{
+  for (int motor_id = MOTOR_ID_FIRST; motor_id <= MOTOR_ID_LAST; motor_id++) {
+    if (motor_state[motor_id].error_flags & MOTOR_ERROR_FLAG_THERMAL_OVERLOAD_DETECTED)
+      return true;
+  }
+  return false;
+}
+
+bool mm6_overcurrent_detected()
+{
+  for (int motor_id = MOTOR_ID_FIRST; motor_id <= MOTOR_ID_LAST; motor_id++) {
+    if (motor_state[motor_id].error_flags & MOTOR_ERROR_FLAG_OVERCURRENT_DETECTED)
+      return true;
+  }
+  return false;
+}
+
 void mm6_set_brake(motor_id_t motor_id, bool enable)
 {
   assert((motor_id >= MOTOR_ID_FIRST) && (motor_id <= MOTOR_ID_LAST));
@@ -410,6 +428,7 @@ bool mm6_get_overcurrent_active(motor_id_t motor_id)
   assert((motor_id >= MOTOR_ID_FIRST) && (motor_id <= MOTOR_ID_LAST));
   // Ignores mm6_configured(motor_id).
 
+  // TODO: Implement mm6_get_overcurrent_active().
   return false;
 }
 
@@ -1151,6 +1170,14 @@ ISR(TIMER1_COMPA_vect)
     }
     motor_state[qe_motor_id].switch_triggered = switch_triggered;
 #endif
+
+    if (mm6_get_thermal_overload_active(qe_motor_id)) {
+      motor_state[qe_motor_id].error_flags |= MOTOR_ERROR_FLAG_THERMAL_OVERLOAD_DETECTED;
+    } 
+
+    if (mm6_get_overcurrent_active(qe_motor_id)) {
+      motor_state[qe_motor_id].error_flags |= MOTOR_ERROR_FLAG_OVERCURRENT_DETECTED;
+    }     
   }
 
   isr_blink_led(mm6_get_pid_enable(MOTOR_ID_A));
