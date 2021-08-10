@@ -49,7 +49,7 @@ void gather_status(status_t *pstatus)
   pstatus->state = sm_state_current;
   for (int i = 0; i < MOTOR_ID_COUNT; i++) {
     if (config.motor[i].configured) {
-      pstatus->motor[i].angle = mm6_get_angle(i);  // TODO: Or active?
+      pstatus->motor[i].angle = mm6_get_angle(i);
       pstatus->motor[i].switch_triggered = mm6_get_switch_triggered(i);
       pstatus->motor[i].thermal_overload_active = mm6_get_thermal_overload_active(i);
       pstatus->motor[i].overcurrent_active = mm6_get_overcurrent_active(i);
@@ -274,8 +274,6 @@ bool check_system_integrity()
   }
 
   ok = (thermal_overload_detected() || overcurrent_detected()) ? false : ok;
-
-  // TODO: Detect error if any encoders don't transition from 0 -> 1 -> 3 -> 4 (or reverse).
 
   for (int i = MOTOR_ID_FIRST; i <= MOTOR_ID_LAST; i++) {
     if (motor_state[i].error_flags != 0) {
