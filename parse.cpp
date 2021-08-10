@@ -313,7 +313,7 @@ bool parse_test()
 {
   float ret = true;
 
-  // TODO.
+  // TODO: Implement parse_test().
   // int parse_bool(buf, nbytes, out_bool) <= true/false/on/off/1/0
   // int parse_char(buf, nbytes, out_char) <= returns 1 if > 32 && < 127 
   // parse_motor_angle_or_encoder

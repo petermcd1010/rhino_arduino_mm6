@@ -110,8 +110,8 @@ bool config_check()
     ret = false;
   }
 
-  const int min_count = -9999;  // TODO.
-  const int max_count = 9999;  // TODO.
+  const int min_count = -9999;  // TODO: Determine min_count.
+  const int max_count = 9999;  // TODO: Determine max_count..
   for (int i = MOTOR_ID_FIRST; i <= MOTOR_ID_LAST; i++) {
     if ((config.motor[i].angle_offset < min_count) || (config.motor[i].angle_offset > max_count)) {
       log_writeln(F("ERROR: config_check: Invalid angle offset."));
@@ -249,7 +249,9 @@ void config_set_angle_offsets(int B, int C, int D, int E, int F) {
 
 void config_print()
 {  
-  // TODO: check for valid config.
+  if (!config_check()) {
+    log_writeln(F("Invalid configuration."));
+  }
 
   log_writeln(F("Configuration:"));
   log_writeln(F("  Robot ID: %s"), config_robot_name_by_id[config.robot_id]);
@@ -278,7 +280,7 @@ void config_print()
 }
 
 bool config_test() {
-  // TODO.
+  // TODO: implement config_test().
   // test_config_check
   // test_config_read -- skip, as we don't want to exercise the EEPROM.
   // test_config_write -- skip, as we don't want to exercise the EEPROM.

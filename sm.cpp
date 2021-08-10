@@ -256,7 +256,7 @@ static sm_state_t init_execute()
   menu_help();
   log_writeln(F("Ready."));
   
-  // return (config_read_success && self_test_success) ? SM_STATE_MOTORS_OFF : SM_STATE_ERROR; TODO2
+  // return (config_read_success && self_test_success) ? SM_STATE_MOTORS_OFF : SM_STATE_ERROR; TODO
   return SM_STATE_MOTORS_ON;
 }
 

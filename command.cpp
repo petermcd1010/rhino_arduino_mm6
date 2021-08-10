@@ -15,12 +15,6 @@
 
 const float software_version = 2.00;  
 
-int command_clock(char *pargs, unsigned nybtes_args)
-{
-  // TODO.
-  assert(false);
-}
-
 int command_emergency_stop(char *pargs, size_t args_nbytes)
 {
   // Confirm arguments are empty.
@@ -37,13 +31,13 @@ int command_emergency_stop(char *pargs, size_t args_nbytes)
 
 int command_set_gripper_position(char *pargs, size_t args_nbytes)
 {
-  // TODO.
+  // TODO: Implement command_set_gripper_position.
   assert(false);
 
   return -1;
 }
 
-int command_print_config(char *pargs, unsigned args_nbytes)
+int command_print_config(char *pargs, size_t args_nbytes)
 {
   assert(pargs);  
 
@@ -75,8 +69,6 @@ int command_config_robot_id(char *pargs, size_t args_nbytes)
 
   config_robot_id_t robot_id = CONFIG_ROBOT_ID_FIRST - 1;
   nbytes = parse_int(p, args_nbytes, (int*)(&robot_id));
-  if (nbytes < 0)  // TODO: is this ever true?
-    return -1;
   args_nbytes -= nbytes;
   p += nbytes;
 
@@ -94,7 +86,7 @@ int command_config_robot_id(char *pargs, size_t args_nbytes)
 
   log_writeln(F("Setting robot ID to '%s'."), config_robot_name_by_id[robot_id]);
 
-  config_set_robot_id(robot_id);  // TODO: return value?
+  config_set_robot_id(robot_id);
 
   return p - pargs;
 
@@ -119,7 +111,7 @@ int command_config_robot_serial(char *pargs, size_t args_nbytes)
 
   char robot_serial[CONFIG_ROBOT_SERIAL_NBYTES];
   nbytes = parse_string(p, args_nbytes, robot_serial, CONFIG_ROBOT_SERIAL_NBYTES);
-  if (nbytes < 0)  // TODO: is this ever true?
+  if (nbytes == 0)
     return -1;
   args_nbytes -= nbytes;
   p += nbytes;
@@ -129,7 +121,7 @@ int command_config_robot_serial(char *pargs, size_t args_nbytes)
 
   log_writeln(F("Setting robot serial to '%s'."), robot_serial);
 
-  config_set_robot_serial(robot_serial);  // TODO: return value?
+  config_set_robot_serial(robot_serial);
 
   return p - pargs;
 
@@ -154,7 +146,7 @@ int command_config_robot_name(char *pargs, size_t args_nbytes)  // TODO: should 
 
   char robot_name[CONFIG_ROBOT_NAME_NBYTES];
   nbytes = parse_string(p, args_nbytes, robot_name, CONFIG_ROBOT_NAME_NBYTES);
-  if (nbytes < 0)  // TODO: is this ever true?
+  if (nbytes == 0)
     return -1;
   args_nbytes -= nbytes;
   p += nbytes;
@@ -164,7 +156,7 @@ int command_config_robot_name(char *pargs, size_t args_nbytes)  // TODO: should 
 
   log_writeln(F("Setting robot name to '%s'."), robot_name);
 
-  config_set_robot_name(robot_name); // TODO: return value?
+  config_set_robot_name(robot_name);
 
   return p - pargs;
 
@@ -187,19 +179,9 @@ int command_config_write(char *pargs, size_t args_nbytes)
   return 0;
 }
 
-int command_heartbeat(char *pargs, size_t args_nbytes)
-{
-  // TODO.
-  assert(false);
-
-  return -1;
-}
-
 int command_print_help(char *pargs, size_t args_nbytes)
 {
   assert(pargs);
-  // TODO: confirm pargs is only whitespace.
-  menu_help();
   
   // Confirm arguments are empty.
   size_t nbytes = parse_whitespace(pargs, args_nbytes);
@@ -207,6 +189,7 @@ int command_print_help(char *pargs, size_t args_nbytes)
     return -1;
   } 
 
+  menu_help();
   return 0;
 }
 
@@ -234,12 +217,6 @@ int command_run_calibration(char *pargs, size_t args_nbytes)
   log_writeln(F("Calibration ... %s"), motor_calibrate_all() ? "passed" : "FAILED");
 
   return nbytes;
-}
-
-int command_input_mode(char *pargs, size_t args_nbytes)
-{
-  // TODO.
-  assert(false);
 }
 
 int command_print_motor_status(char *pargs, size_t args_nbytes)
@@ -276,7 +253,7 @@ int command_set_motor_angle(char *pargs, size_t args_nbytes)
 
   motor_id_t motor_id = MOTOR_ID_A;
   char *p = pargs;
-  size_t nbytes = parse_motor_id(p, args_nbytes, &motor_id);  // TODO: all nbytes to size_t.
+  size_t nbytes = parse_motor_id(p, args_nbytes, &motor_id);
   if (nbytes <- 0)
     goto error;  // parse_motor_id will emit message if error.   
   args_nbytes -= nbytes;
@@ -323,7 +300,7 @@ int command_set_motor_encoder(char *pargs, size_t args_nbytes)
 
   motor_id_t motor_id = MOTOR_ID_A;
   char *p = pargs;
-  size_t nbytes = parse_motor_id(p, args_nbytes, &motor_id);  // TODO: all nbytes to size_t.
+  size_t nbytes = parse_motor_id(p, args_nbytes, &motor_id);
   if (nbytes <= 0)
     goto error;  // parse_motor_id will emit message if error.   
   args_nbytes -= nbytes;
@@ -367,7 +344,7 @@ error:
 
 int command_pid_mode(char *pargs, size_t args_nbytes)
 {
-  // TODO.
+  // TODO: Implement command_pid_mode().
   assert(false);
 
   return -1;
@@ -375,7 +352,7 @@ int command_pid_mode(char *pargs, size_t args_nbytes)
 
 int command_run_test_sequence(char *pargs, size_t args_nbytes)
 {
-  // TODO.
+  // TODO: Implement command_run_test_sequence().
   assert(false);
 
   return -1;
@@ -443,13 +420,17 @@ int command_reboot(char *pargs, size_t args_nbytes)
   int entry_num = -1;
   char *reboot_table[] = { "REBOOT" };
   nbytes = parse_string_in_table(pargs, args_nbytes, reboot_table, 1, &entry_num);
-  // TODO: check entry_num == -1?
-  // TODO: allow whitespace after REBOOT.
+  if (entry_num != 0)
+    return -1;
+
+  nbytes = parse_whitespace(pargs, args_nbytes);
+  pargs += nbytes;
+  args_nbytes -= nbytes;
+
   if (nbytes != args_nbytes)
     return -1;
 
-  assert(entry_num == 0);
-  hardware_reboot();
+  hardware_reboot();  // TODO: Test that this works with and without whitespace after REBOOT.
 
   return 0;
 }
@@ -477,18 +458,9 @@ int command_print_software_version(char *pargs, size_t args_nbytes)
   return 0;
 }
 
-
 int command_waypoint(char *pargs, size_t args_nbytes)
 {
-  // TODO.
-  assert(false);
-
-  return -1;
-}
-
-int command_expansion_io(char *pargs, size_t args_nbytes)
-{
-  // TODO.
+  // TODO: Implement command_waypoint.
   assert(false);
 
   return -1;
