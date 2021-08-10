@@ -34,7 +34,7 @@ typedef enum {
 } motor_error_flag_t;
 
 typedef struct {
-  bool enabled;
+  bool pid_enabled;
   int speed;
   int target_speed;
   int pwm;
@@ -70,35 +70,20 @@ typedef enum {
   MOTOR_POLARITY_NOT_REVERSED = 1,
 } motor_polarity_t;
 
-// Configuration stored in RAM and saved across reset/reboot that don't include a power-cycle of the board.
-const int noinit_data_version = 2;
-const int noinit_data_magic = 0xABCD1234;
-typedef struct {
-  // nbytes, version, magic are used to verify valid data.
-  size_t nbytes;
-  int version;
-  int magic;
-  int previous_quadrature_encoder[MOTOR_ID_COUNT];
-  int encoder[MOTOR_ID_COUNT];
-} noinit_data_t;
-
-extern noinit_data_t noinit_data;
-
-extern bool mm6_pid_enabled;
-
 extern int Gripper_StallC;
 extern int Gripper_StallE;
 extern int Gripper_StallX;
 extern int SyncMove_Status;
 
-// The speed sign bit is used to set the LMD18200 direction pin. So the PWM register accepts the full [0, 255] range.
+// The speed sign bit is used to set the LMD18200 direction pin. So the PWM register accepts 0-255 for + and -.
 const int mm6_min_speed = -255;
 const int mm6_max_speed = 255;
 
 void mm6_init();
 void mm6_set_brake(motor_id_t motor_id, bool enable);
-bool mm6_enabled(motor_id_t motor_id);
-void mm6_enable_all(bool enable);
+bool mm6_set_pid_enable(motor_id_t motor_id, bool enable);
+void mm6_set_pid_enable_all(bool enable);
+bool mm6_get_pid_enable(motor_id_t motor_id);
 bool mm6_get_switch_triggered(motor_id_t motor_id);
 int mm6_get_encoder(motor_id_t motor_id);
 void mm6_set_target_encoder(motor_id_t motor_id, int encoder);
@@ -112,8 +97,7 @@ int mm6_get_current_draw(motor_id_t motor_id);
 bool mm6_get_overcurrent_active(motor_id_t motor_id);
 void mm6_test_all();
 bool mm6_calibrate_all();
-void mm6_pid_enable(bool enable);
-void mm6_set_speed(motor_id_t motor_id, int speed);  // For speed in [mm6_min_speed, mm6_max_speed].
+void mm6_set_speed(motor_id_t motor_id, int speed);  // For speed in [mm6_min_speed, mm6_max_speed]. Sets speed to 0 if motor not enabled/configured.
 void mm6_dump(motor_id_t motor_id);
 void mm6_exec_all(void(*fn)(motor_id_t motor_id));
 

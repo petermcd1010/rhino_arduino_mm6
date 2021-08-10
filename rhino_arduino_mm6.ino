@@ -42,26 +42,6 @@ typedef struct {
   motor_status_t motor[MOTOR_ID_COUNT];
 } status_t;
 
-void check_noinit_data()
-{
-  // Zero out saved variables on power cycle. On reset, these values are NOT erased.
-
-  if ((noinit_data.nbytes != sizeof(noinit_data_t) ||
-      (noinit_data.version != noinit_data_version) ||
-      (noinit_data.magic != noinit_data_magic))) {
-    log_writeln(F("Initializing noinit data."));
-    noinit_data.nbytes = sizeof(noinit_data_t);
-    noinit_data.version = noinit_data_version;
-    noinit_data.magic = noinit_data_magic;
-    for (int i = 0; i < MOTOR_ID_COUNT; i++) {
-      noinit_data.encoder[i] = 0;
-      noinit_data.previous_quadrature_encoder[i] = 0;
-    }
-  } else {
-    log_writeln(F("Reset without power cycle detected. Reusing stored motor encoder values."));
-  }
-}
-
 void gather_status(status_t *pstatus)
 {
   assert(pstatus);

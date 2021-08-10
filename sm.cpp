@@ -15,7 +15,6 @@
 #include "sm.h"
 
 extern void process_serial_input();  // TODO: remove.
-extern void check_noinit_data();  // TODO: remove.
 
 static char* sm_state_name_by_state[] = { 
   "init", 
@@ -91,7 +90,6 @@ static sm_state_t init_execute()
 
   config_print();
   mm6_init();
-  check_noinit_data();
   hardware_init();
 
   bool self_test_success = run_self_test();
@@ -117,8 +115,7 @@ static sm_state_t motors_off_execute()
 
 static bool motors_on_enter()
 {
-  mm6_enable_all(true);
-  mm6_pid_enable(true);
+  mm6_set_pid_enable_all(true);
   return true;
 }
 
@@ -130,14 +127,13 @@ sm_state_t motors_on_execute()
 
 bool motors_on_exit()
 {
-  mm6_pid_enable(false);
-  mm6_enable_all(false);
+  mm6_set_pid_enable_all(false);
   return true;
 }
 
 bool error_enter()
 {
-  mm6_enable_all(false);
+  mm6_set_pid_enable_all(false);
   return true;
 }
 

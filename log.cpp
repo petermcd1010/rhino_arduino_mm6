@@ -171,7 +171,7 @@ void __assert(const char *pfunction_name, const char *pfile_path, int line_num, 
     return;  // Avoid infinite assert() loops.
   in_assert = true;
 
-  mm6_enable_all(false);
+  mm6_set_pid_enable_all(false);
 
   write_string(pfile_path);  // TODO: Is this printing what's expected?
   write_string(F(":"));

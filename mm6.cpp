@@ -81,9 +81,8 @@ typedef struct {
 static const int mm6_direction_forward = LOW;
 static const int mm6_direction_reverse = HIGH;
 
-static motor_state_t motor_state[MOTOR_ID_COUNT] = {};   // TODO: mm6_motor_state?
+static motor_state_t motor_state[MOTOR_ID_COUNT] = {};
 
-static bool mm6_pid_enabled = false;
 static const int motor_min_pwm = 55;
 static int tracking = 0;
 static int tracked[] = { 0, 0, 0, 0, 0, 0 }; // Last value while tracking.
@@ -95,10 +94,42 @@ static int SyncMove_Status = 0;
 static int Forward_Logic[] = {0,0,0,0,0,0}; // Forward Logic - The value for the Direction IO Line when the motor needs to move forward to sync with encoders.
 static int Reverse_Logic[] = {1,1,1,1,1,1}; // Reverse Logic - The value for the Direction IO Line when the motor needs to move Reverse to sync with encoders.
 
+// Configuration stored in RAM and saved across reset/reboot that don't include a power-cycle of the board.
+const int noinit_data_version = 2;
+const int noinit_data_magic = 0xABCD1234;
+typedef struct {
+  // nbytes, version, magic are used to verify valid data.
+  size_t nbytes;
+  int version;
+  int magic;
+  int previous_quadrature_encoder[MOTOR_ID_COUNT];
+  int encoder[MOTOR_ID_COUNT];
+} noinit_data_t;
+
 static noinit_data_t noinit_data __attribute__ ((section (".noinit")));  // NOT reset to 0 when the CPU is reset.
 
+static void check_noinit_data()
+{
+  // Zero out saved variables on power cycle. On reset, these values are NOT erased.
+
+  if ((noinit_data.nbytes != sizeof(noinit_data_t) ||
+      (noinit_data.version != noinit_data_version) ||
+      (noinit_data.magic != noinit_data_magic))) {
+    log_writeln(F("Initializing noinit data."));
+    noinit_data.nbytes = sizeof(noinit_data_t);
+    noinit_data.version = noinit_data_version;
+    noinit_data.magic = noinit_data_magic;
+    for (int i = 0; i < MOTOR_ID_COUNT; i++) {
+      noinit_data.encoder[i] = 0;
+      noinit_data.previous_quadrature_encoder[i] = 0;
+    }
+  } else {
+    log_writeln(F("Reset without power cycle detected. Reusing stored motor encoder values."));
+  }
+}
+
 static void track_report(motor_id_t motor_id) {
-  if (tracking>0){
+  if (tracking > 0) {
     int Position = mm6_get_encoder(motor_id);
     if (tracked[motor_id]!=Position) {
       Serial.print("@");
@@ -117,24 +148,79 @@ static void track_report(motor_id_t motor_id) {
   }
 }
 
-void mm6_init()
+static void init_motor(motor_id_t motor_id)
 {
-  // TODO: integrate with mm6_enable_motors.
-  for (int i = MOTOR_ID_FIRST; i <= MOTOR_ID_LAST; i++) {
-    // Configure and initialize outputs.
-    pinMode(motor_pinout[i].out_brake, OUTPUT);
-    pinMode(motor_pinout[i].out_direction, OUTPUT);
-    pinMode(motor_pinout[i].out_pwm, OUTPUT);
-    digitalWrite(motor_pinout[i].out_direction, mm6_direction_forward);
+  assert((motor_id >= MOTOR_ID_FIRST) && (motor_id <= MOTOR_ID_LAST));
 
-    // Configure inputs.
-    pinMode(motor_pinout[i].in_switch, INPUT_PULLUP);
-    pinMode(motor_pinout[i].in_thermal_overload, INPUT_PULLUP);
-    pinMode(motor_pinout[i].in_quadrature_encoder_a, INPUT_PULLUP);
-    pinMode(motor_pinout[i].in_quadrature_encoder_b, INPUT_PULLUP);
+  // Configure and initialize outputs.
+  pinMode(motor_pinout[motor_id].out_brake, OUTPUT);
+  pinMode(motor_pinout[motor_id].out_direction, OUTPUT);
+  pinMode(motor_pinout[motor_id].out_pwm, OUTPUT);
+  digitalWrite(motor_pinout[motor_id].out_direction, mm6_direction_forward);
+
+  // Configure inputs.
+  pinMode(motor_pinout[motor_id].in_switch, INPUT_PULLUP);
+  pinMode(motor_pinout[motor_id].in_thermal_overload, INPUT_PULLUP);
+  pinMode(motor_pinout[motor_id].in_quadrature_encoder_a, INPUT_PULLUP);
+  pinMode(motor_pinout[motor_id].in_quadrature_encoder_b, INPUT_PULLUP);
+
+  mm6_set_pid_enable(motor_id, false);
+}
+
+void mm6_init() 
+{
+  // Timer setup: Allows preceise timed measurements of the quadrature encoder.
+  cli();  // Disable interrupts.
+
+  // Configure timer1 interrupt at 1kHz.
+  TCCR1A = 0;  // Set entire TCCR1A register to 0.
+  TCCR1B = 0;  // Same for TCCR1B.
+  TCNT1  = 0;  // Initialize counter value to 0.
+
+  // Set timer count for 2khz increments.
+  OCR1A = 1000;  // = (16*10^6) / (2000*8) - 1
+
+  TCCR1B |= (1 << WGM12);  // Turn on CTC mode.
+  TCCR1B |= (1 << CS11);  // Set CS11 bit for 8 prescaler.
+  TIMSK1 |= (1 << OCIE1A);  // Enable timer compare interrupt.
+  sei();  // Enable interrupts.
+
+  // Get the Angle Offsets and Forward_Logic for ALL motors
+  for (int i = MOTOR_ID_FIRST; i <= MOTOR_ID_LAST; i++){    
+    int logic = 0;
+    
+    // The Angle Offset is used in the Position-to-Angle and Angle-to-Position calculations
+    //   Each Rhino Robot may have mechanical differences in the positions of the home swithes, 
+    //   so the encoder count when the arm is straight up is stored as an "AngleOffset" so that the
+    //   MegaMotor6 Angle Values will work the actual physical position of the robot
+    //   while the Position Values work with positions relative to the home switches.
+    //     The values for the AngleOffets come from the "~" Command.
+
+    // EEPROM.get(AngleOffsetELoc[iMotor], AngleOffset[iMotor]);
+
+    // The Forward and Reverse Locic is used to turn the motors in the right direction to sync with the encoders.
+    //   Each Rhino Robot may have the wires to the motors reversed.
+    //   So the Forward and Reverse Logic is used to correct that.    
+    //     The values for the Direction Logic come from the "t" command.
+    //       Since the Forward and Reverse Locic are used for an I/O line the values are 0 or 1'
+#if 0
+    logic = config.motor[i].direction_logic;  // 0 = forward, 1 = reverse.
+    if (logic != 0) 
+      logic = !0;  
+    Reverse_Logic[i] = logic; // Reverse Logic - The value for the Direction IO Line when the motor needs to move Reverse. Defaults to 1.
+    Forward_Logic[i] = !logic; // Forward Logic - The value for the Direction IO Line when the motor needs to move forward. Defaults to 0.
+#endif
+
+    // The Motor Locic is used to contol which way the motors turn in responce to the Positions.
+    //   Each Rhino Robot may have the motor assembled on either side - which winds up reversing the motors direction mechanically.
+    //   So the motor locic is used to correct that.    
+    //     The values for the Motor Logic are set by the setup.
+    //       Since the Forward and Reverse Locic are used to invert the position the values are 1 or -1
+    motor_state[i].logic = config.motor[i].orientation; 
   }  
-  
-  mm6_enable_all(false);
+
+  check_noinit_data();
+  mm6_exec_all(init_motor);
 }
 
 void mm6_set_brake(motor_id_t motor_id, bool enable)
@@ -144,14 +230,7 @@ void mm6_set_brake(motor_id_t motor_id, bool enable)
   digitalWrite(motor_pinout[motor_id].out_brake, enable ? HIGH : LOW);
 }
 
-bool mm6_enabled(motor_id_t motor_id)
-{
-  assert((motor_id >= MOTOR_ID_FIRST) && (motor_id <= MOTOR_ID_LAST));
-
-  return motor_state[motor_id].enabled;
-}
-
-bool mm6_enable(motor_id_t motor_id, bool enable)
+bool mm6_set_pid_enable(motor_id_t motor_id, bool enable)
 {
   assert((motor_id >= MOTOR_ID_FIRST) && (motor_id <= MOTOR_ID_LAST));
 
@@ -159,31 +238,37 @@ bool mm6_enable(motor_id_t motor_id, bool enable)
 
   if (enable && config.motor[motor_id].configured) {
     mm6_set_brake(motor_id, false);
-    motor_state[motor_id].enabled = true;
+    motor_state[motor_id].pid_enabled = true;
     return true;
   } else {
     mm6_set_brake(motor_id, true);
-    digitalWrite(motor_pinout[motor_id].out_pwm, LOW);  // Set PWM speed to zero.  TODO: analogWrite() below?
+    digitalWrite(motor_pinout[motor_id].out_pwm, LOW);  // Set PWM speed to zero.  TODO: Redundant with set_speed below?
     mm6_set_speed(motor_id, 0);
-    motor_state[motor_id].enabled = false;
+    motor_state[motor_id].pid_enabled = false;
     return !enable;  // Return false if motor wasn't configured but enble == true. Return true otherwise.
   }
 }
 
-void mm6_enable_all(bool enable)
+void mm6_set_pid_enable_all(bool enable)
 {
   static bool mm6_enabled = false;
   int success_count = 0;
 
   for (int i = MOTOR_ID_FIRST; i <= MOTOR_ID_LAST; i++) {
-    if (mm6_enable(i, enable))
+    if (mm6_set_pid_enable(i, enable))
       success_count++;
   }
 
   // motor_sync_move_enabled = enable;
-  mm6_pid_enabled = enable;  // TODO: What about mm6_pid_enable()?
   mm6_enabled = enable;
   log_writeln(F("Motor electronics for %d motors %s."), success_count, enable ? "enabled" : "disabled");
+}
+
+bool mm6_get_pid_enable(motor_id_t motor_id)
+{
+  assert((motor_id >= MOTOR_ID_FIRST) && (motor_id <= MOTOR_ID_LAST));
+
+  return motor_state[motor_id].pid_enabled;
 }
 
 bool mm6_configured(motor_id_t motor_id)
@@ -196,7 +281,7 @@ bool mm6_configured(motor_id_t motor_id)
 bool mm6_get_switch_triggered(motor_id_t motor_id)
 {
   assert((motor_id >= MOTOR_ID_FIRST) && (motor_id <= MOTOR_ID_LAST));
-  if (!mm6_enabled(motor_id))
+  if (!mm6_get_pid_enable(motor_id))
     return false;
   return motor_state[motor_id].switch_triggered;
 }
@@ -204,7 +289,7 @@ bool mm6_get_switch_triggered(motor_id_t motor_id)
 int mm6_get_encoder(motor_id_t motor_id)
 {
   assert((motor_id >= MOTOR_ID_FIRST) && (motor_id <= MOTOR_ID_LAST));
-  if (!mm6_enabled(motor_id))
+  if (!mm6_get_pid_enable(motor_id))
     return 0;
   
   return noinit_data.encoder[motor_id] * motor_state[motor_id].logic;
@@ -214,7 +299,7 @@ void mm6_set_target_encoder(motor_id_t motor_id, int encoder)
 {  
   assert((motor_id >= MOTOR_ID_FIRST) && (motor_id <= MOTOR_ID_LAST));
   // TODO: assert valid encoder?
-  if (!mm6_enabled(motor_id))
+  if (!mm6_get_pid_enable(motor_id))
     return;
 
   motor_state[motor_id].target_encoder = encoder * motor_state[motor_id].logic;
@@ -233,7 +318,7 @@ void mm6_print_encoders()
 float mm6_get_encoder_steps_per_degree(motor_id_t motor_id) 
 {
   assert((motor_id >= MOTOR_ID_FIRST) && (motor_id <= MOTOR_ID_LAST));
-  if (!mm6_enabled(motor_id))
+  if (!mm6_configured(motor_id))
     return 0.0f;
 
   switch (motor_id) {
@@ -263,7 +348,7 @@ float mm6_get_encoder_steps_per_degree(motor_id_t motor_id)
 
 int mm6_angle_to_encoder(motor_id_t motor_id, float angle) {
   assert((motor_id >= MOTOR_ID_FIRST) && (motor_id <= MOTOR_ID_LAST));
-  if (!mm6_enabled(motor_id))
+  if (!mm6_configured(motor_id))
     return 0;
   
   return (angle * mm6_get_encoder_steps_per_degree(motor_id)) + config.motor[motor_id].angle_offset;
@@ -272,7 +357,7 @@ int mm6_angle_to_encoder(motor_id_t motor_id, float angle) {
 float mm6_get_angle(motor_id_t motor_id) 
 {  
   assert((motor_id >= MOTOR_ID_FIRST) && (motor_id <= MOTOR_ID_LAST));
-  if (!mm6_enabled(motor_id))
+  if (!mm6_configured(motor_id))
     return 0.0f;
   
   return (mm6_get_encoder(motor_id) - config.motor[motor_id].angle_offset) / mm6_get_encoder_steps_per_degree(motor_id);
@@ -281,7 +366,7 @@ float mm6_get_angle(motor_id_t motor_id)
 void mm6_set_target_angle(motor_id_t motor_id, float angle) 
 {
   assert((motor_id >= MOTOR_ID_FIRST) && (motor_id <= MOTOR_ID_LAST));
-  if (!mm6_enabled(motor_id)) 
+  if (!mm6_configured(motor_id)) 
     return;
 
   // TODO: assert valid angle?
@@ -300,7 +385,7 @@ void mm6_set_position_to_home(motor_id_t motor_id)
 bool mm6_get_thermal_overload_active(motor_id_t motor_id)
 {
   assert((motor_id >= MOTOR_ID_FIRST) && (motor_id <= MOTOR_ID_LAST));
-  // Ignores mm6_enabled(motor_id).
+  // Ignores mm6_configured(motor_id).
 
   /* 
    * From the LMD18200 datasheet:
@@ -314,9 +399,8 @@ bool mm6_get_thermal_overload_active(motor_id_t motor_id)
 int mm6_get_current_draw(motor_id_t motor_id)
 {
   assert((motor_id >= MOTOR_ID_FIRST) && (motor_id <= MOTOR_ID_LAST));
-  // Ignores mm6_enabled(motor_id).
+  // Ignores mm6_configured(motor_id).
 
-  // TODO: Convert to a float?
   // LMD18200 datasheet says 377uA/A. What's the resistance?
   return analogRead(motor_pinout[motor_id].in_current_draw);  // 0 - 1023.
 }
@@ -324,7 +408,7 @@ int mm6_get_current_draw(motor_id_t motor_id)
 bool mm6_get_overcurrent_active(motor_id_t motor_id)
 {
   assert((motor_id >= MOTOR_ID_FIRST) && (motor_id <= MOTOR_ID_LAST));
-  // Ignores mm6_enabled(motor_id).
+  // Ignores mm6_configured(motor_id).
 
   return false;
 }
@@ -350,7 +434,7 @@ void mm6_test(motor_id_t motor_id)
   // Mark motor as configured, so motor-control commands will execute.
   bool was_configured = config.motor[motor_id].configured;
   config.motor[motor_id].configured = true;
-  motor_state[motor_id].enabled = true;
+  motor_state[motor_id].pid_enabled = true;
 
   mm6_set_brake(motor_id, false);
   mm6_set_speed(motor_id, 0);
@@ -421,7 +505,7 @@ void mm6_test(motor_id_t motor_id)
 
   config.motor[motor_id].configured = was_configured;
   config_set_motor_configured(motor_id, pfailure_message == NULL);
-  mm6_enable(motor_id, config.motor[motor_id].configured);
+  mm6_set_pid_enable(motor_id, config.motor[motor_id].configured);
   if (pfailure_message) {
     log_write(F(" ... FAILED ("));
     log_write(pfailure_message);
@@ -434,16 +518,17 @@ void mm6_test(motor_id_t motor_id)
 }
 
 void mm6_test_all() {
-  log_writeln(F("Testing motors"));    
-  mm6_pid_enable(false);
-  delay(250);
+  log_writeln(F("Testing motors"));
 
-  for (int i = MOTOR_ID_FIRST; i <= MOTOR_ID_LAST; i++){    
-    mm6_test(i);
+  for (int motor_id = MOTOR_ID_FIRST; motor_id <= MOTOR_ID_LAST; motor_id++) {    
+    bool was_pid_enabled = mm6_get_pid_enable(motor_id);
+    mm6_set_pid_enable(motor_id, true);
+    delay(250);
+    mm6_test(motor_id);
+    mm6_set_pid_enable(motor_id, was_pid_enabled);
   }
   
   log_writeln(F("Done testing motors."));
-  mm6_pid_enable(true);  // TODO: Don't enable? Re-enable?
 }
 
 bool mm6_interrogate_limit_switch_a() {  
@@ -478,7 +563,7 @@ bool mm6_interrogate_limit_switch_a() {
     //Serial.println(SwcR);  
     //Serial.print("  motor_state[MOTOR_ID_A].switch_forward_on=");
     //Serial.println(motor_state[MOTOR_ID_A].switch_forward_on);        
-  if (SwcF==0) {
+  if (SwcF == 0) {
     // Encoder goes Positive towards switch.
     int OverSwitch = ((motor_state[MOTOR_ID_A].switch_forward_on + EncF ) / 2);      
     mm6_set_target_encoder(MOTOR_ID_A, OverSwitch);
@@ -924,29 +1009,12 @@ bool mm6_calibrate_all()
   return ret;
 }
 
-void mm6_pid_enable(bool enable)
-{
-  for (int i = MOTOR_ID_FIRST; i <= MOTOR_ID_LAST; i++) {
-    if (enable && config.motor[i].configured) {
-      mm6_set_brake(i, false);
-    } else {
-      mm6_set_speed(i, 0);
-      mm6_set_brake(i, true);
-    }
-  }
-  
-  mm6_pid_enabled = enable;
-  // motor_sync_move_enabled = enable;
-
-  log_writeln(F("Motors %s."), enable ? "enabled" : "disabled");
-}
-
 void mm6_set_speed(motor_id_t motor_id, int speed)
 {
   assert((motor_id >= MOTOR_ID_FIRST) && (motor_id <= MOTOR_ID_LAST));
   assert((speed >= mm6_min_speed) && (speed <= mm6_max_speed));
 
-  if (!config.motor[motor_id].configured || !motor_state[motor_id].enabled) {
+  if (!config.motor[motor_id].configured || !motor_state[motor_id].pid_enabled) {
     motor_state[motor_id].pwm = 0;
     analogWrite(motor_pinout[motor_id].out_pwm, 0);          
     return;
@@ -966,7 +1034,7 @@ void mm6_set_speed(motor_id_t motor_id, int speed)
 void mm6_dump(motor_id_t motor_id) 
 {
   assert((motor_id >= MOTOR_ID_FIRST) && (motor_id <= MOTOR_ID_LAST));
-  if (!mm6_enabled(motor_id))
+  if (!mm6_configured(motor_id))
     return;
 
   log_writeln(F("%c: encoder:%d qe_prev:%d, speed:%d target_speed:%d logic:%d prev_dir:%d pid_dvalue:%d pid_perror:%d target_encoder:%d current:%d progress:%d"),
@@ -998,17 +1066,16 @@ void isr_blink_led(bool pid_enabled)
   static int led_counter = 0;
   led_counter++; 
 
-  if (pid_enabled){
-    // if the PID is on, then blink faster.
+  if (pid_enabled) {
     if (!hardware_get_led())
-      led_counter += 4;  // TODO: Why.
+      led_counter += 4;  // if the PID is on, then blink faster.
     led_counter++; // Count the Interrupts   
   }
 
   if (led_counter > 1000) {
     bool led_state = !hardware_get_led();
     hardware_set_led(led_state);
-    // digitalWrite(expansion_io_pinout[0], led_state);  // TODO: ? Also output the LED onto expansion_io_pinout 1 which can be wired to a speaker.
+    hardware_set_speaker(led_state);
     led_counter = 0;
   }
 }
@@ -1086,7 +1153,7 @@ ISR(TIMER1_COMPA_vect)
 #endif
   }
 
-  isr_blink_led(mm6_pid_enabled);
+  isr_blink_led(mm6_get_pid_enable(MOTOR_ID_A));
 
   //==========================================================
   // Calculate Motor status values.
@@ -1214,7 +1281,7 @@ ISR(TIMER1_COMPA_vect)
     //==========================================================
     // PID (Currenty Just the P)
     //==========================================================
-    if (mm6_pid_enabled) {
+    if (motor_state[motor_id].pid_enabled) {
       //============================================
       // Ramp Up/Down Current Speed to Target Speed.
       // Prevents the motors from jumping from dead 
@@ -1222,20 +1289,20 @@ ISR(TIMER1_COMPA_vect)
       //============================================
       int CurrentSpeedChanged = 0;
       if (motor_state[motor_id].target_speed > motor_state[motor_id].speed) {
-        if (motor_state[motor_id].speed < (255 - motor_min_pwm)){
+        if (motor_state[motor_id].speed < (255 - motor_min_pwm)) {
           motor_state[motor_id].speed++; // if the target is higher, then inc up to the target.
           if (motor_state[motor_id].target_speed > motor_state[motor_id].speed) {
-            if (motor_state[motor_id].speed < (255 - motor_min_pwm)){
+            if (motor_state[motor_id].speed < (255 - motor_min_pwm)) {
               motor_state[motor_id].speed++; // if the target is higher, then inc up to the target a second time.
             }
           }
           CurrentSpeedChanged = 1;
         }
       } else if (motor_state[motor_id].target_speed < motor_state[motor_id].speed) {
-        if (motor_state[motor_id].speed > -(255 - motor_min_pwm)){
+        if (motor_state[motor_id].speed > -(255 - motor_min_pwm)) {
           motor_state[motor_id].speed--; // if the target is lower, then inc down to the target.
           if (motor_state[motor_id].target_speed < motor_state[motor_id].speed) {
-            if (motor_state[motor_id].speed > -(255 - motor_min_pwm)){
+            if (motor_state[motor_id].speed > -(255 - motor_min_pwm)) {
               motor_state[motor_id].speed--; // if the target is lower, then inc down to the target a second time.
             }
           }
@@ -1264,8 +1331,8 @@ ISR(TIMER1_COMPA_vect)
       if (TravelSoFar != TravelSoFarPrev) {
         TravelSoFarPrev = TravelSoFar;
         float TravelSoFarFloat = TravelSoFar;
-        for (int sync_motor_id = MOTOR_ID_B; sync_motor_id <= MOTOR_ID_LAST; sync_motor_id++){
-          if (sync_motor_id != LeadMotor){
+        for (int sync_motor_id = MOTOR_ID_B; sync_motor_id <= MOTOR_ID_LAST; sync_motor_id++) {
+          if (sync_motor_id != LeadMotor) {
             float RP = TravelSoFarFloat*Ratio[sync_motor_id];
             int RI = int(RP);
             int TG = Start[sync_motor_id]+RI;
@@ -1277,7 +1344,7 @@ ISR(TIMER1_COMPA_vect)
         td = abs(End[MOTOR_ID_D] - noinit_data.encoder[MOTOR_ID_D]);
         te = abs(End[MOTOR_ID_E] - noinit_data.encoder[MOTOR_ID_E]);
         tf = abs(End[MOTOR_ID_F] - noinit_data.encoder[MOTOR_ID_F]);            
-        if ((tb==0) && (tc==0) && (td==0) && (te==0) && (tf==0)) {
+        if ((tb == 0) && (tc == 0) && (td == 0) && (te == 0) && (tf == 0)) {
           // Set the Status that indicates that the Motor is 1 click from target
           SyncMove_Status = MOTOR_PROGRESS_AT_TARGET;
           motor_sync_move_enabled = false;
