@@ -223,25 +223,88 @@ void motor_init_megamotor6()
   motor_exec_all(init_motor);
 }
 
-bool motor_thermal_overload_detected()
+static bool get_thermal_overload_active(motor_id_t motor_id)
+{
+  assert((motor_id >= MOTOR_ID_FIRST) && (motor_id <= MOTOR_ID_LAST));
+
+  /* 
+   * From the LMD18200 datasheet:
+   * Pin 9, THERMAL FLAG Output: This pin provides the thermal warning flag output signal. 
+   * Pin 9 becomes active- low at 145°C (junction temperature). However the chip will not 
+   * shut itself down until 170°C is reached at the junction.
+  */
+  return digitalRead(motor_pinout[motor_id].in_thermal_overload) == 0;
+}
+
+bool motor_get_thermal_overload_detected(motor_id_t motor_id)
+{
+  assert((motor_id >= MOTOR_ID_FIRST) && (motor_id <= MOTOR_ID_LAST));
+
+  if (motor_state[motor_id].error_flags & MOTOR_ERROR_FLAG_THERMAL_OVERLOAD_DETECTED)
+    return true;
+}
+
+bool motor_get_thermal_overload_detected()
 {
   for (int motor_id = MOTOR_ID_FIRST; motor_id <= MOTOR_ID_LAST; motor_id++) {
-    if (motor_state[motor_id].error_flags & MOTOR_ERROR_FLAG_THERMAL_OVERLOAD_DETECTED)
+    if (motor_get_thermal_overload_detected(motor_id))
       return true;
   }
+
   return false;
 }
 
-bool motor_overcurrent_detected()
+void motor_clear_thermal_overload(motor_id_t motor_id)
 {
-  for (int motor_id = MOTOR_ID_FIRST; motor_id <= MOTOR_ID_LAST; motor_id++) {
-    if (motor_state[motor_id].error_flags & MOTOR_ERROR_FLAG_OVERCURRENT_DETECTED)
-      return true;
-  }
+  assert((motor_id >= MOTOR_ID_FIRST) && (motor_id <= MOTOR_ID_LAST));
+
+  motor_state[motor_id].error_flags &= ~MOTOR_ERROR_FLAG_THERMAL_OVERLOAD_DETECTED;
+}
+
+static bool get_overcurrent_active(motor_id_t motor_id)
+{
+  assert((motor_id >= MOTOR_ID_FIRST) && (motor_id <= MOTOR_ID_LAST));
+  // TODO: Implement get_ovecurrent_active().
   return false;
 }
 
-void motor_set_brake(motor_id_t motor_id, bool enable)
+bool motor_get_overcurrent_detected(motor_id_t motor_id)
+{
+  assert((motor_id >= MOTOR_ID_FIRST) && (motor_id <= MOTOR_ID_LAST));
+
+  if (motor_state[motor_id].error_flags & MOTOR_ERROR_FLAG_OVERCURRENT_DETECTED)
+    return true;
+  else
+    return false;
+}
+
+bool motor_get_overcurrent_detected()
+{
+  for (int motor_id = MOTOR_ID_FIRST; motor_id <= MOTOR_ID_LAST; motor_id++) {
+    if (motor_get_overcurrent_detected(motor_id))
+      return true;
+  }
+
+  return false;
+}
+
+void motor_clear_overcurrent(motor_id_t motor_id)
+{
+  assert((motor_id >= MOTOR_ID_FIRST) && (motor_id <= MOTOR_ID_LAST));
+
+  motor_state[motor_id].error_flags &= ~MOTOR_ERROR_FLAG_OVERCURRENT_DETECTED;
+}
+
+int motor_get_current_draw(motor_id_t motor_id)
+{
+  assert((motor_id >= MOTOR_ID_FIRST) && (motor_id <= MOTOR_ID_LAST));
+  // Ignores motor_configured(motor_id).
+
+  // LMD18200 datasheet says 377uA/A. What's the resistance?
+  return analogRead(motor_pinout[motor_id].in_current_draw);  // 0 - 1023.
+}
+
+static void set_brake(motor_id_t motor_id, bool enable)
 {
   assert((motor_id >= MOTOR_ID_FIRST) && (motor_id <= MOTOR_ID_LAST));
 
@@ -255,11 +318,11 @@ bool motor_set_pid_enable(motor_id_t motor_id, bool enable)
   // Will turn off a motor if it's not configured, regardless of enable's value.
 
   if (enable && config.motor[motor_id].configured) {
-    motor_set_brake(motor_id, false);
+    set_brake(motor_id, false);
     motor_state[motor_id].pid_enabled = true;
     return true;
   } else {
-    motor_set_brake(motor_id, true);
+    set_brake(motor_id, true);
     digitalWrite(motor_pinout[motor_id].out_pwm, LOW);  // Set PWM speed to zero.  TODO: Redundant with set_speed below?
     motor_set_speed(motor_id, 0);
     motor_state[motor_id].pid_enabled = false;
@@ -267,7 +330,7 @@ bool motor_set_pid_enable(motor_id_t motor_id, bool enable)
   }
 }
 
-void motor_set_pid_enable_all(bool enable)
+void motor_set_pid_enable(bool enable)
 {
   static bool motor_enabled = false;
   int success_count = 0;
@@ -296,23 +359,6 @@ bool motor_configured(motor_id_t motor_id)
   return config.motor[motor_id].configured;
 }
 
-bool motor_get_switch_triggered(motor_id_t motor_id)
-{
-  assert((motor_id >= MOTOR_ID_FIRST) && (motor_id <= MOTOR_ID_LAST));
-  if (!motor_get_pid_enable(motor_id))
-    return false;
-  return motor_state[motor_id].switch_triggered;
-}
-
-int motor_get_encoder(motor_id_t motor_id)
-{
-  assert((motor_id >= MOTOR_ID_FIRST) && (motor_id <= MOTOR_ID_LAST));
-  if (!motor_get_pid_enable(motor_id))
-    return 0;
-  
-  return noinit_data.encoder[motor_id] * motor_state[motor_id].logic;
-}
-
 void motor_set_target_encoder(motor_id_t motor_id, int encoder)
 {  
   assert((motor_id >= MOTOR_ID_FIRST) && (motor_id <= MOTOR_ID_LAST));
@@ -322,6 +368,15 @@ void motor_set_target_encoder(motor_id_t motor_id, int encoder)
 
   motor_state[motor_id].target_encoder = encoder * motor_state[motor_id].logic;
   motor_state[motor_id].progress = MOTOR_PROGRESS_ON_WAY_TO_TARGET;  
+}
+
+int motor_get_encoder(motor_id_t motor_id)
+{
+  assert((motor_id >= MOTOR_ID_FIRST) && (motor_id <= MOTOR_ID_LAST));
+  if (!motor_get_pid_enable(motor_id))
+    return 0;
+  
+  return noinit_data.encoder[motor_id] * motor_state[motor_id].logic;
 }
 
 void motor_print_encoders() 
@@ -372,15 +427,6 @@ int motor_angle_to_encoder(motor_id_t motor_id, float angle) {
   return (angle * motor_get_encoder_steps_per_degree(motor_id)) + config.motor[motor_id].angle_offset;
 }
 
-float motor_get_angle(motor_id_t motor_id) 
-{  
-  assert((motor_id >= MOTOR_ID_FIRST) && (motor_id <= MOTOR_ID_LAST));
-  if (!motor_configured(motor_id))
-    return 0.0f;
-  
-  return (motor_get_encoder(motor_id) - config.motor[motor_id].angle_offset) / motor_get_encoder_steps_per_degree(motor_id);
-}
-
 void motor_set_target_angle(motor_id_t motor_id, float angle) 
 {
   assert((motor_id >= MOTOR_ID_FIRST) && (motor_id <= MOTOR_ID_LAST));
@@ -392,6 +438,15 @@ void motor_set_target_angle(motor_id_t motor_id, float angle)
   motor_set_target_encoder(motor_id, encoder);
 }
 
+float motor_get_angle(motor_id_t motor_id) 
+{  
+  assert((motor_id >= MOTOR_ID_FIRST) && (motor_id <= MOTOR_ID_LAST));
+  if (!motor_configured(motor_id))
+    return 0.0f;
+  
+  return (motor_get_encoder(motor_id) - config.motor[motor_id].angle_offset) / motor_get_encoder_steps_per_degree(motor_id);
+}
+
 void motor_set_position_to_home(motor_id_t motor_id)
 {
   assert((motor_id >= MOTOR_ID_FIRST) && (motor_id <= MOTOR_ID_LAST));
@@ -400,36 +455,34 @@ void motor_set_position_to_home(motor_id_t motor_id)
   log_writeln(F("Setting motor %c current position to home."), 'A' + motor_id);
 }
 
-bool motor_get_thermal_overload_active(motor_id_t motor_id)
+void motor_set_speed(motor_id_t motor_id, int speed)
 {
   assert((motor_id >= MOTOR_ID_FIRST) && (motor_id <= MOTOR_ID_LAST));
-  // Ignores motor_configured(motor_id).
+  assert((speed >= motor_min_speed) && (speed <= motor_max_speed));
 
-  /* 
-   * From the LMD18200 datasheet:
-   * Pin 9, THERMAL FLAG Output: This pin provides the thermal warning flag output signal. 
-   * Pin 9 becomes active- low at 145°C (junction temperature). However the chip will not 
-   * shut itself down until 170°C is reached at the junction.
-  */
-  return digitalRead(motor_pinout[motor_id].in_thermal_overload) == 0;
+  if (!config.motor[motor_id].configured || !motor_state[motor_id].pid_enabled) {
+    motor_state[motor_id].pwm = 0;
+    analogWrite(motor_pinout[motor_id].out_pwm, 0);          
+    return;
+  }
+
+  // Convert speed's +/- 255 value to PWM and Direction.
+  if (speed == 0) {
+    motor_state[motor_id].pwm = 0;
+  } else {
+    int pwm = abs(speed);
+    motor_state[motor_id].pwm = pwm < motor_min_pwm ? motor_min_pwm : pwm;
+  }
+  digitalWrite(motor_pinout[motor_id].out_direction, speed >= 0 ? motor_direction_forward : motor_direction_reverse);          
+  motor_state[motor_id].speed = speed;
 }
 
-int motor_get_current_draw(motor_id_t motor_id)
+bool motor_get_switch_triggered(motor_id_t motor_id)
 {
   assert((motor_id >= MOTOR_ID_FIRST) && (motor_id <= MOTOR_ID_LAST));
-  // Ignores motor_configured(motor_id).
-
-  // LMD18200 datasheet says 377uA/A. What's the resistance?
-  return analogRead(motor_pinout[motor_id].in_current_draw);  // 0 - 1023.
-}
-
-bool motor_get_overcurrent_active(motor_id_t motor_id)
-{
-  assert((motor_id >= MOTOR_ID_FIRST) && (motor_id <= MOTOR_ID_LAST));
-  // Ignores motor_configured(motor_id).
-
-  // TODO: Implement motor_get_overcurrent_active().
-  return false;
+  if (!motor_get_pid_enable(motor_id))
+    return false;
+  return motor_state[motor_id].switch_triggered;
 }
 
 static void print_motor_delta(int delta)
@@ -443,7 +496,7 @@ static void print_motor_delta(int delta)
   }
 }
 
-void motor_test(motor_id_t motor_id) 
+static void motor_test(motor_id_t motor_id) 
 {
   assert((motor_id >= MOTOR_ID_FIRST) && (motor_id <= MOTOR_ID_LAST));
 
@@ -455,7 +508,7 @@ void motor_test(motor_id_t motor_id)
   config.motor[motor_id].configured = true;
   motor_state[motor_id].pid_enabled = true;
 
-  motor_set_brake(motor_id, false);
+  set_brake(motor_id, false);
   motor_set_speed(motor_id, 0);
     
   log_write(F("  %c: Reverse "), 'A' + motor_id);  
@@ -550,7 +603,7 @@ void motor_test_all() {
   log_writeln(F("Done testing motors."));
 }
 
-bool motor_interrogate_limit_switch_a() {  
+static bool motor_interrogate_limit_switch_a() {  
   if (!config.motor[MOTOR_ID_A].configured)
     return false;
 
@@ -627,7 +680,7 @@ static void motor_track_report(motor_id_t motor_id)
   }
 }
 
-void calculate_mean_and_variance(float value, int nvalues, float *pM2, float *pmean, float *pvariance)
+static void calculate_mean_and_variance(float value, int nvalues, float *pM2, float *pmean, float *pvariance)
 {
   // Welford's algorithm adapted from:
   // https://stackoverflow.com/questions/17052395/calculate-the-running-standard-deviation/17053010
@@ -1028,28 +1081,6 @@ bool motor_calibrate_all()
   return ret;
 }
 
-void motor_set_speed(motor_id_t motor_id, int speed)
-{
-  assert((motor_id >= MOTOR_ID_FIRST) && (motor_id <= MOTOR_ID_LAST));
-  assert((speed >= motor_min_speed) && (speed <= motor_max_speed));
-
-  if (!config.motor[motor_id].configured || !motor_state[motor_id].pid_enabled) {
-    motor_state[motor_id].pwm = 0;
-    analogWrite(motor_pinout[motor_id].out_pwm, 0);          
-    return;
-  }
-
-  // Convert speed's +/- 255 value to PWM and Direction.
-  if (speed == 0) {
-    motor_state[motor_id].pwm = 0;
-  } else {
-    int pwm = abs(speed);
-    motor_state[motor_id].pwm = pwm < motor_min_pwm ? motor_min_pwm : pwm;
-  }
-  digitalWrite(motor_pinout[motor_id].out_direction, speed >= 0 ? motor_direction_forward : motor_direction_reverse);          
-  motor_state[motor_id].speed = speed;
-}
-
 void motor_dump(motor_id_t motor_id) 
 {
   assert((motor_id >= MOTOR_ID_FIRST) && (motor_id <= MOTOR_ID_LAST));
@@ -1080,7 +1111,7 @@ void motor_exec_all(void(*fn)(motor_id_t motor_id))
   }
 } 
 
-void isr_blink_led(bool pid_enabled) 
+static void isr_blink_led(bool pid_enabled) 
 {
   static int led_counter = 0;
   led_counter++; 
@@ -1171,11 +1202,11 @@ ISR(TIMER1_COMPA_vect)
     motor_state[qe_motor_id].switch_triggered = switch_triggered;
 #endif
 
-    if (motor_get_thermal_overload_active(qe_motor_id)) {
+    if (get_thermal_overload_active(qe_motor_id)) {
       motor_state[qe_motor_id].error_flags |= MOTOR_ERROR_FLAG_THERMAL_OVERLOAD_DETECTED;
     } 
 
-    if (motor_get_overcurrent_active(qe_motor_id)) {
+    if (get_overcurrent_active(qe_motor_id)) {
       motor_state[qe_motor_id].error_flags |= MOTOR_ERROR_FLAG_OVERCURRENT_DETECTED;
     }     
   }

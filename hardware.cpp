@@ -29,7 +29,7 @@ void hardware_erase_eeprom()
 
 void hardware_reset()
 {
-  motor_set_pid_enable_all(false);
+  motor_set_pid_enable(false);
   hardware_erase_eeprom();
   hardware_reboot();
 }
@@ -37,7 +37,7 @@ void hardware_reset()
 void (*hardware_really_reboot)(void) = 0;  // Call hardware_really_reboot() to reset the board.
 void hardware_reboot() 
 {
-  motor_set_pid_enable_all(false);
+  motor_set_pid_enable(false);
   delay(1000);  // Wait 1s for log output to complete writing.
   hardware_really_reboot();
 }

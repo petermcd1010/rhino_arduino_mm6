@@ -23,7 +23,7 @@ int command_emergency_stop(char *pargs, size_t args_nbytes)
     return -1;
   } 
 
-  motor_set_pid_enable_all(false);
+  motor_set_pid_enable(false);
   sm_state_current = SM_STATE_ERROR;
 
   return 0;

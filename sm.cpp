@@ -74,8 +74,8 @@ static bool run_self_test() {
 typedef struct {
   float angle;
   bool switch_triggered;
-  bool thermal_overload_active;
-  bool overcurrent_active;
+  bool thermal_overload_detected;
+  bool overcurrent_detected;
 } motor_status_t;
 
 typedef struct {
@@ -92,8 +92,10 @@ void gather_status(status_t *pstatus)
     if (config.motor[i].configured) {
       pstatus->motor[i].angle = motor_get_angle(i);
       pstatus->motor[i].switch_triggered = motor_get_switch_triggered(i);
-      pstatus->motor[i].thermal_overload_active = motor_get_thermal_overload_active(i);
-      pstatus->motor[i].overcurrent_active = motor_get_overcurrent_active(i);
+      pstatus->motor[i].thermal_overload_detected = motor_get_thermal_overload_detected(i);
+      pstatus->motor[i].overcurrent_detected = motor_get_overcurrent_detected(i);
+      motor_clear_thermal_overload(i);
+      motor_clear_overcurrent(i);
     } else {
       memset(&pstatus->motor[i], 0, sizeof(motor_status_t));
     }
@@ -275,7 +277,7 @@ static sm_state_t motors_off_execute()
 
 static bool motors_on_enter()
 {
-  motor_set_pid_enable_all(true);
+  motor_set_pid_enable(true);
   return true;
 }
 
@@ -287,13 +289,13 @@ sm_state_t motors_on_execute()
 
 bool motors_on_exit()
 {
-  motor_set_pid_enable_all(false);
+  motor_set_pid_enable(false);
   return true;
 }
 
 bool error_enter()
 {
-  motor_set_pid_enable_all(false);
+  motor_set_pid_enable(false);
   return true;
 }
 
