@@ -66,6 +66,7 @@ static const menu_item_t menu_item_by_index[] = {  // TODO: F()
   { 'N', "set motor angle", NULL, true, command_set_motor_angle, "motorid degrees -- degrees is 0.0 to 360.0, +15, -20, +, -, ++, --." },
   { 'P', "set motor encoder", NULL, true, command_set_motor_encoder, "motorid encoder -- encoder is in the range X - Y." },  // TODO
   { 'Q', "run test sequence", NULL, false, command_run_test_sequence, "" },
+  { 'S', "start/stop motors", NULL, false, command_start_stop_motors, "" },
   { 'T', "test motors", NULL, false, command_test_motors, "-- test motors." },
   { 'V', "print software version", NULL, false, command_print_software_version, "-- print software version." },
   { 'W', "waypoint", NULL, true, command_waypoint, "" },

@@ -15,7 +15,7 @@ static const int expansion_io_pinout[] = { A15, A14, A13, A12, 53, 49, 48, 41 };
 
 void hardware_init() {
   pinMode(OPRLED, OUTPUT);
-  pinMode(expansion_io_pinout[0], OUTPUT); // Tone
+  pinMode(expansion_io_pinout[0], OUTPUT); // Speaker tone.
 }
 
 void hardware_erase_eeprom()

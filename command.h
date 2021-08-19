@@ -22,6 +22,7 @@ int command_set_motor_angle(char *pargs, size_t args_nbytes);
 int command_set_motor_encoder(char *pargs, size_t args_nbytes);
 int command_pid_mode(char *pargs, size_t args_nbytes);
 int command_run_test_sequence(char *pargs, size_t args_nbytes);
+int command_start_stop_motors(char *pargs, size_t args_nbytes);
 int command_test_motors(char *pargs, size_t args_nbytes);
 int command_factory_reset(char *pargs, size_t args_nbytes);
 int command_reboot(char *pargs, size_t args_nbytes);

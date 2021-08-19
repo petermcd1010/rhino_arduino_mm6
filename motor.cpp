@@ -148,7 +148,7 @@ static void track_report(motor_id_t motor_id) {
   }
 }
 
-static void init_motor(motor_id_t motor_id)
+static void motor_init(motor_id_t motor_id)
 {
   assert((motor_id >= MOTOR_ID_FIRST) && (motor_id <= MOTOR_ID_LAST));
 
@@ -167,7 +167,7 @@ static void init_motor(motor_id_t motor_id)
   motor_set_pid_enable(motor_id, false);
 }
 
-void motor_init_megamotor6() 
+void motor_init_all() 
 {
   // Timer setup: Allows preceise timed measurements of the quadrature encoder.
   cli();  // Disable interrupts.
@@ -220,7 +220,7 @@ void motor_init_megamotor6()
   }  
 
   check_noinit_data();
-  motor_exec_all(init_motor);
+  motor_exec_all(motor_init);
 }
 
 static bool get_thermal_overload_active(motor_id_t motor_id)
@@ -474,6 +474,7 @@ void motor_set_speed(motor_id_t motor_id, int speed)
     motor_state[motor_id].pwm = pwm < motor_min_pwm ? motor_min_pwm : pwm;
   }
   digitalWrite(motor_pinout[motor_id].out_direction, speed >= 0 ? motor_direction_forward : motor_direction_reverse);          
+  analogWrite(motor_pinout[motor_id].out_pwm, motor_state[motor_id].pwm);    
   motor_state[motor_id].speed = speed;
 }
 

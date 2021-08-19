@@ -14,7 +14,7 @@
 #include "parse.h"
 #include "sm.h"
 
-extern void process_serial_input();  // TODO: remove.
+sm_state_t sm_state_current = SM_STATE_INIT;
 
 static char* sm_state_name_by_state[] = { 
   "init", 
@@ -23,12 +23,9 @@ static char* sm_state_name_by_state[] = {
   "error" 
 };
 
-sm_state_t sm_state_current = SM_STATE_INIT;
-
 const char* sm_get_state_name(sm_state_t state)
 {
-  assert(state >= SM_STATE_FIRST);
-  assert(state <= SM_STATE_LAST);
+  assert((state >= SM_STATE_FIRST) && (state <= SM_STATE_LAST));
   return sm_state_name_by_state[state];
 }
 
@@ -47,12 +44,11 @@ static test_case_t test_case[] = {
   { log_test, "log" },
   { menu_test, "menu" },
   { parse_test, "parse" },
-  { sm_test, "sm (state smachine" },
+  { sm_test, "sm (state smachine)" },
 };
 #define TEST_CASE_COUNT sizeof(test_case) / sizeof(test_case[0])
 
 static bool run_self_test() {
-  bool ret = true;
   int failure_count = 0;
   log_writeln(F("Running self test:"));
   for (int i = 0; i < TEST_CASE_COUNT; i ++) {
@@ -60,14 +56,13 @@ static bool run_self_test() {
       log_writeln(F("  %d. %s ... pass."), i, test_case[i].pname);
     } else {
       log_writeln(F("  %d. %s ... fail."), i, test_case[i].pname);
-      ret = false;
       failure_count++;
     }
   }
 
   log_writeln(F("%d test cases run, %d passed, %d failed."), TEST_CASE_COUNT, TEST_CASE_COUNT - failure_count, failure_count);
 
-  return ret;
+  return failure_count == 0;
 }
 
 // Used for status messages.
@@ -83,7 +78,7 @@ typedef struct {
   motor_status_t motor[MOTOR_ID_COUNT];
 } status_t;
 
-void gather_status(status_t *pstatus)
+static void gather_status(status_t *pstatus)
 {
   assert(pstatus);
 
@@ -102,7 +97,7 @@ void gather_status(status_t *pstatus)
   }
 }
 
-void process_serial_input()
+static void process_serial_input()
 {
   const char ASCII_CTRL_C = 3;
   const char ASCII_BACKSPACE = 8;
@@ -237,7 +232,7 @@ static sm_state_t init_execute()
   Serial.begin(38400);
 
   log_writeln(F("\n\rBooting Arduino Mega 2560 MegaMotor6 controller for Rhino Robots arms and accessories."));
-  command_print_software_version("", 0);
+  command_print_software_version("", 0);  // Pass empty args to mimic user typing version command.
   log_writeln();
 
   bool config_read_success = config_read();
@@ -247,31 +242,28 @@ static sm_state_t init_execute()
   } else {
     log_writeln(F("Read %d bytes of configuration data from EEPROM. Configuration is valid."), sizeof(config_t));
     log_writeln(F("Configured for '%s'."), config_robot_name_by_id[config.robot_id]);
-    motor_print_encoders();
   }
 
   config_print();
-  motor_init_megamotor6();
   hardware_init();
+  motor_init_all();
 
   bool self_test_success = run_self_test();
   menu_help();
   log_writeln(F("Ready."));
   
-  // return (config_read_success && self_test_success) ? SM_STATE_MOTORS_OFF : SM_STATE_ERROR; TODO
-  return SM_STATE_MOTORS_ON;
+  return (config_read_success && self_test_success) ? SM_STATE_MOTORS_OFF : SM_STATE_ERROR;
 }
 
 static bool motors_off_enter()
 {
-  // motor_enable_motors(false);  !! TODO
+  motor_set_pid_enable(false);
   return true;
 }
 
 static sm_state_t motors_off_execute()
 {
   process_serial_input();
-  sm_state_current = SM_STATE_MOTORS_OFF;
   return sm_state_current;
 }
 
@@ -284,7 +276,7 @@ static bool motors_on_enter()
 sm_state_t motors_on_execute()
 {
   process_serial_input();
-  return SM_STATE_MOTORS_ON;
+  return sm_state_current;  
 }
 
 bool motors_on_exit()
@@ -336,12 +328,12 @@ sm_state_t sm_execute(sm_state_t current_state)
 
   if (previous_state != current_state) {
     if (previous_state != SM_STATE_FIRST - 1) {
-      LOG_DEBUG(F("%s_exit()"), sm_entry_by_state[previous_state]);
+      LOG_DEBUG(F("%s_exit()"), sm_get_state_name(previous_state));
       if (sm_entry_by_state[previous_state].exit &&
           !sm_entry_by_state[previous_state].exit())
         current_state = SM_STATE_ERROR;
 
-      LOG_DEBUG(F("%s_enter()"), sm_entry_by_state[current_state]);
+      LOG_DEBUG(F("%s_enter()"), sm_get_state_name(current_state));
       if (sm_entry_by_state[current_state].enter &&
           !sm_entry_by_state[current_state].enter())
         current_state = SM_STATE_ERROR;
@@ -356,5 +348,7 @@ sm_state_t sm_execute(sm_state_t current_state)
 bool sm_test()
 { 
   // TODO: Implement.
+
+  // Confirm can't escape error state.
   return true;
 }

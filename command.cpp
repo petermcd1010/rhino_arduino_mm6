@@ -358,6 +358,24 @@ int command_run_test_sequence(char *pargs, size_t args_nbytes)
   return -1;
 }
 
+int command_start_stop_motors(char *pargs, size_t args_nbytes)
+{
+  assert(pargs);
+  size_t nbytes = parse_whitespace(pargs, args_nbytes);
+  if (args_nbytes != nbytes) {
+    return -1;
+  } 
+
+  if (sm_state_current == SM_STATE_MOTORS_OFF)
+    sm_state_current = SM_STATE_MOTORS_ON;
+  else if (sm_state_current == SM_STATE_MOTORS_ON)
+    sm_state_current = SM_STATE_MOTORS_OFF;
+  else
+    log_write(F("ERROR: Motors can not be turned on or off in the current state."));
+
+  return nbytes;
+}
+
 int command_test_motors(char *pargs, size_t args_nbytes)
 {
   assert(pargs);
@@ -422,6 +440,8 @@ int command_reboot(char *pargs, size_t args_nbytes)
   nbytes = parse_string_in_table(pargs, args_nbytes, reboot_table, 1, &entry_num);
   if (entry_num != 0)
     return -1;
+  pargs += nbytes;
+  args_nbytes -= nbytes;
 
   nbytes = parse_whitespace(pargs, args_nbytes);
   pargs += nbytes;

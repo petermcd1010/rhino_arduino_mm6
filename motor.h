@@ -80,7 +80,7 @@ extern int SyncMove_Status;
 const int motor_min_speed = -255;
 const int motor_max_speed = 255;
 
-void motor_init_megamotor6();
+void motor_init_all();
 bool motor_get_thermal_overload_detected(motor_id_t motor_id);
 bool motor_get_thermal_overload_detected();
 void motor_clear_thermal_overload(motor_id_t motor_id);
