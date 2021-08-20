@@ -3,11 +3,6 @@
  * Written by Scott Savage, Peter McDermott.
  * Feb 2017-21 GNU General Public License (GPL).
  *
- * Software change log at the end of file.
- *
- * See also:
- *   https://www.ti.com/lit/gpn/lmd18200 for the MegaMotor6's motor drivers.
- *
  * TODO:
  *   Analyze for JPL/etc. C coding rules.
  *   Run through a static analyzer?
@@ -22,10 +17,7 @@
 
 void setup() 
 {
-  /* 
-   * The setup() function will only run once, after each powerup or reset of the Arduino board.
-   * https://www.arduino.cc/reference/en/language/structure/sketch/setup/
-   */
+  // See https://www.arduino.cc/reference/en/language/structure/sketch/setup/.
 
   sm_state_current = sm_execute(SM_STATE_INIT);
 }
@@ -66,12 +58,7 @@ static bool check_system_integrity()
 
 void loop()
 {
-  /*
-   * After creating a setup() function, which initializes and sets the initial values, the loop() 
-   * function does precisely what its name suggests, and loops consecutively, allowing your 
-   * program to change and respond. Use it to actively control the Arduino board.
-   * https://www.arduino.cc/reference/en/language/structure/sketch/loop/
-  */
+  // See https://www.arduino.cc/reference/en/language/structure/sketch/loop/.
 
   static bool previous_check_system_integrity_ok = true;
   if (previous_check_system_integrity_ok && !check_system_integrity()) {

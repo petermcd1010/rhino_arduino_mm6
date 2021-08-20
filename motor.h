@@ -2,6 +2,8 @@
 
 /*
  * Declarations for MegaMotor6 hardware functionality.
+ *
+ * See https://www.ti.com/lit/gpn/lmd18200 for the MegaMotor6's motor drivers.
  */
 
 #include <Arduino.h>
@@ -105,4 +107,3 @@ void motor_test_all();
 bool motor_calibrate_all();
 void motor_dump(motor_id_t motor_id);
 void motor_exec_all(void(*fn)(motor_id_t motor_id));
-

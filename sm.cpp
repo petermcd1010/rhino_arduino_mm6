@@ -306,7 +306,7 @@ typedef struct {
 sm_entry sm_entry_by_state[] = {
   { NULL, init_execute, NULL },
   { motors_off_enter, motors_off_execute, NULL },
-  { motors_on_enter, motors_on_execute, motors_on_enter },
+  { motors_on_enter, motors_on_execute, motors_on_exit },
   { error_enter, error_execute, NULL }  
 };
 
@@ -328,12 +328,10 @@ sm_state_t sm_execute(sm_state_t current_state)
 
   if (previous_state != current_state) {
     if (previous_state != SM_STATE_FIRST - 1) {
-      LOG_DEBUG(F("%s_exit()"), sm_get_state_name(previous_state));
       if (sm_entry_by_state[previous_state].exit &&
           !sm_entry_by_state[previous_state].exit())
         current_state = SM_STATE_ERROR;
 
-      LOG_DEBUG(F("%s_enter()"), sm_get_state_name(current_state));
       if (sm_entry_by_state[current_state].enter &&
           !sm_entry_by_state[current_state].enter())
         current_state = SM_STATE_ERROR;

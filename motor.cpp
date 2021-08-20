@@ -596,7 +596,7 @@ void motor_test_all() {
   for (int motor_id = MOTOR_ID_FIRST; motor_id <= MOTOR_ID_LAST; motor_id++) {    
     bool was_pid_enabled = motor_get_pid_enable(motor_id);
     motor_set_pid_enable(motor_id, true);
-    delay(250);
+    delay(25);
     motor_test(motor_id);
     motor_set_pid_enable(motor_id, was_pid_enabled);
   }
