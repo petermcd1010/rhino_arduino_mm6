@@ -104,6 +104,6 @@ void motor_set_position_to_home(motor_id_t motor_id);
 void motor_set_speed(motor_id_t motor_id, int speed);  // For speed in [motor_min_speed, motor_max_speed]. Sets speed to 0 if motor not enabled/configured.
 bool motor_get_switch_triggered(motor_id_t motor_id);
 void motor_test_all();
+bool motor_calibrate(motor_id_t motor_id);
 bool motor_calibrate_all();
 void motor_dump(motor_id_t motor_id);
-void motor_exec_all(void(*fn)(motor_id_t motor_id));

@@ -220,7 +220,9 @@ void motor_init_all()
   }  
 
   check_noinit_data();
-  motor_exec_all(motor_init);
+  for (int motor_id = MOTOR_ID_FIRST; motor_id <= MOTOR_ID_LAST; motor_id++) {    
+    motor_init(motor_id);
+  }
 }
 
 static bool get_thermal_overload_active(motor_id_t motor_id)
@@ -1062,22 +1064,39 @@ static bool calibrate(cal_data_t *pcal_data) {
 #endif
 }
 
+bool motor_calibrate(motor_id_t motor_id)
+{
+  assert((motor_id >= MOTOR_ID_FIRST) && (motor_id <= MOTOR_ID_LAST));
+
+  if (!config.motor[motor_id].configured) {
+    log_writeln(F("ERROR: Motor %c not configured. Calibration failed."), 'A' + motor_id);
+    return false;
+  }
+
+  cal_data_t cal_data = {};
+  cal_data.motor_id = motor_id;
+  log_writeln(F("Calibrating motor %c ..."), 'A' + motor_id);
+  while (calibrate(&cal_data)) {};
+  if (cal_data.error != CAL_ERROR_NONE) {
+    log_writeln(F("calibration of motor %c failed with error %d."), 'A' + motor_id, cal_data.error);
+    return false;
+  }
+    
+  log_writeln(F("calibration of motor %c passed."), 'A' + motor_id);        
+  return true;
+}
+
 bool motor_calibrate_all()
 {
   bool ret = true;
   for (int i = MOTOR_ID_A; i <= MOTOR_ID_A; i++) {
-    if (config.motor[i].configured) {
-      cal_data_t cal_data = {};
-      cal_data.motor_id = i;
-      log_writeln(F("Calibrating motor %c ..."), 'A' + i);
-      while (calibrate(&cal_data)) {};
-      if (cal_data.error != CAL_ERROR_NONE) {
-        log_writeln(F("calibration of motor %c failed with error %d."), 'A' + i, cal_data.error);
-        ret = false;
-      } else {
-        log_writeln(F("calibration of motor %c passed."), 'A' + i);        
-      }
+    if (!config.motor[i].configured) {
+      log_writeln(F("ERROR: Motor %c not configured. Skipping calibration."), 'A' + i);
+      continue;
     }
+
+    if (!motor_calibrate(i))
+      ret = false;
   }
   return ret;
 }
@@ -1102,15 +1121,6 @@ void motor_dump(motor_id_t motor_id)
     motor_state[motor_id].current_draw,
     motor_state[motor_id].progress);
 }
-
-void motor_exec_all(void(*fn)(motor_id_t motor_id))
-{
-  assert(fn);
-
-  for (int motor_id = MOTOR_ID_FIRST; motor_id <= MOTOR_ID_LAST; motor_id++) {    
-    fn(motor_id);
-  }
-} 
 
 static void isr_blink_led(bool pid_enabled) 
 {

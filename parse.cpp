@@ -246,7 +246,7 @@ size_t parse_motor_id(char *pbuf, size_t buf_nbytes,  motor_id_t *pout_motor_id)
   return 1;
 
 error:
-  log_writeln(F("ERROR: Invalid motor ID. Expected 'A'-'F'."));
+  log_writeln(F("ERROR: Invalid motor ID. Expected 'A'-'%c'."), 'A' + MOTOR_ID_LAST);
   return 0;
 }
 

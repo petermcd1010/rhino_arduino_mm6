@@ -201,7 +201,9 @@ int command_set_home_position(char *pargs, size_t args_nbytes)
     return -1;
   } 
 
-  motor_exec_all(motor_set_position_to_home);
+  LOG_ERROR(F("TODO"));
+
+  // motor_exec_all(motor_set_position_to_home);  
 
   return nbytes;
 }
@@ -209,13 +211,32 @@ int command_set_home_position(char *pargs, size_t args_nbytes)
 int command_run_calibration(char *pargs, size_t args_nbytes)
 {
   assert(pargs);
-  size_t nbytes = parse_whitespace(pargs, args_nbytes);
-  if (nbytes != args_nbytes) {
-    return -1;
-  }
-  
-  log_writeln(F("Calibration ... %s"), motor_calibrate_all() ? "passed" : "FAILED");
+  motor_id_t motor_id = -1;
 
+  char *p = pargs;
+  size_t nbytes = parse_whitespace(p, args_nbytes);
+  args_nbytes -= nbytes;
+  p += nbytes;
+
+  if (args_nbytes > 0) {
+    nbytes = parse_motor_id(p, args_nbytes, &motor_id);
+    if (nbytes == 0)
+      goto error;  // parse_motor_id will emit message if error.   
+    args_nbytes -= nbytes;
+    p += nbytes;
+
+    nbytes = parse_whitespace(p, args_nbytes);
+    args_nbytes -= nbytes;
+    p += nbytes;
+  }
+
+  if (motor_id != -1) {
+    log_writeln(F("Calibrating motor %c ... %s"), 'A' + motor_id, motor_calibrate(motor_id) ? "passed" : "FAILED");
+  } else {
+    log_writeln(F("Calibrating all motors ... %s"), motor_calibrate_all() ? "passed" : "FAILED");
+  }
+
+error:
   return nbytes;
 }
 
@@ -254,7 +275,7 @@ int command_set_motor_angle(char *pargs, size_t args_nbytes)
   motor_id_t motor_id = MOTOR_ID_A;
   char *p = pargs;
   size_t nbytes = parse_motor_id(p, args_nbytes, &motor_id);
-  if (nbytes <- 0)
+  if (nbytes == 0)
     goto error;  // parse_motor_id will emit message if error.   
   args_nbytes -= nbytes;
   p += nbytes;
@@ -265,7 +286,7 @@ int command_set_motor_angle(char *pargs, size_t args_nbytes)
 
   float angle = motor_get_angle(motor_id);
   nbytes = parse_motor_angle_or_encoder(p, args_nbytes, &angle);
-  if (nbytes <= 0)
+  if (nbytes == 0)
     goto error;  // parse_motor_angle_or_encoder will emit message if error.   
   args_nbytes -= nbytes;
   p += nbytes;
@@ -301,7 +322,7 @@ int command_set_motor_encoder(char *pargs, size_t args_nbytes)
   motor_id_t motor_id = MOTOR_ID_A;
   char *p = pargs;
   size_t nbytes = parse_motor_id(p, args_nbytes, &motor_id);
-  if (nbytes <= 0)
+  if (nbytes == 0)
     goto error;  // parse_motor_id will emit message if error.   
   args_nbytes -= nbytes;
   p += nbytes;
@@ -312,7 +333,7 @@ int command_set_motor_encoder(char *pargs, size_t args_nbytes)
 
   float encoder = motor_get_encoder(motor_id);
   nbytes = parse_motor_angle_or_encoder(p, args_nbytes, &encoder);
-  if (nbytes <= 0)
+  if (nbytes == 0)
     return -1;
   args_nbytes -= nbytes;
   p += nbytes;
