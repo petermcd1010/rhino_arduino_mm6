@@ -34,6 +34,8 @@ typedef enum {
   MOTOR_ERROR_FLAG_INVALID_ENCODER_TRANSITION = 1 << 2,  // only 0->1->3->2 and 0->2->3->1 are valid.
   MOTOR_ERROR_FLAG_OPPOSITE_DIRECTION = 1 << 3,
   MOTOR_ERROR_FLAG_UNEXPECTED_SWITCH_ENCODER = 1 << 4,
+  MOTOR_ERROR_FLAG_ENCODER_OVERFLOW = 1 << 5,
+  MOTOR_ERROR_FLAG_ENCODER_UNDERFLOW = 1 << 6,
 } motor_error_flag_t;
 
 // Mechanical orientation based on motor installation side.
@@ -107,3 +109,4 @@ void motor_test_all();
 bool motor_calibrate(motor_id_t motor_id);
 bool motor_calibrate_all();
 void motor_dump(motor_id_t motor_id);
+void motor_log_errors(motor_id_t motor_id);

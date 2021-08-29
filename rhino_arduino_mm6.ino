@@ -43,10 +43,7 @@ static bool check_system_integrity()
       if (previous_ok) {
         log_writeln(F(""));
         log_writeln(F("ERROR: motor %c error %d:"), 'A' + i, motor_state[i].error_flags);
-        if (motor_state[i].error_flags & MOTOR_ERROR_FLAG_INVALID_ENCODER_TRANSITION)
-          log_writeln(F("  Invalid quadrature encoder transition"));
-        if (motor_state[i].error_flags & MOTOR_ERROR_FLAG_OPPOSITE_DIRECTION)
-          log_writeln(F("  Motor direction opposite of expectation"));
+        motor_log_errors(i);  
       }
       ok = false;
     }

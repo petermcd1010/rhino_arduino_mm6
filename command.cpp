@@ -230,6 +230,10 @@ int command_run_calibration(char *pargs, size_t args_nbytes)
     p += nbytes;
   }
 
+  if (nbytes != args_nbytes) {
+    return -1;
+  } 
+
   if (motor_id != -1) {
     log_writeln(F("Calibrating motor %c ... %s"), 'A' + motor_id, motor_calibrate(motor_id) ? "passed" : "FAILED");
   } else {

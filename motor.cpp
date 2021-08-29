@@ -4,6 +4,7 @@
 
 #define __ASSERT_USE_STDERR
 #include <assert.h>
+#include <limits.h>
 #include <stdlib.h>
 #include "config.h"
 #include "hardware.h"
@@ -56,6 +57,7 @@ typedef enum {
   CAL_ERROR_NOT_CONFIGURED,
   CAL_ERROR_UNEXPECTED_MIN_ENCODER,
   CAL_ERROR_UNEXPECTED_MAX_ENCODER,
+  CAL_ERROR_MOTOR_ERROR,
 } cal_error_t;
 
 typedef struct {
@@ -720,7 +722,7 @@ static bool is_stuck(cal_data_t *pcal_data)
   int ms = millis();
 
   if ((ms - pcal_data->stuck_check_start_ms >= stuck_check_interval_ms)) {
-    log_writeln(F("ms:%d, encoder:%d, stuck_check_start_encoder:%d"), ms, encoder, pcal_data->stuck_check_start_encoder);
+    // log_writeln(F("ms:%d, encoder:%d, stuck_check_start_encoder:%d"), ms, encoder, pcal_data->stuck_check_start_encoder);
     if (abs(encoder - pcal_data->stuck_check_start_encoder) <= stuck_check_encoder_count) {
       LOG_DEBUG(F("stuck"));
       ret = true;
@@ -742,9 +744,15 @@ static void set_zero_position(motor_id_t motor_id)
   log_writeln(F("Motor %c position set to zero."), motor_id);
 }
 
-static bool calibrate(cal_data_t *pcal_data) {
-  // Returns true while calibration is running, false when complete.
+static bool calibrate_found_encoder_extents(cal_data_t *pcal_data) {
+  assert(pcal_data);
+  return pcal_data->found_min_encoder && pcal_data->found_max_encoder;
+}
 
+static bool calibrate(cal_data_t *pcal_data) {
+  assert(pcal_data);
+  // Returns true while calibration is running, false when complete.
+  
   static cal_state_t prev_state = CAL_STATE_INIT;
   if (prev_state != pcal_data->state) {
     log_writeln(F("%s"), cal_state_name_by_index[pcal_data->state]);
@@ -758,12 +766,19 @@ static bool calibrate(cal_data_t *pcal_data) {
     return false;
   }
 
+  if (motor_state[motor_id].error_flags != 0) {
+    LOG_ERROR(F("Motor %c signaled error during calibration"), motor_id);
+    motor_log_errors(motor_id);
+    pcal_data->error = CAL_ERROR_MOTOR_ERROR;
+    return false;
+  }
+
   int encoder = noinit_data.encoder[motor_id];
 
   switch (pcal_data->state) {
     case CAL_STATE_INIT:
       pcal_data->state = CAL_STATE_SEARCH;
-      pcal_data->delta = +100;
+      pcal_data->delta = +10000;
       pcal_data->found_min_encoder = false;
       pcal_data->found_max_encoder = false;
       pcal_data->min_encoder = 0;
@@ -776,7 +791,6 @@ static bool calibrate(cal_data_t *pcal_data) {
       motor_set_target_encoder(motor_id, pcal_data->target);      
       break;
     case CAL_STATE_SEARCH:
-      // TODO: What about wrap-around on encoder values?
       if (encoder < pcal_data->min_encoder) {
         if (pcal_data->found_min_encoder) {
           LOG_ERROR(F("Unexpected minimum encoder %d lower than previous minimum encoder %d"), encoder, pcal_data->min_encoder);
@@ -793,6 +807,7 @@ static bool calibrate(cal_data_t *pcal_data) {
         pcal_data->max_encoder = encoder;
       }
 
+#if 0
       if (is_stuck(pcal_data)) {
         if (pcal_data->delta > 0) {
           log_writeln(F("Motor %c found maximum encoder %d"), 'A' + pcal_data->motor_id, encoder);
@@ -802,13 +817,14 @@ static bool calibrate(cal_data_t *pcal_data) {
           pcal_data->found_min_encoder = true;
         }
       } 
+#endif
 
-#if FALSE
       if (pcal_data->switch_triggered != motor_state[motor_id].switch_previously_triggered) {
         pcal_data->state = get_cal_state(pcal_data, pcal_data->delta > 0, pcal_data->switch_triggered, false);
         pcal_data->switch_triggered = motor_state[motor_id].switch_previously_triggered;
 
         log_writeln(F("Motor %c switch %d at encoder %d"), 'A' + motor_id, pcal_data->switch_triggered, encoder);
+#if FALSE
         if (pcal_data->delta > 0) {
           if (pcal_data->switch_triggered) {
             pcal_data->state = CAL_STATE_SWITCH_FORWARD_ON;
@@ -822,8 +838,8 @@ static bool calibrate(cal_data_t *pcal_data) {
             pcal_data->state = CAL_STATE_SWITCH_REVERSE_OFF;
           }
         }
-      }
 #endif
+      }
 
       if ((pcal_data->delta < 0) && 
           ((encoder <= pcal_data->target) || 
@@ -835,6 +851,7 @@ static bool calibrate(cal_data_t *pcal_data) {
         } else {
           pcal_data->target = encoder + pcal_data->delta;                      
         }
+        LOG_DEBUG(F("target: %d"), pcal_data->target);
         motor_set_target_encoder(motor_id, pcal_data->target);
       } else if ((pcal_data->delta > 0) && 
           ((encoder >= pcal_data->target) || 
@@ -846,15 +863,15 @@ static bool calibrate(cal_data_t *pcal_data) {
         } else {
           pcal_data->target = pcal_data->target + pcal_data->delta;                      
         }
+        LOG_DEBUG(F("target: %d"), pcal_data->target);
         motor_set_target_encoder(motor_id, pcal_data->target);
       }
 
-      if (pcal_data->found_min_encoder && pcal_data->found_max_encoder)
+      if (calibrate_found_encoder_extents(pcal_data)) 
         pcal_data->state = CAL_STATE_DONE;
         
       break;
     case CAL_STATE_SWITCH_FORWARD_ON:
-      
       // Move forward at full speed until off.     
       return false;
       break;
@@ -1122,6 +1139,29 @@ void motor_dump(motor_id_t motor_id)
     motor_state[motor_id].progress);
 }
 
+void motor_log_errors(motor_id_t motor_id)
+{
+  assert((motor_id >= MOTOR_ID_FIRST) && (motor_id <= MOTOR_ID_LAST));
+  int ef = motor_state[motor_id].error_flags;
+  if (ef == 0)
+    return;
+
+  if (ef & MOTOR_ERROR_FLAG_THERMAL_OVERLOAD_DETECTED)
+    log_writeln(F("Motor %c thermal overload detected."), 'A' + motor_id);
+  if (ef & MOTOR_ERROR_FLAG_OVERCURRENT_DETECTED)
+    log_writeln(F("Motor %c overcurrent detected."), 'A' + motor_id);
+  if (ef & MOTOR_ERROR_FLAG_INVALID_ENCODER_TRANSITION)
+    log_writeln(F("Motor %c invalid quadrature encoder transition."), 'A' + motor_id);
+  if (ef & MOTOR_ERROR_FLAG_OPPOSITE_DIRECTION)
+    log_writeln(F("Motor %c direction opposite of expectation."), 'A' + motor_id);
+  if (ef & MOTOR_ERROR_FLAG_UNEXPECTED_SWITCH_ENCODER)
+    log_writeln(F("Motor %c unexpected switch encoder."), 'A' + motor_id);
+  if (ef & MOTOR_ERROR_FLAG_ENCODER_OVERFLOW)
+    log_writeln(F("Motor %c encoder overflow."), 'A' + motor_id);
+  if (ef & MOTOR_ERROR_FLAG_ENCODER_UNDERFLOW)
+    log_writeln(F("Motor %c encoder underflow."), 'A' + motor_id);
+}
+
 static void isr_blink_led(bool pid_enabled) 
 {
   static int led_counter = 0;
@@ -1171,11 +1211,17 @@ ISR(TIMER1_COMPA_vect)
     } else if (qe_state == qe_inc_states[noinit_data.previous_quadrature_encoder[qe_motor_id]]) {
       // Quadrature encoder reading indicates moving in positive direction.
       motor_state[qe_motor_id].previous_direction = 1;
+      if (noinit_data.encoder[qe_motor_id] == INT_MAX) {
+        motor_state[qe_motor_id].error_flags |= MOTOR_ERROR_FLAG_ENCODER_OVERFLOW;
+      }
       noinit_data.encoder[qe_motor_id]++;  // Wraps from 65535 to 0.
       motor_state[qe_motor_id].pid_dvalue = 0;
     } else if (qe_state == qe_dec_states[noinit_data.previous_quadrature_encoder[qe_motor_id]]) {
       // Quadrature encoder reading indicates moving in negative direction.
       motor_state[qe_motor_id].previous_direction = -1;
+      if (noinit_data.encoder[qe_motor_id] == INT_MIN) {
+        motor_state[qe_motor_id].error_flags |= MOTOR_ERROR_FLAG_ENCODER_UNDERFLOW;
+      }
       noinit_data.encoder[qe_motor_id]--;  // Wraps from 0 to 65535.
       motor_state[qe_motor_id].pid_dvalue = 0;
     } else {
