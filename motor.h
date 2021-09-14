@@ -75,15 +75,6 @@ typedef struct {
 
 extern motor_state_t motor_state[MOTOR_ID_COUNT]; 
 
-extern int Gripper_StallC;
-extern int Gripper_StallE;
-extern int Gripper_StallX;
-extern int SyncMove_Status;
-
-// The speed sign bit is used to set the LMD18200 direction pin. So the PWM register accepts 0-255 for + and -.
-const int motor_min_speed = -255;
-const int motor_max_speed = 255;
-
 void motor_init_all();
 bool motor_get_thermal_overload_detected(motor_id_t motor_id);
 bool motor_get_thermal_overload_detected();

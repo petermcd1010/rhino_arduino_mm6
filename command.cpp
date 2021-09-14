@@ -13,29 +13,8 @@
 #include "parse.h"
 #include "sm.h"
 
-const float software_version = 2.00;  
-
-int command_emergency_stop(char *pargs, size_t args_nbytes)
-{
-  // Confirm arguments are empty.
-  size_t nbytes = parse_whitespace(pargs, args_nbytes);
-  if (args_nbytes != nbytes) {
-    return -1;
-  } 
-
-  motor_set_pid_enable(false);
-  sm_state_current = SM_STATE_ERROR;
-
-  return 0;
-}
-
-int command_set_gripper_position(char *pargs, size_t args_nbytes)
-{
-  // TODO: Implement command_set_gripper_position.
-  assert(false);
-
-  return -1;
-}
+static const float software_version = 2.00;  
+static const size_t command_args_max_nbytes = 64;
 
 int command_print_config(char *pargs, size_t args_nbytes)
 {
@@ -179,35 +158,6 @@ int command_config_write(char *pargs, size_t args_nbytes)
   return 0;
 }
 
-int command_print_help(char *pargs, size_t args_nbytes)
-{
-  assert(pargs);
-  
-  // Confirm arguments are empty.
-  size_t nbytes = parse_whitespace(pargs, args_nbytes);
-  if (nbytes != args_nbytes) {
-    return -1;
-  } 
-
-  menu_help();
-  return 0;
-}
-
-int command_set_home_position(char *pargs, size_t args_nbytes)
-{
-  assert(pargs);
-  size_t nbytes = parse_whitespace(pargs, args_nbytes);
-  if (nbytes != args_nbytes) {
-    return -1;
-  } 
-
-  LOG_ERROR(F("TODO"));
-
-  // motor_exec_all(motor_set_position_to_home);  
-
-  return nbytes;
-}
-
 int command_run_calibration(char *pargs, size_t args_nbytes)
 {
   assert(pargs);
@@ -241,6 +191,51 @@ int command_run_calibration(char *pargs, size_t args_nbytes)
   }
 
 error:
+  return nbytes;
+}
+
+int command_pid_mode(char *pargs, size_t args_nbytes)
+{
+  // TODO: Implement command_pid_mode().
+  assert(false);
+
+  return -1;
+}
+
+int command_emergency_stop(char *pargs, size_t args_nbytes)
+{
+  // Confirm arguments are empty.
+  size_t nbytes = parse_whitespace(pargs, args_nbytes);
+  if (args_nbytes != nbytes) {
+    return -1;
+  } 
+
+  motor_set_pid_enable(false);
+  sm_state_current = SM_STATE_ERROR;
+
+  return 0;
+}
+
+int command_set_gripper_position(char *pargs, size_t args_nbytes)
+{
+  // TODO: Implement command_set_gripper_position.
+  assert(false);
+
+  return -1;
+}
+
+int command_set_home_position(char *pargs, size_t args_nbytes)
+{
+  assert(pargs);
+  size_t nbytes = parse_whitespace(pargs, args_nbytes);
+  if (nbytes != args_nbytes) {
+    return -1;
+  } 
+
+  LOG_ERROR(F("TODO"));
+
+  // motor_exec_all(motor_set_position_to_home);  
+
   return nbytes;
 }
 
@@ -367,14 +362,6 @@ error:
   return -1;
 }
 
-int command_pid_mode(char *pargs, size_t args_nbytes)
-{
-  // TODO: Implement command_pid_mode().
-  assert(false);
-
-  return -1;
-}
-
 int command_run_test_sequence(char *pargs, size_t args_nbytes)
 {
   // TODO: Implement command_run_test_sequence().
@@ -396,7 +383,7 @@ int command_start_stop_motors(char *pargs, size_t args_nbytes)
   else if (sm_state_current == SM_STATE_MOTORS_ON)
     sm_state_current = SM_STATE_MOTORS_OFF;
   else
-    log_write(F("ERROR: Motors can not be turned on or off in the current state."));
+    log_writeln(F("ERROR: Motors can not be turned on or off in the current state."));
 
   return nbytes;
 }
@@ -412,6 +399,35 @@ int command_test_motors(char *pargs, size_t args_nbytes)
   motor_test_all();
 
   return nbytes;
+}
+
+int command_print_software_version(char *pargs, size_t args_nbytes)
+{
+  assert(pargs);
+  if (args_nbytes >= command_args_max_nbytes)
+    return -1;
+
+  char *p = pargs;
+  size_t nbytes = parse_whitespace(p, args_nbytes);
+  args_nbytes -= nbytes;
+  p += nbytes;
+
+  if (args_nbytes > 0)
+    return -1;
+
+  char version_number_string[10] = {};
+  dtostrf(software_version, 3, 2, version_number_string);
+  log_writeln(F("Version: %s (%s %s)."), version_number_string, __DATE__, __TIME__);
+
+  return 0;
+}
+
+int command_waypoint(char *pargs, size_t args_nbytes)
+{
+  // TODO: Implement command_waypoint.
+  assert(false);
+
+  return -1;
 }
 
 int command_factory_reset(char *pargs, size_t args_nbytes)
@@ -480,33 +496,16 @@ int command_reboot(char *pargs, size_t args_nbytes)
   return 0;
 }
 
-const size_t command_args_max_nbytes = 64;
-
-int command_print_software_version(char *pargs, size_t args_nbytes)
+int command_print_help(char *pargs, size_t args_nbytes)
 {
   assert(pargs);
-  if (args_nbytes >= command_args_max_nbytes)
+  
+  // Confirm arguments are empty.
+  size_t nbytes = parse_whitespace(pargs, args_nbytes);
+  if (nbytes != args_nbytes) {
     return -1;
+  } 
 
-  char *p = pargs;
-  size_t nbytes = parse_whitespace(p, args_nbytes);
-  args_nbytes -= nbytes;
-  p += nbytes;
-
-  if (args_nbytes > 0)
-    return -1;
-
-  char version_number_string[10] = {};
-  dtostrf(software_version, 3, 2, version_number_string);
-  log_writeln(F("Version: %s (%s %s)."), version_number_string, __DATE__, __TIME__);
-
+  menu_help();
   return 0;
-}
-
-int command_waypoint(char *pargs, size_t args_nbytes)
-{
-  // TODO: Implement command_waypoint.
-  assert(false);
-
-  return -1;
 }

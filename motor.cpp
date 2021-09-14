@@ -85,6 +85,10 @@ static const int motor_direction_reverse = HIGH;
 
 static motor_state_t motor_state[MOTOR_ID_COUNT] = {};
 
+// The speed sign bit is used to set the LMD18200 direction pin. So the PWM register accepts 0-255 for + and -.
+static const int motor_min_speed = -255;
+static const int motor_max_speed = 255;
+
 static const int motor_min_pwm = 55;
 static int tracking = 0;
 static int tracked[] = { 0, 0, 0, 0, 0, 0 }; // Last value while tracking.
@@ -97,8 +101,8 @@ static int Forward_Logic[] = {0,0,0,0,0,0}; // Forward Logic - The value for the
 static int Reverse_Logic[] = {1,1,1,1,1,1}; // Reverse Logic - The value for the Direction IO Line when the motor needs to move Reverse to sync with encoders.
 
 // Configuration stored in RAM and saved across reset/reboot that don't include a power-cycle of the board.
-const int noinit_data_version = 2;
-const int noinit_data_magic = 0xABCD1234;
+static const int noinit_data_version = 2;
+static const int noinit_data_magic = 0xABCD1234;
 typedef struct {
   // nbytes, version, magic are used to verify valid data.
   size_t nbytes;
