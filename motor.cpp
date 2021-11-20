@@ -756,7 +756,48 @@ static bool calibrate_found_encoder_extents(cal_data_t *pcal_data) {
 static bool calibrate(cal_data_t *pcal_data) {
   assert(pcal_data);
   // Returns true while calibration is running, false when complete.
-  
+
+  /*
+   * Strategy:
+   *   cal_state_t cal_state;
+   *   int negative_limit = current_encoder + 5000;  # 5000 or some number that we never expect to see more/less of.
+   *   int positive_limit = current_encoder - 5000;
+   *   int negative_stop = MIN_INT;   
+   *   int positive_stop = MAX_INT;
+   *   
+   *   CAL_STATE_INIT rotating in the direction that takes the motor toward 0, setting max/min encoder limits.
+   *     If the encoder exceeds the negative/positive limits, go to CAL_STATE_ERROR.
+   *     SWITCH_ON triggered -> go to CAL_STATE_SWITCH_ON
+   *     SWITCH_OFF triggered -> go to CAL_STATE_SWITCH_OFF
+   *     If the encoder exceeds the negative/positive stop, reverse direction
+   *     If is_stuck()
+   *       update encoder negative or positive stop.
+   *       reverse direction.
+   *   CAL_STATE_SWITCH_ON:
+   *     If the encoder exceeds the min/max limits, go to CAL_STATE_ERROR.
+   *     SWITCH_OFF triggered -> 
+   *       note encoder value if this is >= the second transition to off in this direction
+   *       If both the min and max encoder have encoder values
+   *         set the zero point to the center of the two encoder values.
+   *         set sensible encoder negative/positive limits
+   *         go to CAL_STATE_SEARCH_STOP
+   *       else 
+   *         set encoder value go to reverse direction and then go to CAL_STATE_SWITCH_OFF
+   *     is_stuck -> go to CAL_STATE_ERROR
+   *   CAL_STATE_SWITCH_OFF:
+   *     If the encoder exceeds the min/max limits, go to CAL_STATE_ERROR.
+   *     SWITCH_ON triggered -> go to CAL_STATE_SWITCH_ON
+   *     is_stuck -> go to CAL_STATE_ERROR
+   *   CAL_STATE_SEARCH_STOP:
+   *     If the encoder exceeds the min/max limits, go to CAL_STATE_ERROR.
+   *     If SWITCH_ON triggered, and not "close to" where expected, goto CAL_STATE_ERROR
+   *     IF SWITCH_OFF triggered, and not "close to" where expected, goto CAL_STATE_ERROR
+   *     If is_stuck -> mark stop, if other stop not marked, reverse direction, other wise go to CAL_STATE_SUCCESS
+   *   CAL_STATE_SUCCESS:
+   *   CAL_STATE_ERROR:
+   */  
+
+
   static cal_state_t prev_state = CAL_STATE_INIT;
   if (prev_state != pcal_data->state) {
     log_writeln(F("%s"), cal_state_name_by_index[pcal_data->state]);
