@@ -17,9 +17,9 @@
 
 void setup() 
 {
-  // See https://www.arduino.cc/reference/en/language/structure/sketch/setup/.
+  // https://www.arduino.cc/reference/en/language/structure/sketch/setup/.
 
-  sm_state_current = sm_execute(SM_STATE_INIT);
+  sm_init();
 }
 
 static bool check_system_integrity()
@@ -32,7 +32,7 @@ static bool check_system_integrity()
 
   if (config.robot_id == CONFIG_ROBOT_ID_NOT_CONFIGURED) {
     if (previous_ok)
-      log_writeln(F("ERROR: robot_id == CONFIG_ROBOT_ID_NOT_CONFIGURED. Configure robot and restart."));
+      log_writeln(F("ERROR: robot_id == CONFIG_ROBOT_ID_NOT_CONFIGURED. Configure robot and reboot."));
     ok = false;
   }
 
@@ -43,7 +43,7 @@ static bool check_system_integrity()
       if (previous_ok) {
         log_writeln(F(""));
         log_writeln(F("ERROR: motor %c error %d:"), 'A' + i, motor_state[i].error_flags);
-        motor_log_errors(i);  
+        motor_log_errors((motor_id_t)i);
       }
       ok = false;
     }
@@ -55,16 +55,16 @@ static bool check_system_integrity()
 
 void loop()
 {
-  // See https://www.arduino.cc/reference/en/language/structure/sketch/loop/.
+  // https://www.arduino.cc/reference/en/language/structure/sketch/loop/.
 
   static bool previous_check_system_integrity_ok = true;
   if (previous_check_system_integrity_ok && !check_system_integrity()) {
     previous_check_system_integrity_ok = false;
-    sm_state_current = SM_STATE_ERROR;
+    // sm_state_current = SM_STATE_ERROR;
     log_writeln(F("ERROR: System integrity check failed."));
   }
 
-  sm_state_current = sm_execute(sm_state_current);
+  sm_execute();
 
   return;
 }

@@ -3,7 +3,6 @@
  */
 
 #define __ASSERT_USE_STDERR
-#include <assert.h>
 #include <limits.h>
 #include <stdlib.h>
 #include "config.h"
@@ -130,7 +129,7 @@ static void check_noinit_data()
       noinit_data.previous_quadrature_encoder[i] = 0;
     }
   } else {
-    log_writeln(F("Reset without power cycle detected. Reusing stored motor encoder values."));
+    log_writeln(F("Detected reset without power. Reusing in-RAM motor encoder values."));
   }
 }
 

@@ -2,8 +2,6 @@
  * Implementation for state machine functions.
  */
 
-#include <assert.h>
-
 #include "command.h"
 #include "crc32c.h"
 #include "config.h"
@@ -14,20 +12,9 @@
 #include "parse.h"
 #include "sm.h"
 
-sm_state_t sm_state_current = SM_STATE_INIT;
-
-static char* sm_state_name_by_state[] = { 
-  "init", 
-  "motors_off", 
-  "motors_on", 
-  "error" 
-};
-
-const char* sm_get_state_name(sm_state_t state)
-{
-  assert((state >= SM_STATE_FIRST) && (state <= SM_STATE_LAST));
-  return sm_state_name_by_state[state];
-}
+static sm_state_func current_state;
+static sm_state_func exit_current_state;
+static sm_state_func next_state;
 
 /*
  * Self-test functions.
@@ -74,15 +61,15 @@ typedef struct {
 } motor_status_t;
 
 typedef struct {
-  sm_state_t state;
   motor_status_t motor[MOTOR_ID_COUNT];
 } status_t;
+
+const __FlashStringHelper *state_name = NULL;
 
 static void gather_status(status_t *pstatus)
 {
   assert(pstatus);
 
-  pstatus->state = sm_state_current;
   for (int i = 0; i < MOTOR_ID_COUNT; i++) {
     if (config.motor[i].configured) {
       pstatus->motor[i].angle = motor_get_angle(i);
@@ -147,14 +134,15 @@ static void process_serial_input()
         dtostrf(status.motor[i].angle, 3, 2, angle_str);
         char motor_name = (status.motor[i].switch_triggered ? 'A' : 'a') + i;
 
-        log_write(F("%c:%s,%d,%d "), motor_name, angle_str, motor_get_current_draw(i), motor_state[i].pid_perror);
+        log_write(F("%c:%s,%d,%d "), motor_name, angle_str, motor_get_current_draw((motor_id_t)i), motor_state[i].pid_perror);
       }
     }
 
     if (strlen(config.robot_name) != 0)
       log_write(F("%s "), config.robot_name);
 
-    log_write(F("%s> "), sm_get_state_name(sm_state_current));
+    log_write(state_name);
+    log_write(F("> "));
 
     memcpy(&previous_status, &status, sizeof(status_t));
     previous_status_time_millis = current_time_millis;
@@ -173,7 +161,7 @@ static void process_serial_input()
       } else if ((input_char == ASCII_BACKSPACE) || (input_char == ASCII_DELETE)) {
         log_write(F("\9"));  // Emit ASCII bell (flashes screen on some terminals)
       } else {
-        menu_item_t *pmenu_item = menu_item_by_command_char(input_char);
+        const menu_item_t *pmenu_item = menu_item_by_command_char(input_char);
         pprev_menu_item = pmenu_item;
 
         if (!pmenu_item) {
@@ -227,8 +215,11 @@ static void process_serial_input()
   }
 }
 
-static sm_state_t init_execute()
+// Transient state that performs initialization before transferring to the next state.
+void sm_init(void)
 {
+  sm_set_state_name(F("init"));
+
   Serial.begin(38400);
 
   log_writeln(F("\n\rBooting Arduino Mega 2560 MegaMotor6 controller for Rhino Robots arms and accessories."));
@@ -240,7 +231,7 @@ static sm_state_t init_execute()
     log_writeln(F("ERROR: Invalid configuration. Re-initializing configuration data."));
     config_clear();
   } else {
-    log_writeln(F("Read %d bytes of configuration data from EEPROM. Configuration is valid."), sizeof(config_t));
+    log_writeln(F("Read %d bytes of configuration data from Arduino EEPROM. Configuration is valid."), sizeof(config_t));
     log_writeln(F("Configured for '%s'."), config_robot_name_by_id[config.robot_id]);
   }
 
@@ -251,96 +242,98 @@ static sm_state_t init_execute()
   bool self_test_success = run_self_test();
   menu_help();
   log_writeln(F("Ready."));
-  
-  return (config_read_success && self_test_success) ? SM_STATE_MOTORS_OFF : SM_STATE_ERROR;
-}
 
-static bool motors_off_enter()
-{
-  motor_set_pid_enable(false);
-  return true;
-}
-
-static sm_state_t motors_off_execute()
-{
-  process_serial_input();
-  return sm_state_current;
-}
-
-static bool motors_on_enter()
-{
-  motor_set_pid_enable(true);
-  return true;
-}
-
-sm_state_t motors_on_execute()
-{
-  process_serial_input();
-  return sm_state_current;  
-}
-
-bool motors_on_exit()
-{
-  motor_set_pid_enable(false);
-  return true;
-}
-
-bool error_enter()
-{
-  motor_set_pid_enable(false);
-  return true;
-}
-
-sm_state_t error_execute()
-{
-  process_serial_input();
-  return SM_STATE_ERROR;
-}
-
-typedef struct {
-  bool (*enter)();
-  sm_state_t (*execute)();
-  bool (*exit)();
-} sm_entry;
-
-sm_entry sm_entry_by_state[] = {
-  { NULL, init_execute, NULL },
-  { motors_off_enter, motors_off_execute, NULL },
-  { motors_on_enter, motors_on_execute, motors_on_exit },
-  { error_enter, error_execute, NULL }  
-};
-
-static void enter_state(sm_state_t start_state)
-{
-  if (!sm_entry_by_state[start_state].enter()) {
-    sm_state_current = SM_STATE_ERROR;
+  if (config_read_success && self_test_success) {
+    sm_set_next_state(sm_motors_off_enter);
   } else {
-    sm_state_current = start_state;
+    sm_set_next_state(sm_error_enter);
   }
 }
 
-sm_state_t sm_execute(sm_state_t current_state)
+sm_state_func sm_get_state()
 {
-  assert(current_state >= SM_STATE_FIRST);
-  assert(current_state <= SM_STATE_LAST);
+  return current_state;
+}
 
-  static sm_state_t previous_state = SM_STATE_FIRST - 1;
+void sm_set_next_state(sm_state_func s)
+{
+  assert(s);
 
-  if (previous_state != current_state) {
-    if (previous_state != SM_STATE_FIRST - 1) {
-      if (sm_entry_by_state[previous_state].exit &&
-          !sm_entry_by_state[previous_state].exit())
-        current_state = SM_STATE_ERROR;
+  next_state = s;
+}
 
-      if (sm_entry_by_state[current_state].enter &&
-          !sm_entry_by_state[current_state].enter())
-        current_state = SM_STATE_ERROR;
+void sm_set_exit_current_state(sm_state_func s)
+{
+  assert(s);
+
+  exit_current_state = s;
+}
+
+void sm_execute(void)
+{
+  if (next_state) {
+    if (exit_current_state) {
+      exit_current_state();
+      exit_current_state = NULL;
     }
-    previous_state = current_state;
+
+    current_state = next_state;
+    next_state = NULL;
   }
 
-  assert(sm_entry_by_state[current_state].execute);
-  return sm_entry_by_state[current_state].execute();
+  assert(current_state);
+  current_state();
+}
+
+void sm_set_state_name(const __FlashStringHelper *name)
+{
+  assert(name);
+  state_name = name;
+}
+
+void sm_motors_off_enter(void)
+{
+  sm_set_state_name(F("motors off"));
+  motor_set_pid_enable(false);
+  sm_set_next_state(sm_motors_off_execute);
+}
+
+void sm_motors_off_execute(void)
+{
+  process_serial_input();
+}
+
+void sm_motors_on_enter(void)
+{
+  sm_set_state_name(F("motors on"));
+  motor_set_pid_enable(true);
+  sm_set_next_state(sm_motors_on_execute);
+}
+
+void sm_motors_on_execute(void)
+{
+  sm_set_exit_current_state(sm_motors_on_exit);
+  process_serial_input();
+}
+
+void sm_motors_on_exit(void)
+{
+  log_writeln(F("sm_motors_on_exit"));
+  motor_set_pid_enable(false);
+}
+
+void sm_error_enter(void)
+{
+  next_state = { 0 };
+
+  sm_set_state_name(F("ERROR"));
+  motor_set_pid_enable(false);
+  sm_set_next_state(sm_error_execute);
+}
+
+void sm_error_execute(void)
+{
+  process_serial_input();
 }
 
 bool sm_test()

@@ -3,7 +3,6 @@
  */
 
 #define __ASSERT_USE_STDERR
-#include <assert.h>
 #include "log.h"
 #include "motor.h"
 #include "parse.h"

@@ -3,7 +3,6 @@
  */
 
 #define __ASSERT_USE_STDERR
-#include <assert.h>
 #include <EEPROM.h>
 
 #include "config.h"

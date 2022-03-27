@@ -4,18 +4,24 @@
  * Declarations for state machine functions.
  */
 
-typedef enum {
-  SM_STATE_FIRST = 0,
-  SM_STATE_INIT = SM_STATE_FIRST,
-  SM_STATE_MOTORS_OFF,
-  SM_STATE_MOTORS_ON,
-  SM_STATE_ERROR,
-  SM_STATE_COUNT,
-  SM_STATE_LAST = SM_STATE_COUNT - 1,
-} sm_state_t;
+#include <Arduino.h>
 
-extern sm_state_t sm_state_current;
+typedef void(*sm_state_func)(void);
 
-const char* sm_get_state_name(sm_state_t state);
-sm_state_t sm_execute(sm_state_t current_state);
+void sm_init(void);
+sm_state_func sm_get_state();
+void sm_set_next_state(sm_state_func);
+void sm_set_exit_current_state(sm_state_func);
+void sm_execute(void);
+
+void sm_set_state_name(const __FlashStringHelper *name);
+
+void sm_motors_off_enter(void);
+void sm_motors_off_execute(void);
+void sm_motors_on_enter(void);
+void sm_motors_on_execute(void);
+void sm_motors_on_exit(void);
+void sm_error_enter(void);
+void sm_error_execute(void);
+
 bool sm_test();

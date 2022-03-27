@@ -16,5 +16,12 @@ void log_writeln();
 void log_writeln(const __FlashStringHelper *pformat, ...);
 void log_error(const __FlashStringHelper *pfile_path, int line_num, const char *pfunction_name, const __FlashStringHelper *pformat, ...);
 void log_debug(const __FlashStringHelper *pfile_path, int line_num, const char *pfunction_name, const __FlashStringHelper *pformat, ...);
+void log_flush(void);
+
+#ifdef assert
+#undef assert
+#endif
+void log_assert(const __FlashStringHelper *pfile_path, int line_num, const char *pfunction_name, ...);
+#define assert(EX) (void)((EX) || (log_assert (F(__FILE__), __LINE__, __FUNCTION__, #EX),0))
 
 bool log_test();

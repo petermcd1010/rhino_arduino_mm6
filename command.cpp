@@ -2,7 +2,6 @@
  * Implementation for command processing functions.
  */
 
-#include <assert.h>
 #include <stdlib.h>
 #include "command.h"
 #include "config.h"
@@ -154,7 +153,7 @@ int command_config_write(char *pargs, size_t args_nbytes)
   } 
 
   assert(config_write());
-  log_writeln(F("%d bytes of configuration data written to EEPROM."), sizeof(config_t));
+  log_writeln(F("%d bytes of configuration data written to Arduino EEPROM."), sizeof(config_t));
   return 0;
 }
 
@@ -211,8 +210,8 @@ int command_emergency_stop(char *pargs, size_t args_nbytes)
   } 
 
   motor_set_pid_enable(false);
-  sm_state_current = SM_STATE_ERROR;
-
+  hardware_halt();
+  
   return 0;
 }
 
@@ -378,10 +377,10 @@ int command_start_stop_motors(char *pargs, size_t args_nbytes)
     return -1;
   } 
 
-  if (sm_state_current == SM_STATE_MOTORS_OFF)
-    sm_state_current = SM_STATE_MOTORS_ON;
-  else if (sm_state_current == SM_STATE_MOTORS_ON)
-    sm_state_current = SM_STATE_MOTORS_OFF;
+  if (sm_get_state() == sm_motors_off_execute)
+    sm_set_next_state(sm_motors_on_enter);
+  else if (sm_get_state() == sm_motors_on_execute)
+    sm_set_next_state(sm_motors_off_enter);
   else
     log_writeln(F("ERROR: Motors can not be turned on or off in the current state."));
 
@@ -456,7 +455,7 @@ int command_factory_reset(char *pargs, size_t args_nbytes)
     goto error;
 
   assert(entry_num == 0);
-  hardware_reset();
+  hardware_factory_reset();
   hardware_reboot();
 
   return 0;

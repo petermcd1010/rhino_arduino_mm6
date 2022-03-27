@@ -3,7 +3,8 @@
  */
 
 #define __ASSERT_USE_STDERR
-#include <assert.h>
+#include <avr/interrupt.h>
+#include <avr/sleep.h>
 #include <stdlib.h>
 #include <EEPROM.h>
 #include "hardware.h"
@@ -20,21 +21,31 @@ void hardware_init() {
 
 void hardware_erase_eeprom()
 {
-  log_write(F("Erasing EEPROM... "));
+  log_write(F("Erasing Arduino EEPROM... "));
   for (int i = 0; i < EEPROM.length(); i++) {
     EEPROM.write(i, 0);    
   }
   log_writeln(F("Completed. Zeroed %d bytes."), EEPROM.length());
 }
 
-void hardware_reset()
+void hardware_factory_reset()
 {
   motor_set_pid_enable(false);
   hardware_erase_eeprom();
-  hardware_reboot();
 }
 
-void (*hardware_really_reboot)(void) = 0;  // Call hardware_really_reboot() to reset the board.
+void hardware_halt()
+{
+  motor_set_pid_enable(false);
+  hardware_set_led(false);
+  log_writeln(F("\nHardware halted. Press reset button to reboot."));
+  log_flush();
+  set_sleep_mode(SLEEP_MODE_PWR_DOWN);
+  cli();  // Disable interrupts
+  sleep_mode();
+}
+
+static void (*hardware_really_reboot)(void) = 0;  // Call hardware_really_reboot() to reset the board.
 void hardware_reboot() 
 {
   motor_set_pid_enable(false);
