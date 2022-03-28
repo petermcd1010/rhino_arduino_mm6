@@ -15,56 +15,57 @@
 #include "motor.h"
 #include "sm.h"
 
-void setup() 
+void setup()
 {
-  // https://www.arduino.cc/reference/en/language/structure/sketch/setup/.
+    // https://www.arduino.cc/reference/en/language/structure/sketch/setup/.
 
-  sm_init();
+    sm_init();
 }
 
 static bool check_system_integrity()
 {
-  static bool previous_ok = true;
-  bool ok = previous_ok;
+    static bool previous_ok = true;
+    bool ok = previous_ok;
 
-  if (previous_ok)
-    ok = config_check();
-
-  if (config.robot_id == CONFIG_ROBOT_ID_NOT_CONFIGURED) {
     if (previous_ok)
-      log_writeln(F("ERROR: robot_id == CONFIG_ROBOT_ID_NOT_CONFIGURED. Configure robot and reboot."));
-    ok = false;
-  }
+        ok = config_check();
 
-  ok = (motor_get_thermal_overload_detected() || motor_get_overcurrent_detected()) ? false : ok;
-
-  for (int i = MOTOR_ID_FIRST; i <= MOTOR_ID_LAST; i++) {
-    if (motor_state[i].error_flags != 0) {
-      if (previous_ok) {
-        log_writeln(F(""));
-        log_writeln(F("ERROR: motor %c error %d:"), 'A' + i, motor_state[i].error_flags);
-        motor_log_errors((motor_id_t)i);
-      }
-      ok = false;
+    if (config.robot_id == CONFIG_ROBOT_ID_NOT_CONFIGURED) {
+        if (previous_ok)
+            log_writeln(F("ERROR: robot_id == CONFIG_ROBOT_ID_NOT_CONFIGURED. Configure robot and reboot."));
+        ok = false;
     }
-  }
 
-  previous_ok = ok;  
-  return ok;
+    ok = (motor_get_thermal_overload_detected() || motor_get_overcurrent_detected()) ? false : ok;
+
+    for (int i = MOTOR_ID_FIRST; i <= MOTOR_ID_LAST; i++) {
+        if (motor_state[i].error_flags != 0) {
+            if (previous_ok) {
+                log_writeln(F(""));
+                log_writeln(F("ERROR: motor %c error %d:"), 'A' + i, motor_state[i].error_flags);
+                motor_log_errors((motor_id_t)i);
+            }
+            ok = false;
+        }
+    }
+
+    previous_ok = ok;
+    return ok;
 }
 
 void loop()
 {
-  // https://www.arduino.cc/reference/en/language/structure/sketch/loop/.
+    // https://www.arduino.cc/reference/en/language/structure/sketch/loop/.
 
-  static bool previous_check_system_integrity_ok = true;
-  if (previous_check_system_integrity_ok && !check_system_integrity()) {
-    previous_check_system_integrity_ok = false;
-    // sm_state_current = SM_STATE_ERROR;
-    log_writeln(F("ERROR: System integrity check failed."));
-  }
+    static bool previous_check_system_integrity_ok = true;
 
-  sm_execute();
+    if (previous_check_system_integrity_ok && !check_system_integrity()) {
+        previous_check_system_integrity_ok = false;
+        // sm_state_current = SM_STATE_ERROR;
+        log_writeln(F("ERROR: System integrity check failed."));
+    }
 
-  return;
+    sm_execute();
+
+    return;
 }

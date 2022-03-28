@@ -2,7 +2,7 @@
 
 /*
  * Declarations for command processing functions.
-*/
+ */
 
 #include <Arduino.h>
 

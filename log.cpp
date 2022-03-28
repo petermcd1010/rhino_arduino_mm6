@@ -32,7 +32,7 @@ static void write_string(const __FlashStringHelper *pstring)
     char buffer[progmem_copy_buffer_nbytes];
 
     strncpy_P(buffer, (char *)pstring, progmem_copy_buffer_nbytes);
-    buffer[progmem_copy_buffer_nbytes - 1] = '\0'; // Force null-termination.
+    buffer[progmem_copy_buffer_nbytes - 1] = '\0';  // Force null-termination.
     assert(strlen(buffer) != progmem_copy_buffer_nbytes - 1);
 
     write_string_function(buffer);
@@ -45,7 +45,7 @@ static void log_format_string_va_list(const char *pformat, va_list args)
     char buffer[progmem_copy_buffer_nbytes];
 
     vsnprintf(buffer, progmem_copy_buffer_nbytes, pformat, args);
-    buffer[progmem_copy_buffer_nbytes - 1] = '\0'; // Force null-termination.
+    buffer[progmem_copy_buffer_nbytes - 1] = '\0';  // Force null-termination.
     assert(strlen(buffer) != progmem_copy_buffer_nbytes - 1);
 
     write_string(buffer);
@@ -59,7 +59,7 @@ void log_write(const __FlashStringHelper *pformat, ...)
     char buffer[progmem_copy_buffer_nbytes];
 
     strncpy_P(buffer, (char *)pformat, progmem_copy_buffer_nbytes);
-    buffer[progmem_copy_buffer_nbytes - 1] = '\0'; // Force null-termination.
+    buffer[progmem_copy_buffer_nbytes - 1] = '\0';  // Force null-termination.
     assert(strlen(buffer) != progmem_copy_buffer_nbytes - 1);
 
     va_start(args, pformat);
@@ -80,7 +80,7 @@ void log_writeln(const __FlashStringHelper *pformat, ...)
     char buffer[progmem_copy_buffer_nbytes];
 
     strncpy_P(buffer, (char *)pformat, progmem_copy_buffer_nbytes);
-    buffer[progmem_copy_buffer_nbytes - 1] = '\0'; // Force null-termination.
+    buffer[progmem_copy_buffer_nbytes - 1] = '\0';  // Force null-termination.
     assert(strlen(buffer) != progmem_copy_buffer_nbytes - 1);
 
     va_start(args, pformat);
@@ -108,7 +108,7 @@ static void write_file_name(const __FlashStringHelper *pfile_path)
     char buffer[progmem_copy_buffer_nbytes];
 
     strncpy_P(buffer, (char *)pfile_name, progmem_copy_buffer_nbytes);
-    buffer[progmem_copy_buffer_nbytes - 1] = '\0'; // Force null-termination.
+    buffer[progmem_copy_buffer_nbytes - 1] = '\0';  // Force null-termination.
     assert(strlen(buffer) != progmem_copy_buffer_nbytes - 1);
     write_string(buffer);
 }
@@ -122,11 +122,11 @@ static void log_internal(int line_num, const char *pfunction_name, bool is_error
     char buffer[progmem_copy_buffer_nbytes];
 
     snprintf(buffer, progmem_copy_buffer_nbytes, ":%d:%s:%s ", line_num, pfunction_name, is_error ?  "ERROR:" : "");
-    buffer[progmem_copy_buffer_nbytes - 1] = '\0'; // Force null-termination.
+    buffer[progmem_copy_buffer_nbytes - 1] = '\0';  // Force null-termination.
     write_string(buffer);
 
     strncpy_P(buffer, (char *)pformat, progmem_copy_buffer_nbytes);
-    buffer[progmem_copy_buffer_nbytes - 1] = '\0'; // Force null-termination.
+    buffer[progmem_copy_buffer_nbytes - 1] = '\0';  // Force null-termination.
     assert(strlen(buffer) != progmem_copy_buffer_nbytes - 1);
 
     log_format_string_va_list(buffer, args);

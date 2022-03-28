@@ -6,7 +6,7 @@
 
 #include <Arduino.h>
 
-typedef void(*sm_state_func)(void);
+typedef void (*sm_state_func)(void);
 
 void sm_init(void);
 sm_state_func sm_get_state();
