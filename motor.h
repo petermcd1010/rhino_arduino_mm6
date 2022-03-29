@@ -75,6 +75,7 @@ typedef struct {
 
 extern motor_state_t motor_state[MOTOR_ID_COUNT];
 
+void motor_erase_ram_data();  // Clears data cached in RAM between boots.
 void motor_init_all();
 bool motor_get_thermal_overload_detected(motor_id_t motor_id);
 bool motor_get_thermal_overload_detected();

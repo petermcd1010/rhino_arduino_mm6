@@ -57,21 +57,21 @@ static const menu_item_t menu_item_by_index[] = {  // TODO: F()
     { '3', "configure robot serial", extended_menu_robot_serial,  true,  command_config_robot_serial,    "[string] -- print or set configured robot serial."                                            },
     { '4', "configure robot name",   extended_menu_robot_name,    true,  command_config_robot_name,      "[name] -- print or set configured robot name."                                                },
     { '0', "write configuration",    NULL,                        true,  command_config_write,           "Write configuration data to EEPROM."                                                          },
+    { 'B', "reboot",                 extended_menu_reboot,        true,  command_reboot,                 "REBOOT -- reboot system. Requires typing the 'REBOOT' keyword."                               },
     { 'C', "run calibration",        NULL,                        true,  command_run_calibration,        "[motorid] -- calibrate motor and switch limits; calibrates all motors if none given."         },
     { 'D', "PID mode",               NULL,                        false, command_pid_mode,               "-- Enable/disable motors"                                                                     },
-    { 'E', "emergency stop",         NULL,                        false, command_emergency_stop,         "-- execute hardware emergency stop (E-Stop). Enters 'error' state. Requires reboot to reset." },
+    { 'E', "enable motors",          NULL,                        false, command_enable_motors,          ""                                                                                             },
     { 'G', "set gripper position",   NULL,                        true,  command_set_gripper_position,   "-- set current encoders as gripper?"                                                          },
     { 'H', "set home position",      NULL,                        false, command_set_home_position,      "-- set current encoders as home position."                                                    },
     { 'M', "print motor status",     NULL,                        false, command_print_motor_status,     "-- print motor status."                                                                       },
     { 'N', "set motor angle",        NULL,                        true,  command_set_motor_angle,        "motorid degrees -- degrees is 0.0 to 360.0, +15, -20, +, -, ++, --."                          },
     { 'P', "set motor encoder",      NULL,                        true,  command_set_motor_encoder,      "motorid encoder -- encoder is in the range X - Y."                                            }, // TODO
     { 'Q', "run test sequence",      NULL,                        false, command_run_test_sequence,      ""                                                                                             },
-    { 'S', "start/stop motors",      NULL,                        false, command_start_stop_motors,      ""                                                                                             },
     { 'T', "test motors",            NULL,                        false, command_test_motors,            "-- test motors."                                                                              },
     { 'V', "print software version", NULL,                        false, command_print_software_version, "-- print software version."                                                                   },
     { 'W', "waypoint",               NULL,                        true,  command_waypoint,               ""                                                                                             },
     { '*', "factory reset",          extended_menu_factory_reset, false, command_factory_reset,          "RESET -- factory reset system, clearing EEPROM and rebooting."                                },
-    { '!', "reboot",                 extended_menu_reboot,        true,  command_reboot,                 "REBOOT -- reboot system. Requires typing the 'REBOOT' keyword."                               },
+    { '!', "emergency stop",         NULL,                        false, command_emergency_stop,         "-- execute hardware emergency stop (E-Stop). Enters 'error' state. Requires reboot to reset." },
     { '?', "print help",             NULL,                        false, command_print_help,             "-- print this help message."                                                                  },
 };
 #define MENU_ITEM_COUNT sizeof(menu_item_by_index) / sizeof(menu_item_by_index[0])
@@ -105,7 +105,7 @@ void menu_help()
         nspaces = (nspaces >= menu_item_max_name_nbytes) ? menu_item_max_name_nbytes - 1 : nspaces;
         memset(spaces, ' ', nspaces);
         spaces[nspaces] = '\0';
-        log_writeln(F("%c: %s %s %s"), pitem->command_char, pitem->pname, spaces, pitem->phelp);
+        log_writeln(F("  %c : %s %s %s"), pitem->command_char, pitem->pname, spaces, pitem->phelp);
     }
 }
 

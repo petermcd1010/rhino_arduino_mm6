@@ -163,6 +163,40 @@ int command_config_write(char *pargs, size_t args_nbytes)
     return 0;
 }
 
+int command_reboot(char *pargs, size_t args_nbytes)
+{
+    assert(pargs);
+
+    size_t nbytes = parse_whitespace(pargs, args_nbytes);
+
+    pargs += nbytes;
+    args_nbytes -= nbytes;
+    if (args_nbytes == 0)
+        return -1;
+
+    int entry_num = -1;
+    char *reboot_table[] = { "REBOOT" };
+
+    nbytes = parse_string_in_table(pargs, args_nbytes, reboot_table, 1, &entry_num);
+    if (entry_num != 0)
+        return -1;
+    pargs += nbytes;
+    args_nbytes -= nbytes;
+
+    nbytes = parse_whitespace(pargs, args_nbytes);
+    pargs += nbytes;
+    args_nbytes -= nbytes;
+
+    if (nbytes != args_nbytes)
+        return -1;
+
+    motor_set_pid_enable(false);
+    log_writeln(F("Rebooting."));
+    hardware_reboot();  // TODO: Test that this works with and without whitespace after REBOOT.
+
+    return 0;
+}
+
 int command_run_calibration(char *pargs, size_t args_nbytes)
 {
     assert(pargs);
@@ -206,18 +240,22 @@ int command_pid_mode(char *pargs, size_t args_nbytes)
     return -1;
 }
 
-int command_emergency_stop(char *pargs, size_t args_nbytes)
+int command_enable_motors(char *pargs, size_t args_nbytes)
 {
-    // Confirm arguments are empty.
+    assert(pargs);
     size_t nbytes = parse_whitespace(pargs, args_nbytes);
 
     if (args_nbytes != nbytes)
         return -1;
 
-    motor_set_pid_enable(false);
-    hardware_halt();
+    if (sm_get_state() == sm_motors_off_execute)
+        sm_set_next_state(sm_motors_on_enter);
+    else if (sm_get_state() == sm_motors_on_execute)
+        sm_set_next_state(sm_motors_off_enter);
+    else
+        log_writeln(F("ERROR: Motors can not be turned on or off in the current state."));
 
-    return 0;
+    return nbytes;
 }
 
 int command_set_gripper_position(char *pargs, size_t args_nbytes)
@@ -380,24 +418,6 @@ int command_run_test_sequence(char *pargs, size_t args_nbytes)
     return -1;
 }
 
-int command_start_stop_motors(char *pargs, size_t args_nbytes)
-{
-    assert(pargs);
-    size_t nbytes = parse_whitespace(pargs, args_nbytes);
-
-    if (args_nbytes != nbytes)
-        return -1;
-
-    if (sm_get_state() == sm_motors_off_execute)
-        sm_set_next_state(sm_motors_on_enter);
-    else if (sm_get_state() == sm_motors_on_execute)
-        sm_set_next_state(sm_motors_off_enter);
-    else
-        log_writeln(F("ERROR: Motors can not be turned on or off in the current state."));
-
-    return nbytes;
-}
-
 int command_test_motors(char *pargs, size_t args_nbytes)
 {
     assert(pargs);
@@ -480,34 +500,16 @@ error:
     return -1;
 }
 
-int command_reboot(char *pargs, size_t args_nbytes)
+int command_emergency_stop(char *pargs, size_t args_nbytes)
 {
-    assert(pargs);
-
+    // Confirm arguments are empty.
     size_t nbytes = parse_whitespace(pargs, args_nbytes);
 
-    pargs += nbytes;
-    args_nbytes -= nbytes;
-    if (args_nbytes == 0)
+    if (args_nbytes != nbytes)
         return -1;
 
-    int entry_num = -1;
-    char *reboot_table[] = { "REBOOT" };
-
-    nbytes = parse_string_in_table(pargs, args_nbytes, reboot_table, 1, &entry_num);
-    if (entry_num != 0)
-        return -1;
-    pargs += nbytes;
-    args_nbytes -= nbytes;
-
-    nbytes = parse_whitespace(pargs, args_nbytes);
-    pargs += nbytes;
-    args_nbytes -= nbytes;
-
-    if (nbytes != args_nbytes)
-        return -1;
-
-    hardware_reboot();  // TODO: Test that this works with and without whitespace after REBOOT.
+    motor_set_pid_enable(false);
+    hardware_halt();
 
     return 0;
 }

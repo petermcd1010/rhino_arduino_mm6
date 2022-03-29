@@ -113,6 +113,12 @@ typedef struct {
 
 static noinit_data_t noinit_data __attribute__ ((section(".noinit")));  // NOT reset to 0 when the CPU is reset.
 
+void motor_erase_ram_data()
+{
+    // External to motor.cpp, call it ram_data instead of noinit_data.
+    memset(&noinit_data, 0, sizeof(noinit_data_t));
+}
+
 static void check_noinit_data()
 {
     // Zero out saved variables on power cycle. On reset, these values are NOT erased.
@@ -130,6 +136,7 @@ static void check_noinit_data()
         }
     } else {
         log_writeln(F("Detected reset without power. Reusing in-RAM motor encoder values."));
+        log_writeln();
     }
 }
 
@@ -338,8 +345,22 @@ bool motor_set_pid_enable(motor_id_t motor_id, bool enable)
     }
 }
 
+static int get_num_enabled()
+{
+    int num_enabled = 0;
+
+    for (int i = MOTOR_ID_FIRST; i <= MOTOR_ID_LAST; i++) {
+        if (motor_get_pid_enable(i))
+            num_enabled++;
+    }
+
+    return num_enabled;
+}
+
 void motor_set_pid_enable(bool enable)
 {
+    int num_enabled_at_enter = get_num_enabled();
+
     static bool motor_enabled = false;
     int success_count = 0;
 
@@ -350,7 +371,10 @@ void motor_set_pid_enable(bool enable)
 
     // motor_sync_move_enabled = enable;
     motor_enabled = enable;
-    log_writeln(F("Motor electronics for %d motors %s."), success_count, enable ? "enabled" : "disabled");
+
+    // TODO: This is kludgey. Reconsider enable semantics.
+    if (num_enabled_at_enter != get_num_enabled())
+        log_writeln(F("Motor electronics for %d motors %s."), success_count, enable ? "enabled" : "disabled");
 }
 
 bool motor_get_pid_enable(motor_id_t motor_id)

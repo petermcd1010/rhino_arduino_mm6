@@ -50,6 +50,7 @@ static bool run_self_test()
     }
 
     log_writeln(F("%d test cases run, %d passed, %d failed."), TEST_CASE_COUNT, TEST_CASE_COUNT - failure_count, failure_count);
+    log_writeln();
 
     return failure_count == 0;
 }

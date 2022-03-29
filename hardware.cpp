@@ -32,6 +32,7 @@ void hardware_erase_eeprom()
 void hardware_factory_reset()
 {
     motor_set_pid_enable(false);
+    motor_erase_ram_data();
     hardware_erase_eeprom();
 }
 
