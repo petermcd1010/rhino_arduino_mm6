@@ -1,9 +1,8 @@
 #pragma once
-
 /*
  * Declarations for MegaMotor6 hardware functionality.
- *
  * See https://www.ti.com/lit/gpn/lmd18200 for the MegaMotor6's motor drivers.
+ * See the LICENSE file in the root directory of this project for copyright and licensing details.
  */
 
 #include <Arduino.h>

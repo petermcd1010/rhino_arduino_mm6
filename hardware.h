@@ -1,7 +1,7 @@
 #pragma once
-
 /*
  * Declarations for non-MegaMotor6 hardware functionality.
+ * See the LICENSE file in the root directory of this project for copyright and licensing details.
  */
 
 #include <Arduino.h>
