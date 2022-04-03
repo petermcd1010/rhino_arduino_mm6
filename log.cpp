@@ -182,7 +182,7 @@ void log_assert(const __FlashStringHelper *pfile_path, int line_num, const char 
         return;                        // Avoid infinite assert() loops.
     in_assert = true;
 
-    motor_set_pid_enable(false);
+    motor_disable_all();
 
     write_file_name(pfile_path);
 

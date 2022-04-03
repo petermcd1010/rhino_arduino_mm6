@@ -17,6 +17,8 @@ static sm_state_func current_state;
 static sm_state_func exit_current_state;
 static sm_state_func next_state;
 
+static int enabled_motors_mask = 0;
+
 /*
  * Self-test functions.
  */
@@ -130,9 +132,7 @@ static void process_serial_input()
         reset_prompt = false;
 
         for (int i = MOTOR_ID_FIRST; i <= MOTOR_ID_LAST; i++) {
-            if (!config.motor[i].configured) {
-                log_write(F("%c:_.__ "), 'A' + i);
-            } else {
+            if (motor_get_enabled(i)) {
                 char angle_str[15];
                 dtostrf(status.motor[i].angle, 3, 2, angle_str);
                 char motor_name = (status.motor[i].switch_triggered ? 'A' : 'a') + i;
@@ -297,7 +297,12 @@ void sm_set_state_name(const __FlashStringHelper *name)
 void sm_motors_off_enter(void)
 {
     sm_set_state_name(F("motors off"));
-    motor_set_pid_enable(false);
+    motor_disable_all();
+
+    for (int i = 0; i < MOTOR_ID_COUNT; i++) {
+        motor_set_enabled(i, false);
+    }
+
     sm_set_next_state(sm_motors_off_execute);
 }
 
@@ -309,8 +314,13 @@ void sm_motors_off_execute(void)
 void sm_motors_on_enter(void)
 {
     sm_set_state_name(F("motors on"));
-    motor_set_pid_enable(true);
     sm_set_next_state(sm_motors_on_execute);
+
+    for (int i = 0; i < MOTOR_ID_COUNT; i++) {
+        bool enabled = enabled_motors_mask & (1 << i);
+        if (motor_get_enabled(i) != enabled)
+            motor_set_enabled(i, enabled);
+    }
 }
 
 void sm_motors_on_execute(void)
@@ -321,8 +331,7 @@ void sm_motors_on_execute(void)
 
 void sm_motors_on_exit(void)
 {
-    log_writeln(F("sm_motors_on_exit"));
-    motor_set_pid_enable(false);
+    motor_disable_all();
 }
 
 void sm_error_enter(void)
@@ -330,13 +339,23 @@ void sm_error_enter(void)
     next_state = { 0 };
 
     sm_set_state_name(F("ERROR"));
-    motor_set_pid_enable(false);
+    motor_disable_all();
     sm_set_next_state(sm_error_execute);
 }
 
 void sm_error_execute(void)
 {
     process_serial_input();
+}
+
+int sm_get_enabled_motors_mask(void)
+{
+    return enabled_motors_mask;
+}
+
+void sm_set_enabled_motors_mask(int mask)
+{
+    enabled_motors_mask = mask;
 }
 
 bool sm_test()

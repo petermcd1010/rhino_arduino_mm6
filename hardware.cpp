@@ -32,15 +32,15 @@ void hardware_erase_eeprom()
 
 void hardware_factory_reset()
 {
-    motor_set_pid_enable(false);
-    motor_erase_ram_data();
+    motor_disable_all();
+    motor_clear_ram_data();
     hardware_erase_eeprom();
 }
 
 void hardware_halt()
 {
-    motor_set_pid_enable(false);
-    hardware_set_led(false);
+    motor_disable_all();
+    hardware_set_led_enabled(false);
     log_writeln(F("\nHardware halted. Press reset button to reboot."));
     log_flush();
     set_sleep_mode(SLEEP_MODE_PWR_DOWN);
@@ -51,28 +51,28 @@ void hardware_halt()
 static void (*hardware_really_reboot)(void) = 0;  // Call hardware_really_reboot() to reset the board.
 void hardware_reboot()
 {
-    motor_set_pid_enable(false);
+    motor_disable_all();
     delay(1000);  // Wait 1s for log output to complete writing.
     hardware_really_reboot();
 }
 
-bool hardware_get_led()
+bool hardware_get_led_enabled()
 {
     return digitalRead(OPRLED) != 0;
 }
 
-void hardware_set_led(bool enable)
+void hardware_set_led_enabled(bool enabled)
 {
-    digitalWrite(OPRLED, enable);
+    digitalWrite(OPRLED, enabled);
 }
 
-bool hardware_get_speaker()
+bool hardware_get_speaker_enabled()
 {
     return digitalRead(expansion_io_pinout[0]) != 0;
 }
 
-void hardware_set_speaker(bool enable)
+void hardware_set_speaker_enabled(bool enabled)
 {
     // expansion_io_pinout 1 can be wired to a speaker.
-    digitalWrite(expansion_io_pinout[0], enable);
+    digitalWrite(expansion_io_pinout[0], enabled);
 }

@@ -24,4 +24,7 @@ void sm_motors_on_exit(void);
 void sm_error_enter(void);
 void sm_error_execute(void);
 
+int sm_get_enabled_motors_mask(void);
+void sm_set_enabled_motors_mask(int mask);
+
 bool sm_test();

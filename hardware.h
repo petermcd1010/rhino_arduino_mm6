@@ -11,7 +11,7 @@ void hardware_erase_eeprom();
 void hardware_factory_reset();
 void hardware_halt();
 void hardware_reboot();
-bool hardware_get_led();
-void hardware_set_led(bool enable);
-bool hardware_get_speaker();
-void hardware_set_speaker(bool enable);  // expansion_io_pinout 1 can be wired to a speaker.
+bool hardware_get_led_enabled();
+void hardware_set_led_enabled(bool enabled);
+bool hardware_get_speaker_enabled();
+void hardware_set_speaker_enabled(bool enabled);  // expansion_io_pinout 1 can be wired to a speaker.

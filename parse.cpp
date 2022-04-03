@@ -8,23 +8,23 @@
 #include "motor.h"
 #include "parse.h"
 
-size_t parse_whitespace(char *pbuf, size_t buf_nbytes)
+size_t parse_whitespace(char *buf, size_t buf_nbytes)
 {
-    assert(pbuf);
+    assert(buf);
 
-    char *p = pbuf;
+    char *p = buf;
 
     while (isspace(*p)) {
         p++;
     }
 
-    return p - pbuf;
+    return p - buf;
 }
 
-size_t parse_bool(char *pbuf, size_t buf_nbytes, bool *pout_bool)
+size_t parse_bool(char *buf, size_t buf_nbytes, bool *out_bool)
 {
-    assert(pbuf);
-    assert(pout_bool);
+    assert(buf);
+    assert(out_bool);
 
     const char *bool_strings[] = {
         "on",
@@ -38,48 +38,48 @@ size_t parse_bool(char *pbuf, size_t buf_nbytes, bool *pout_bool)
 #define BOOL_STRINGS_COUNT sizeof(bool_strings) / sizeof(bool_strings[0])
 
     int entry_num = -1;
-    size_t nbytes = parse_string_in_table(pbuf, buf_nbytes, bool_strings, BOOL_STRINGS_COUNT, &entry_num);
+    size_t nbytes = parse_string_in_table(buf, buf_nbytes, bool_strings, BOOL_STRINGS_COUNT, &entry_num);
     if (nbytes > 0) {
         if ((entry_num & 1) == 0)
-            *pout_bool = true;
+            *out_bool = true;
         else
-            *pout_bool = false;
+            *out_bool = false;
     }
 
     return nbytes;
 }
 
-size_t parse_char(char *pbuf, size_t buf_nbytes, char *pout_char)
+size_t parse_char(char *buf, size_t buf_nbytes, char *out_char)
 {
-    assert(pbuf);
-    assert(pout_char);
+    assert(buf);
+    assert(out_char);
 
     if (buf_nbytes == 0)
         return 0;
 
-    if ((*pbuf <= ' ') || (*pbuf >= 127))
+    if ((*buf < ' ') || (*buf >= 127))
         return 0;
 
-    *pout_char = *pbuf;
+    *out_char = *buf;
     return 1;
 }
 
-size_t parse_int(char *pbuf, size_t buf_nbytes, int *pout_int)
+size_t parse_int(char *buf, size_t buf_nbytes, int *out_int)
 {
-    assert(pbuf);
-    assert(pout_int);
+    assert(buf);
+    assert(out_int);
     int sign = 1;
     bool is_valid = false;
-    char *p = pbuf;
+    char *p = buf;
     int i = 0;
 
-    while (*p && (p - pbuf < buf_nbytes)) {
+    while (*p && (p - buf < buf_nbytes)) {
         if (isspace(*p))
             break;
 
-        if ((*p == '-') && ((p - pbuf) == 0)) {
+        if ((*p == '-') && ((p - buf) == 0)) {
             sign = -1.0f;
-        } else if ((*p == '+') && ((p - pbuf) == 0)) {
+        } else if ((*p == '+') && ((p - buf) == 0)) {
             sign = 1.0f;
         } else if (isdigit(*p)) {
             is_valid = true;
@@ -96,30 +96,30 @@ size_t parse_int(char *pbuf, size_t buf_nbytes, int *pout_int)
     if (!is_valid)
         return 0;
 
-    *pout_int = i * sign;
-    return p - pbuf;
+    *out_int = i * sign;
+    return p - buf;
 }
 
-size_t parse_float(char *pbuf, size_t buf_nbytes, float *pout_float)
+size_t parse_float(char *buf, size_t buf_nbytes, float *out_float)
 {
-    assert(pbuf);
-    assert(pout_float);
-    *pout_float = 0.0f;
+    assert(buf);
+    assert(out_float);
+    *out_float = 0.0f;
 
     bool is_reading_significand = true;
     bool is_valid = false;
     float sign = 1.0f;
     float f = 0;
     float fraction_div = 10.0f;
-    char *p = pbuf;
+    char *p = buf;
 
-    while (*p && (p - pbuf < buf_nbytes)) {
+    while (*p && (p - buf < buf_nbytes)) {
         if (isspace(*p)) {
             break;
         } else if (is_reading_significand) {
-            if ((*p == '-') && ((p - pbuf) == 0)) {
+            if ((*p == '-') && ((p - buf) == 0)) {
                 sign = -1.0f;
-            } else if ((*p == '+') && ((p - pbuf) == 0)) {
+            } else if ((*p == '+') && ((p - buf) == 0)) {
                 sign = 1.0f;
             } else if (*p == '.') {
                 is_reading_significand = false;
@@ -145,12 +145,12 @@ size_t parse_float(char *pbuf, size_t buf_nbytes, float *pout_float)
     if (!is_valid)
         return 0;
 
-    *pout_float = sign * f;
-    return p - pbuf;
+    *out_float = sign * f;
+    return p - buf;
 }
 
 typedef struct {
-    char *pstring;
+    char *string;
     int   expected_nbytes;
     float expected_value;
 } parse_float_test_case;
@@ -174,16 +174,16 @@ static bool test_parse_float()
     bool ret = true;
 
     for (int i = 0; i < PARSE_FLOAT_TEST_CASE_BY_INDEX_COUNT; i++) {
-        parse_float_test_case *ptest_case = &parse_float_test_case_by_index[i];
+        parse_float_test_case *test_case = &parse_float_test_case_by_index[i];
         float f = -1.0f;
-        size_t nbytes = parse_float(ptest_case->pstring, strlen(ptest_case->pstring), &f);
-        if (ptest_case->expected_nbytes != nbytes) {
-            LOG_ERROR(F("Expected nbytes=%d, but got %d"), ptest_case->expected_nbytes, nbytes);
+        size_t nbytes = parse_float(test_case->string, strlen(test_case->string), &f);
+        if (test_case->expected_nbytes != nbytes) {
+            LOG_ERROR(F("Expected nbytes=%d, but got %d"), test_case->expected_nbytes, nbytes);
             ret = false;
         }
 
-        if ((nbytes != 0) && (ptest_case->expected_value != f)) {
-            LOG_ERROR(F("Expected value=%f, but got %f"), ptest_case->expected_value, f);
+        if ((nbytes != 0) && (test_case->expected_value != f)) {
+            LOG_ERROR(F("Expected value=%f, but got %f"), test_case->expected_value, f);
             ret = false;
         }
     }
@@ -191,38 +191,38 @@ static bool test_parse_float()
     return ret;
 }
 
-size_t parse_string(char *pbuf, size_t buf_nbytes, char *pout_string, size_t out_string_nbytes)
+size_t parse_string(char *buf, size_t buf_nbytes, char *out_string, size_t out_string_nbytes)
 {
-    assert(pbuf);
-    assert(pout_string);
+    assert(buf);
+    assert(out_string);
     bool is_valid = false;
-    char *p = pbuf;
+    char *p = buf;
 
-    size_t nbytes = strlen(pbuf);
+    size_t nbytes = strlen(buf);
 
     if (nbytes >= out_string_nbytes) {
         log_writeln(F("ERROR: string too long."));
         return 0;
     }
 
-    memcpy(pout_string, pbuf, nbytes + 1);
+    memcpy(out_string, buf, nbytes + 1);
 
     return nbytes;
 }
 
-size_t parse_string_in_table(char *pbuf, size_t buf_nbytes, char *ptable[], int ntable_entries, int *pout_entry_num)
+size_t parse_string_in_table(char *buf, size_t buf_nbytes, char *table[], int ntable_entries, int *out_entry_num)
 {
-    assert(pbuf);
-    assert(ptable);
-    assert(pout_entry_num);
+    assert(buf);
+    assert(table);
+    assert(out_entry_num);
 
-    char *pend = pbuf + buf_nbytes;
+    char *end = buf + buf_nbytes;
 
     for (int i = 0; i < ntable_entries; i++) {
-        size_t nbytes = strlen(ptable[i]);
-        if (nbytes == (pend - pbuf) &&
-            (strncasecmp(ptable[i], pbuf, pend - pbuf) == 0)) {
-            *pout_entry_num = i;
+        size_t nbytes = strlen(table[i]);
+        if (nbytes == (end - buf) &&
+            (strncasecmp(table[i], buf, end - buf) == 0)) {
+            *out_entry_num = i;
             return nbytes;
         }
     }
@@ -230,21 +230,54 @@ size_t parse_string_in_table(char *pbuf, size_t buf_nbytes, char *ptable[], int 
     return 0;
 }
 
-size_t parse_motor_id(char *pbuf, size_t buf_nbytes, motor_id_t *pout_motor_id)
+size_t parse_motor_ids(char *buf, size_t buf_nbytes, int *out_mask)
 {
-    assert(pbuf);
-    assert(pout_motor_id);
+    assert(buf);
+    assert(out_mask);
+
+    char *p = buf;
+    char c = 0;
+
+    do {
+        size_t n = parse_char(p, buf_nbytes - (p - buf), &c);
+        if (n == 0)
+            break;
+
+        p += n;
+
+        if (isspace(c))
+            continue;
+
+        c = toupper(c);
+        if ((c < 'A') || (c > 'F'))
+            goto error;
+
+        *out_mask |= 1 << (c - 'A');
+    } while (1);
+
+    return p - buf;
+
+error:
+    *out_mask = -1;
+    log_writeln(F("ERROR: Invalid motor ID %c. Expected A-%c."), c, 'A' + MOTOR_ID_LAST);
+    return 0;
+}
+
+size_t parse_motor_id(char *buf, size_t buf_nbytes, motor_id_t *out_motor_id)
+{
+    assert(buf);
+    assert(out_motor_id);
 
     char id;
 
-    if (parse_char(pbuf, buf_nbytes, &id) == 0)
+    if (parse_char(buf, buf_nbytes, &id) == 0)
         goto error;
 
     id = toupper(id);
     if ((id < 'A') || (id > 'F'))
         goto error;
 
-    *pout_motor_id = id - 'A';
+    *out_motor_id = (motor_id_t)(id - 'A');
     return 1;
 
 error:
@@ -252,32 +285,32 @@ error:
     return 0;
 }
 
-size_t parse_motor_angle_or_encoder(char *pargs, size_t args_nbytes, float *pvalue)
+size_t parse_motor_angle_or_encoder(char *buf, size_t buf_nbytes, float *out_value)
 {
-    assert(pargs);
-    assert(pvalue);
-    char *p = pargs;
+    assert(buf);
+    assert(out_value);
+    char *p = buf;
 
     float new_value = 0.0f;
-    size_t nbytes = parse_float(p, args_nbytes, &new_value);
+    size_t nbytes = parse_float(p, buf_nbytes, &new_value);
 
     if (nbytes > 0) {
-        *pvalue = new_value;
-        args_nbytes -= nbytes;
+        *out_value = new_value;
+        buf_nbytes -= nbytes;
         p += nbytes;
     } else if (nbytes == 0) {
-        new_value = *pvalue;
+        new_value = *out_value;
         // Not a float, check for +/++/-/--.
         char first_plus_or_minus = '\0';
-        nbytes = parse_char(p, args_nbytes, &first_plus_or_minus);
-        args_nbytes -= nbytes;
+        nbytes = parse_char(p, buf_nbytes, &first_plus_or_minus);
+        buf_nbytes -= nbytes;
         p += nbytes;
         if ((nbytes == 0) || ((first_plus_or_minus != '+') && (first_plus_or_minus != '-')))
             goto error;                // Something other than a + or -
 
         char second_plus_or_minus = '\0';
-        nbytes = parse_char(p, args_nbytes, &second_plus_or_minus);
-        args_nbytes -= nbytes;
+        nbytes = parse_char(p, buf_nbytes, &second_plus_or_minus);
+        buf_nbytes -= nbytes;
         p += nbytes;
 
         if (nbytes == 0) {
@@ -299,9 +332,9 @@ size_t parse_motor_angle_or_encoder(char *pargs, size_t args_nbytes, float *pval
         }
     }
 
-    *pvalue = new_value;
+    *out_value = new_value;
 
-    return p - pargs;
+    return p - buf;
 
 error:
     log_writeln(F("ERROR: Invalid floating point number. Expected [+/-]digits.digits."));

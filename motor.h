@@ -50,7 +50,7 @@ typedef enum {
 } motor_polarity_t;
 
 typedef struct {
-    bool               pid_enabled;
+    bool               enabled;
     int                speed;
     int                target_speed;
     int                pwm;
@@ -74,7 +74,8 @@ typedef struct {
 
 extern motor_state_t motor_state[MOTOR_ID_COUNT];
 
-void motor_erase_ram_data();  // Clears data cached in RAM between boots.
+void motor_clear_ram_data();  // Clears data cached in RAM between boots.
+
 void motor_init_all();
 bool motor_get_thermal_overload_detected(motor_id_t motor_id);
 bool motor_get_thermal_overload_detected();
@@ -83,9 +84,14 @@ bool motor_get_overcurrent_detected(motor_id_t motor_id);
 bool motor_get_overcurrent_detected();
 void motor_clear_overcurrent(motor_id_t motor_id);
 int motor_get_current_draw(motor_id_t motor_id);
-bool motor_set_pid_enable(motor_id_t motor_id, bool enable);  // Returns true on success, false otherwise.
-void motor_set_pid_enable(bool enable);
-bool motor_get_pid_enable(motor_id_t motor_id);
+
+void motor_disable_all(void);
+void motor_set_enabled(motor_id_t motor_id, bool enable);
+bool motor_get_enabled(motor_id_t motor_id);
+
+int motor_get_enabled_mask();
+void motor_set_enabled_mask(int mask);
+
 void motor_set_target_encoder(motor_id_t motor_id, int encoder);
 int motor_get_encoder(motor_id_t motor_id);
 void motor_print_encoders();
@@ -96,7 +102,7 @@ float motor_get_angle(motor_id_t motor_id);
 void motor_set_position_to_home(motor_id_t motor_id);
 void motor_set_speed(motor_id_t motor_id, int speed);  // For speed in [motor_min_speed, motor_max_speed]. Sets speed to 0 if motor not enabled/configured.
 bool motor_get_switch_triggered(motor_id_t motor_id);
-void motor_test_all();
+void motor_test_enabled();
 bool motor_calibrate(motor_id_t motor_id);
 bool motor_calibrate_all();
 void motor_dump(motor_id_t motor_id);

@@ -191,7 +191,7 @@ int command_reboot(char *pargs, size_t args_nbytes)
     if (nbytes != args_nbytes)
         return -1;
 
-    motor_set_pid_enable(false);
+    motor_disable_all();
     log_writeln(F("Rebooting."));
     hardware_reboot();  // TODO: Test that this works with and without whitespace after REBOOT.
 
@@ -241,21 +241,34 @@ int command_pid_mode(char *pargs, size_t args_nbytes)
     return -1;
 }
 
-int command_enable_motors(char *pargs, size_t args_nbytes)
+int command_set_enabled_motors(char *args, size_t args_nbytes)
 {
-    assert(pargs);
-    size_t nbytes = parse_whitespace(pargs, args_nbytes);
+    assert(args);
 
-    if (args_nbytes != nbytes)
-        return -1;
+    int motor_ids_mask = 0;
+    char *p = args;
+    size_t nbytes = parse_motor_ids(p, args_nbytes, &motor_ids_mask);  // parse_motor_ids will emit message if error.
 
-    if (sm_get_state() == sm_motors_off_execute)
-        sm_set_next_state(sm_motors_on_enter);
-    else if (sm_get_state() == sm_motors_on_execute)
-        sm_set_next_state(sm_motors_off_enter);
-    else
+    if ((motor_ids_mask == -1) || (args_nbytes != nbytes))
+        return nbytes;                 // parse_motors_ids prints an error.
+
+    args_nbytes -= nbytes;
+    p += nbytes;
+
+    if ((sm_get_state() != sm_motors_off_execute) &&
+        (sm_get_state() != sm_motors_on_execute)) {
         log_writeln(F("ERROR: Motors can not be turned on or off in the current state."));
+        goto error;
+    }
 
+    sm_set_enabled_motors_mask(motor_ids_mask);
+
+    if (motor_ids_mask == 0)
+        sm_set_next_state(sm_motors_off_enter);
+    else if (motor_ids_mask <= 0x3f)
+        sm_set_next_state(sm_motors_on_enter);
+
+error:
     return nbytes;
 }
 
@@ -282,13 +295,31 @@ int command_set_home_position(char *pargs, size_t args_nbytes)
     return nbytes;
 }
 
-int command_print_motor_status(char *pargs, size_t args_nbytes)
+int command_print_motor_status(char *args, size_t args_nbytes)
 {
+    int old_motor_ids_mask = 0;
+    int motor_ids_mask = 0;
+    char *p = args;
+    size_t nbytes = parse_motor_ids(p, args_nbytes, &motor_ids_mask);
+
+    if ((motor_ids_mask == -1) || (args_nbytes != nbytes))
+        return nbytes;                 // parse_motors_ids prints an error.
+
+    args_nbytes -= nbytes;
+    p += nbytes;
+
+    if (motor_ids_mask == 0)
+        motor_ids_mask = 0x3f;
+
     for (int i = MOTOR_ID_FIRST; i <= MOTOR_ID_LAST; i++) {
+        if ((motor_ids_mask & (1 << i)) == 0)
+            continue;
+
         char angle_str[15] = {};
-        dtostrf(motor_get_angle(i), 3, 2, angle_str);
-        log_writeln(F("%c: home:%d sta:%d enc:%d tar:%d err:%d spd:%d PWM:%d cur:%d hs:%d,%d,%d,%d->%d angle:%s"),
+        dtostrf(motor_get_angle((motor_id_t)i), 3, 2, angle_str);
+        log_writeln(F("%c%s: home:%d sta:%d enc:%d tar:%d err:%d spd:%d PWM:%d cur:%d hs:%d,%d,%d,%d->%d angle:%s"),
                     'A' + i,
+                    ((motor_get_enabled_mask() & (1 << i)) == 0) ? " [not enabled]" : "",
                     motor_state[i].switch_previously_triggered,  // home.
                     motor_state[i].progress,  // sta. Report whether or not the Motor has reached the target location.
                     /* motor_get_encoder(iMotor), */  // pos.
@@ -307,7 +338,7 @@ int command_print_motor_status(char *pargs, size_t args_nbytes)
                     angle_str);
     }
 
-    return 0;
+    return nbytes;
 }
 
 int command_set_motor_angle(char *pargs, size_t args_nbytes)
@@ -346,7 +377,7 @@ int command_set_motor_angle(char *pargs, size_t args_nbytes)
 
     dtostrf(angle, 3, 2, angle_str);
 
-    if (motor_get_pid_enable(motor_id)) {
+    if (motor_get_enabled(motor_id)) {
         log_writeln(F("Move Motor %c to an angle of %s degrees."), 'A' + motor_id, angle_str);
         motor_set_target_angle(motor_id, angle);
     } else {
@@ -396,7 +427,7 @@ int command_set_motor_encoder(char *pargs, size_t args_nbytes)
 
     dtostrf(encoder, 3, 2, encoder_str);
 
-    if (motor_get_pid_enable(motor_id)) {
+    if (motor_get_enabled(motor_id)) {
         log_writeln(F("Move Motor %c to encoder %s."), 'A' + motor_id, encoder_str);
         motor_set_target_encoder(motor_id, encoder);
     } else {
@@ -419,17 +450,45 @@ int command_run_test_sequence(char *pargs, size_t args_nbytes)
     return -1;
 }
 
-int command_test_motors(char *pargs, size_t args_nbytes)
+int command_test_motors(char *args, size_t args_nbytes)
 {
-    assert(pargs);
-    size_t nbytes = parse_whitespace(pargs, args_nbytes);
+    assert(args);
+    int old_motor_ids_mask = 0;
+    int motor_ids_mask = 0;
+    char *p = args;
+    size_t nbytes = parse_motor_ids(p, args_nbytes, &motor_ids_mask);
 
-    if (args_nbytes != nbytes)
-        return -1;
+    if ((motor_ids_mask == -1) || (args_nbytes != nbytes))
+        return nbytes;                 // parse_motors_ids prints an error.
 
-    motor_test_all();
+    args_nbytes -= nbytes;
+    p += nbytes;
+
+    if ((sm_get_state() != sm_motors_off_execute) &&
+        (sm_get_state() != sm_motors_on_execute)) {
+        log_writeln(F("ERROR: Motors can not be turned on or off in the current state."));
+        goto error;
+    }
+
+    old_motor_ids_mask = motor_get_enabled_mask();
+
+    if (motor_ids_mask == 0) {
+        // No args specified, so test all enabled motors.
+        if (old_motor_ids_mask == 0) {
+            log_writeln(F("No motors enabled. Skipping test."));
+            return nbytes;
+        }
+        motor_test_enabled();
+    } else {
+        motor_set_enabled_mask(motor_ids_mask);
+        motor_test_enabled();
+        motor_set_enabled_mask(old_motor_ids_mask);
+    }
 
     return nbytes;
+
+error:
+    return -1;
 }
 
 int command_print_software_version(char *pargs, size_t args_nbytes)
@@ -509,7 +568,7 @@ int command_emergency_stop(char *pargs, size_t args_nbytes)
     if (args_nbytes != nbytes)
         return -1;
 
-    motor_set_pid_enable(false);
+    motor_disable_all();
     hardware_halt();
 
     return 0;

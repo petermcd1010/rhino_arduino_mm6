@@ -114,7 +114,7 @@ typedef struct {
 
 static noinit_data_t noinit_data __attribute__ ((section(".noinit")));  // NOT reset to 0 when the CPU is reset.
 
-void motor_erase_ram_data()
+void motor_clear_ram_data()
 {
     // External to motor.cpp, call it ram_data instead of noinit_data.
     memset(&noinit_data, 0, sizeof(noinit_data_t));
@@ -178,7 +178,7 @@ static void motor_init(motor_id_t motor_id)
     pinMode(motor_pinout[motor_id].in_quadrature_encoder_a, INPUT_PULLUP);
     pinMode(motor_pinout[motor_id].in_quadrature_encoder_b, INPUT_PULLUP);
 
-    motor_set_pid_enable(motor_id, false);
+    motor_set_enabled(motor_id, false);
 }
 
 void motor_init_all()
@@ -234,8 +234,8 @@ void motor_init_all()
     }
 
     check_noinit_data();
-    for (int motor_id = MOTOR_ID_FIRST; motor_id <= MOTOR_ID_LAST; motor_id++) {
-        motor_init(motor_id);
+    for (int i = MOTOR_ID_FIRST; i <= MOTOR_ID_LAST; i++) {
+        motor_init((motor_id_t)i);
     }
 }
 
@@ -262,8 +262,8 @@ bool motor_get_thermal_overload_detected(motor_id_t motor_id)
 
 bool motor_get_thermal_overload_detected()
 {
-    for (int motor_id = MOTOR_ID_FIRST; motor_id <= MOTOR_ID_LAST; motor_id++) {
-        if (motor_get_thermal_overload_detected(motor_id))
+    for (int i = MOTOR_ID_FIRST; i <= MOTOR_ID_LAST; i++) {
+        if (motor_get_thermal_overload_detected((motor_id_t)i))
             return true;
     }
 
@@ -296,8 +296,8 @@ bool motor_get_overcurrent_detected(motor_id_t motor_id)
 
 bool motor_get_overcurrent_detected()
 {
-    for (int motor_id = MOTOR_ID_FIRST; motor_id <= MOTOR_ID_LAST; motor_id++) {
-        if (motor_get_overcurrent_detected(motor_id))
+    for (int i = MOTOR_ID_FIRST; i <= MOTOR_ID_LAST; i++) {
+        if (motor_get_overcurrent_detected((motor_id_t)i))
             return true;
     }
 
@@ -320,29 +320,64 @@ int motor_get_current_draw(motor_id_t motor_id)
     return analogRead(motor_pinout[motor_id].in_current_draw);  // 0 - 1023.
 }
 
-static void set_brake(motor_id_t motor_id, bool enable)
+static void set_brake(motor_id_t motor_id, bool enabled)
 {
     assert((motor_id >= MOTOR_ID_FIRST) && (motor_id <= MOTOR_ID_LAST));
 
-    digitalWrite(motor_pinout[motor_id].out_brake, enable ? HIGH : LOW);
+    digitalWrite(motor_pinout[motor_id].out_brake, enabled ? HIGH : LOW);
 }
 
-bool motor_set_pid_enable(motor_id_t motor_id, bool enable)
+void motor_disable_all()
+{
+    for (int i = MOTOR_ID_A; i <= MOTOR_ID_LAST; i++) {
+        motor_set_enabled((motor_id_t)i, false);
+    }
+    log_writeln(F("All motors disabled."));
+}
+
+void motor_set_enabled(motor_id_t motor_id, bool enabled)
 {
     assert((motor_id >= MOTOR_ID_FIRST) && (motor_id <= MOTOR_ID_LAST));
 
-    // Will turn off a motor if it's not configured, regardless of enable's value.
-
-    if (enable && config.motor[motor_id].configured) {
+    if (enabled) {
+        motor_state[motor_id].target_encoder = noinit_data.encoder[motor_id];
         set_brake(motor_id, false);
-        motor_state[motor_id].pid_enabled = true;
-        return true;
+        motor_state[motor_id].enabled = true;
+        config.motor[motor_id].configured = true;
     } else {
         set_brake(motor_id, true);
         digitalWrite(motor_pinout[motor_id].out_pwm, LOW);  // Set PWM speed to zero.  TODO: Redundant with set_speed below?
         motor_set_speed(motor_id, 0);
-        motor_state[motor_id].pid_enabled = false;
-        return !enable;  // Return false if motor wasn't configured but enble == true. Return true otherwise.
+        motor_state[motor_id].enabled = false;
+    }
+}
+
+bool motor_get_enabled(motor_id_t motor_id)
+{
+    assert((motor_id >= MOTOR_ID_FIRST) && (motor_id <= MOTOR_ID_LAST));
+
+    return motor_state[motor_id].enabled;
+}
+
+int motor_get_enabled_mask()
+{
+    int mask = 0;
+
+    for (int i = MOTOR_ID_A; i <= MOTOR_ID_LAST; i++) {
+        if (motor_get_enabled((motor_id_t)i))
+            mask |= 1 << i;
+    }
+
+    return mask;
+}
+
+void motor_set_enabled_mask(int mask)
+{
+    for (int i = MOTOR_ID_A; i <= MOTOR_ID_LAST; i++) {
+        if (mask & 1 << i)
+            motor_set_enabled((motor_id_t)i, true);
+        else
+            motor_set_enabled((motor_id_t)i, false);
     }
 }
 
@@ -351,38 +386,11 @@ static int get_num_enabled()
     int num_enabled = 0;
 
     for (int i = MOTOR_ID_FIRST; i <= MOTOR_ID_LAST; i++) {
-        if (motor_get_pid_enable(i))
+        if (motor_get_enabled((motor_id_t)i))
             num_enabled++;
     }
 
     return num_enabled;
-}
-
-void motor_set_pid_enable(bool enable)
-{
-    int num_enabled_at_enter = get_num_enabled();
-
-    static bool motor_enabled = false;
-    int success_count = 0;
-
-    for (int i = MOTOR_ID_FIRST; i <= MOTOR_ID_LAST; i++) {
-        if (motor_set_pid_enable(i, enable))
-            success_count++;
-    }
-
-    // motor_sync_move_enabled = enable;
-    motor_enabled = enable;
-
-    // TODO: This is kludgey. Reconsider enable semantics.
-    if (num_enabled_at_enter != get_num_enabled())
-        log_writeln(F("Motor electronics for %d motors %s."), success_count, enable ? "enabled" : "disabled");
-}
-
-bool motor_get_pid_enable(motor_id_t motor_id)
-{
-    assert((motor_id >= MOTOR_ID_FIRST) && (motor_id <= MOTOR_ID_LAST));
-
-    return motor_state[motor_id].pid_enabled;
 }
 
 bool motor_configured(motor_id_t motor_id)
@@ -395,9 +403,13 @@ bool motor_configured(motor_id_t motor_id)
 void motor_set_target_encoder(motor_id_t motor_id, int encoder)
 {
     assert((motor_id >= MOTOR_ID_FIRST) && (motor_id <= MOTOR_ID_LAST));
+    log_writeln(F("motor_set_target_encoder %d %d"), motor_id, encoder);
+
     // TODO: assert valid encoder?
-    if (!motor_get_pid_enable(motor_id))
+    if (!motor_get_enabled(motor_id)) {
+        log_writeln(F("motor_set_target_encoder -- pid not enabled"));
         return;
+    }
 
     motor_state[motor_id].target_encoder = encoder * motor_state[motor_id].logic;
     motor_state[motor_id].progress = MOTOR_PROGRESS_ON_WAY_TO_TARGET;
@@ -406,7 +418,7 @@ void motor_set_target_encoder(motor_id_t motor_id, int encoder)
 int motor_get_encoder(motor_id_t motor_id)
 {
     assert((motor_id >= MOTOR_ID_FIRST) && (motor_id <= MOTOR_ID_LAST));
-    if (!motor_get_pid_enable(motor_id))
+    if (!motor_get_enabled(motor_id))
         return 0;
 
     return noinit_data.encoder[motor_id] * motor_state[motor_id].logic;
@@ -416,7 +428,7 @@ void motor_print_encoders()
 {
     log_writeln(F("Current Positions: "));
     for (int i = MOTOR_ID_FIRST; i <= MOTOR_ID_LAST; i++) {
-        log_write(F("%c=%d%c"), 'A' + i, motor_get_encoder(i), (i < MOTOR_ID_LAST) ? ',' : ' ');
+        log_write(F("%c=%d%c"), 'A' + i, motor_get_encoder((motor_id_t)i), (i < MOTOR_ID_LAST) ? ',' : ' ');
     }
     log_writeln();
 }
@@ -495,7 +507,7 @@ void motor_set_speed(motor_id_t motor_id, int speed)
     assert((motor_id >= MOTOR_ID_FIRST) && (motor_id <= MOTOR_ID_LAST));
     assert((speed >= motor_min_speed) && (speed <= motor_max_speed));
 
-    if (!config.motor[motor_id].configured || !motor_state[motor_id].pid_enabled) {
+    if (!motor_state[motor_id].enabled) {
         motor_state[motor_id].pwm = 0;
         analogWrite(motor_pinout[motor_id].out_pwm, 0);
         return;
@@ -516,7 +528,7 @@ void motor_set_speed(motor_id_t motor_id, int speed)
 bool motor_get_switch_triggered(motor_id_t motor_id)
 {
     assert((motor_id >= MOTOR_ID_FIRST) && (motor_id <= MOTOR_ID_LAST));
-    if (!motor_get_pid_enable(motor_id))
+    if (!motor_get_enabled(motor_id))
         return false;
     return motor_state[motor_id].switch_triggered;
 }
@@ -542,7 +554,6 @@ static void motor_test(motor_id_t motor_id)
     bool was_configured = config.motor[motor_id].configured;
 
     config.motor[motor_id].configured = true;
-    motor_state[motor_id].pid_enabled = true;
 
     set_brake(motor_id, false);
     motor_set_speed(motor_id, 0);
@@ -613,7 +624,6 @@ static void motor_test(motor_id_t motor_id)
 
     config.motor[motor_id].configured = was_configured;
     config_set_motor_configured(motor_id, pfailure_message == NULL);
-    motor_set_pid_enable(motor_id, config.motor[motor_id].configured);
     if (pfailure_message) {
         log_write(F(" ... FAILED ("));
         log_write(pfailure_message);
@@ -625,16 +635,15 @@ static void motor_test(motor_id_t motor_id)
     }
 }
 
-void motor_test_all()
+void motor_test_enabled()
 {
     log_writeln(F("Testing motors"));
 
-    for (int motor_id = MOTOR_ID_FIRST; motor_id <= MOTOR_ID_LAST; motor_id++) {
-        bool was_pid_enabled = motor_get_pid_enable(motor_id);
-        motor_set_pid_enable(motor_id, true);
+    for (int i = MOTOR_ID_FIRST; i <= MOTOR_ID_LAST; i++) {
+        if (motor_state[i].enabled == false)
+            continue;
         delay(25);
-        motor_test(motor_id);
-        motor_set_pid_enable(motor_id, was_pid_enabled);
+        motor_test((motor_id_t)i);
     }
 
     log_writeln(F("Done testing motors."));
@@ -1247,22 +1256,22 @@ void motor_log_errors(motor_id_t motor_id)
         log_writeln(F("Motor %c encoder underflow."), 'A' + motor_id);
 }
 
-static void isr_blink_led(bool pid_enabled)
+static void isr_blink_led(bool motor_enabled)
 {
     static int led_counter = 0;
 
     led_counter++;
 
-    if (pid_enabled) {
-        if (!hardware_get_led())
+    if (motor_enabled) {
+        if (!hardware_get_led_enabled())
             led_counter += 4;          // if the PID is on, then blink faster.
         led_counter++;  // Count the Interrupts
     }
 
     if (led_counter > 1000) {
-        bool led_state = !hardware_get_led();
-        hardware_set_led(led_state);
-        hardware_set_speaker(led_state);
+        bool led_state = !hardware_get_led_enabled();
+        hardware_set_led_enabled(led_state);
+        hardware_set_speaker_enabled(led_state);
         led_counter = 0;
     }
 }
@@ -1346,7 +1355,7 @@ ISR(TIMER1_COMPA_vect){
             motor_state[qe_motor_id].error_flags |= MOTOR_ERROR_FLAG_OVERCURRENT_DETECTED;
     }
 
-    isr_blink_led(motor_get_pid_enable(MOTOR_ID_A));
+    isr_blink_led(motor_get_enabled(MOTOR_ID_A));
 
     //==========================================================
     // Calculate Motor status values.
@@ -1472,7 +1481,7 @@ ISR(TIMER1_COMPA_vect){
         //==========================================================
         // PID (Currenty Just the P)
         //==========================================================
-        if (motor_state[motor_id].pid_enabled) {
+        if (motor_state[motor_id].enabled) {
             //============================================
             // Ramp Up/Down Current Speed to Target Speed.
             // Prevents the motors from jumping from dead
