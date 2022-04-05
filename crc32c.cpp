@@ -11,7 +11,7 @@
 // CRC-32C (iSCSI) polynomial in reversed bit order.
 #define POLY 0x82f63b78
 
-// CRC-32 (Ethernet, ZIP, etc.) polynomial in reversed bit order.
+// Or, if you prefer the CRC-32 polynomial in reversed bit order (Ethernet, ZIP, etc.)
 // #define POLY 0xedb88320
 
 uint32_t crc32c_calculate(void *pdata, size_t nbytes)
@@ -33,7 +33,7 @@ uint32_t crc32c_calculate(void *pdata, size_t nbytes)
 
 #define TEST_ASSERT(test, format, args ...) do { if (!(test)) { LOG_ERROR(format, ## args); ret = false; } } while (0)
 
-bool crc32c_test()
+bool crc32c_test(void)
 {
     bool ret = true;
     long value = 55;
@@ -58,7 +58,7 @@ bool crc32c_test()
     };
     const uint32_t zeroes_crc32c = 0x8a9136aa;
 
-    crc32c = crc32c_calculate(zeroes, 32);
+    crc32c = crc32c_calculate((void *)zeroes, 32);
     TEST_ASSERT(crc32c == zeroes_crc32c,
                 F("expected crc_calculate(zeroes, 32) == 0x%lx, got 0x%0lx"),
                 zeroes_crc32c, crc32c);
@@ -71,7 +71,7 @@ bool crc32c_test()
     };
     const uint32_t ones_crc32c = 0x62a8ab43;
 
-    crc32c = crc32c_calculate(ones, 32);
+    crc32c = crc32c_calculate((void *)ones, 32);
     TEST_ASSERT(crc32c == ones_crc32c,
                 F("expected crc_calculate(ones, 32) == 0x%lx, got 0x%0lx"),
                 ones_crc32c, crc32c);
@@ -84,7 +84,7 @@ bool crc32c_test()
     };
     const uint32_t increments_crc32c = 0x46dd794e;
 
-    crc32c = crc32c_calculate(increments, 32);
+    crc32c = crc32c_calculate((void *)increments, 32);
     TEST_ASSERT(crc32c == increments_crc32c,
                 F("expected crc_calculate(increments, 32) == 0x%lx, got 0x%0lx"),
                 increments_crc32c, crc32c);
@@ -97,7 +97,7 @@ bool crc32c_test()
     };
     const uint32_t decrements_crc32c = 0x113fdb5c;
 
-    crc32c = crc32c_calculate(decrements, 32);
+    crc32c = crc32c_calculate((void *)decrements, 32);
 
     TEST_ASSERT(crc32c == decrements_crc32c,
                 F("expected crc_calculate(decrements, 32) == 0x%lx, got 0x%0lx"),

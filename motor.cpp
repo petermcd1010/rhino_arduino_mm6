@@ -114,13 +114,13 @@ typedef struct {
 
 static noinit_data_t noinit_data __attribute__ ((section(".noinit")));  // NOT reset to 0 when the CPU is reset.
 
-void motor_clear_ram_data()
+void motor_clear_ram_data(void)
 {
     // External to motor.cpp, call it ram_data instead of noinit_data.
     memset(&noinit_data, 0, sizeof(noinit_data_t));
 }
 
-static void check_noinit_data()
+static void check_noinit_data(void)
 {
     // Zero out saved variables on power cycle. On reset, these values are NOT erased.
 
@@ -181,7 +181,7 @@ static void motor_init(motor_id_t motor_id)
     motor_set_enabled(motor_id, false);
 }
 
-void motor_init_all()
+void motor_init_all(void)
 {
     // Timer setup: Allows preceise timed measurements of the quadrature encoder.
     cli();  // Disable interrupts.
@@ -260,7 +260,7 @@ bool motor_get_thermal_overload_detected(motor_id_t motor_id)
         return true;
 }
 
-bool motor_get_thermal_overload_detected()
+bool motor_get_thermal_overload_detected(void)
 {
     for (int i = MOTOR_ID_FIRST; i <= MOTOR_ID_LAST; i++) {
         if (motor_get_thermal_overload_detected((motor_id_t)i))
@@ -294,7 +294,7 @@ bool motor_get_overcurrent_detected(motor_id_t motor_id)
         return false;
 }
 
-bool motor_get_overcurrent_detected()
+bool motor_get_overcurrent_detected(void)
 {
     for (int i = MOTOR_ID_FIRST; i <= MOTOR_ID_LAST; i++) {
         if (motor_get_overcurrent_detected((motor_id_t)i))
@@ -327,7 +327,7 @@ static void set_brake(motor_id_t motor_id, bool enabled)
     digitalWrite(motor_pinout[motor_id].out_brake, enabled ? HIGH : LOW);
 }
 
-void motor_disable_all()
+void motor_disable_all(void)
 {
     for (int i = MOTOR_ID_A; i <= MOTOR_ID_LAST; i++) {
         motor_set_enabled((motor_id_t)i, false);
@@ -359,7 +359,7 @@ bool motor_get_enabled(motor_id_t motor_id)
     return motor_state[motor_id].enabled;
 }
 
-int motor_get_enabled_mask()
+int motor_get_enabled_mask(void)
 {
     int mask = 0;
 
@@ -381,7 +381,7 @@ void motor_set_enabled_mask(int mask)
     }
 }
 
-static int get_num_enabled()
+static int get_num_enabled(void)
 {
     int num_enabled = 0;
 
@@ -424,7 +424,7 @@ int motor_get_encoder(motor_id_t motor_id)
     return noinit_data.encoder[motor_id] * motor_state[motor_id].logic;
 }
 
-void motor_print_encoders()
+void motor_print_encoders(void)
 {
     log_writeln(F("Current Positions: "));
     for (int i = MOTOR_ID_FIRST; i <= MOTOR_ID_LAST; i++) {
@@ -635,7 +635,7 @@ static void motor_test(motor_id_t motor_id)
     }
 }
 
-void motor_test_enabled()
+void motor_test_enabled(void)
 {
     log_writeln(F("Testing motors"));
 
@@ -649,7 +649,7 @@ void motor_test_enabled()
     log_writeln(F("Done testing motors."));
 }
 
-static bool motor_interrogate_limit_switch_a()
+static bool motor_interrogate_limit_switch_a(void)
 {
     if (!config.motor[MOTOR_ID_A].configured)
         return false;
@@ -1195,7 +1195,7 @@ bool motor_calibrate(motor_id_t motor_id)
     return true;
 }
 
-bool motor_calibrate_all()
+bool motor_calibrate_all(void)
 {
     bool ret = true;
 

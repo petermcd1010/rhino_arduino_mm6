@@ -16,5 +16,5 @@ typedef struct {
 } menu_item_t;
 
 const menu_item_t * menu_item_by_command_char(char ch);
-void menu_help();
-bool menu_test();
+void menu_help(void);
+bool menu_test(void);

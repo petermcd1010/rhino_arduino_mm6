@@ -53,10 +53,10 @@ typedef struct __attribute__((packed)) {
 
 extern config_t config;
 
-bool config_read();
-bool config_write();
-bool config_check();
-void config_clear();
+bool config_read(void);
+bool config_write(void);
+bool config_check(void);
+void config_clear(void);
 void config_set_robot_id(config_robot_id_t robot_id);
 void config_set_robot_serial(char robot_serial[CONFIG_ROBOT_SERIAL_NBYTES]);
 void config_set_robot_name(char robot_name[CONFIG_ROBOT_NAME_NBYTES]);
@@ -66,5 +66,5 @@ void config_set_motor_polarity(motor_id_t motor_id, motor_polarity_t motor_polar
 void config_set_gripper_open_encoder(int encoder);
 void config_set_gripper_close_encoder(int encoder);
 void config_set_angle_offsets(int B, int C, int D, int E, int F);
-void config_print();
-bool config_test();
+void config_print(void);
+bool config_test(void);

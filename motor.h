@@ -74,9 +74,9 @@ typedef struct {
 
 extern motor_state_t motor_state[MOTOR_ID_COUNT];
 
-void motor_clear_ram_data();  // Clears data cached in RAM between boots.
+void motor_clear_ram_data(void);  // Clears data cached in RAM between boots.
 
-void motor_init_all();
+void motor_init_all(void);
 bool motor_get_thermal_overload_detected(motor_id_t motor_id);
 bool motor_get_thermal_overload_detected();
 void motor_clear_thermal_overload(motor_id_t motor_id);
@@ -89,12 +89,12 @@ void motor_disable_all(void);
 void motor_set_enabled(motor_id_t motor_id, bool enable);
 bool motor_get_enabled(motor_id_t motor_id);
 
-int motor_get_enabled_mask();
+int motor_get_enabled_mask(void);
 void motor_set_enabled_mask(int mask);
 
 void motor_set_target_encoder(motor_id_t motor_id, int encoder);
 int motor_get_encoder(motor_id_t motor_id);
-void motor_print_encoders();
+void motor_print_encoders(void);
 float motor_get_encoder_steps_per_degree(motor_id_t motor_id);
 int motor_angle_to_encoder(motor_id_t motor_id, float angle);
 void motor_set_target_angle(motor_id_t motor_id, float angle);
@@ -102,8 +102,8 @@ float motor_get_angle(motor_id_t motor_id);
 void motor_set_position_to_home(motor_id_t motor_id);
 void motor_set_speed(motor_id_t motor_id, int speed);  // For speed in [motor_min_speed, motor_max_speed]. Sets speed to 0 if motor not enabled/configured.
 bool motor_get_switch_triggered(motor_id_t motor_id);
-void motor_test_enabled();
+void motor_test_enabled(void);
 bool motor_calibrate(motor_id_t motor_id);
-bool motor_calibrate_all();
+bool motor_calibrate_all(void);
 void motor_dump(motor_id_t motor_id);
 void motor_log_errors(motor_id_t motor_id);

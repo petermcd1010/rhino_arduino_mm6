@@ -10,7 +10,7 @@
 
 static const int menu_item_max_name_nbytes = 25;
 
-static void extended_menu_robot_id()
+static void extended_menu_robot_id(void)
 {
     log_writeln(F(""));
     log_writeln(F("Current robot ID: %s."), config_robot_name_by_id[config.robot_id]);
@@ -22,7 +22,7 @@ static void extended_menu_robot_id()
     log_write(F(">"));
 }
 
-static void extended_menu_robot_serial()
+static void extended_menu_robot_serial(void)
 {
     log_writeln(F(""));
     log_writeln(F("Current robot serial is '%s'."), config.robot_serial);
@@ -30,7 +30,7 @@ static void extended_menu_robot_serial()
     log_write(F(">"));
 }
 
-static void extended_menu_robot_name()
+static void extended_menu_robot_name(void)
 {
     log_writeln(F(""));
     log_writeln(F("Current robot name is '%s'."), config.robot_name);
@@ -38,14 +38,14 @@ static void extended_menu_robot_name()
     log_write(F(">"));
 }
 
-static void extended_menu_factory_reset()
+static void extended_menu_factory_reset(void)
 {
     log_writeln(F(""));
     log_writeln(F("Type 'RESET' in all capital letters to clear the EEPROM and reboot the system or <CTRL+C> to exit."));
     log_write(F(">"));
 }
 
-static void extended_menu_reboot()
+static void extended_menu_reboot(void)
 {
     log_writeln(F(""));
     log_writeln(F("Type 'REBOOT' in all capital letters to reboot the system or <CTRL+C> to exit."));
@@ -86,7 +86,7 @@ const menu_item_t * menu_item_by_command_char(char ch)
     return NULL;
 }
 
-void menu_help()
+void menu_help(void)
 {
     log_writeln(F("Command list:"));
 
@@ -110,7 +110,7 @@ void menu_help()
     }
 }
 
-bool menu_test()
+bool menu_test(void)
 {
     bool ret = true;
 
