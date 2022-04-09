@@ -48,7 +48,6 @@ void hardware_halt(void)
     sleep_mode();
 }
 
-
 void hardware_reboot(void)
 {
     static void (*hardware_really_reboot)(void) = 0;  // Call hardware_really_reboot() to reset the board.
@@ -77,4 +76,9 @@ void hardware_set_speaker_enabled(bool enabled)
 {
     // expansion_io_pinout 1 can be wired to a speaker.
     digitalWrite(expansion_io_pinout[0], enabled);
+}
+
+bool hardware_get_button_pressed()
+{
+    return false;
 }

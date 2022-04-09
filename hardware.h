@@ -15,3 +15,4 @@ bool hardware_get_led_enabled(void);
 void hardware_set_led_enabled(bool enabled);
 bool hardware_get_speaker_enabled(void);
 void hardware_set_speaker_enabled(bool enabled);  // expansion_io_pinout 1 can be wired to a speaker.
+bool hardware_get_button_pressed(void);
