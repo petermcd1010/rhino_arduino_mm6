@@ -13,12 +13,16 @@
 #include "motor.h"
 
 static const int OPRLED = 13;
-static const int expansion_io_pinout[] = { A15, A14, A13, A12, 53, 49, 48, 41 };
+static const int SPEAKER = A15;
+static const int BUTTON = A14;
+
+// static const int expansion_io_pinout[] = { A15, A14, A13, A12, 53, 49, 48, 41 };
 
 void hardware_init(void)
 {
     pinMode(OPRLED, OUTPUT);
-    pinMode(expansion_io_pinout[0], OUTPUT);  // Speaker tone.
+    pinMode(SPEAKER, OUTPUT);  // Speaker wired to mm6 expansion header '01'
+    pinMode(BUTTON, INPUT);  // External button wired to mm6 expansion header '02'
 }
 
 void hardware_erase_eeprom(void)
@@ -69,16 +73,30 @@ void hardware_set_led_enabled(bool enabled)
 
 bool hardware_get_speaker_enabled(void)
 {
-    return digitalRead(expansion_io_pinout[0]) != 0;
+    return digitalRead(SPEAKER) != 0;
 }
 
 void hardware_set_speaker_enabled(bool enabled)
 {
-    // expansion_io_pinout 1 can be wired to a speaker.
-    digitalWrite(expansion_io_pinout[0], enabled);
+    digitalWrite(SPEAKER, enabled);
 }
 
 bool hardware_get_button_pressed()
 {
-    return false;
+    static int ret_val = 0;
+    static int prev_val = -1;
+    static unsigned prev_transition_millis = -1;
+    unsigned const debounce_delay_millis = 50;
+
+    int val = digitalRead(BUTTON);
+
+    if (val != prev_val) {
+        prev_transition_millis = millis();
+        prev_val = val;
+    }
+
+    if ((millis() - prev_transition_millis) > debounce_delay_millis)
+        ret_val = prev_val;
+
+    return ret_val;
 }

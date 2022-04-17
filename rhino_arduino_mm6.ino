@@ -12,6 +12,7 @@
 #define __ASSERT_USE_STDERR
 
 #include "config.h"
+#include "hardware.h"
 #include "log.h"
 #include "motor.h"
 #include "sm.h"
@@ -64,6 +65,14 @@ void loop()
         previous_check_system_integrity_ok = false;
         // sm_state_current = SM_STATE_ERROR;
         log_writeln(F("ERROR: System integrity check failed."));
+    }
+
+    static bool button_prev = false;
+    bool button = hardware_get_button_pressed();
+
+    if (button_prev != button) {
+        log_writeln(F("Button %d"), button);
+        button_prev = button;
     }
 
     sm_execute();
