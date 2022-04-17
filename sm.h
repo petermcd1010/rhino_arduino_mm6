@@ -9,7 +9,7 @@
 typedef void (*sm_state_func)(void);
 
 void sm_init(void);
-sm_state_func sm_get_state();
+sm_state_func sm_get_state(void);
 void sm_set_next_state(sm_state_func);
 void sm_set_exit_current_state(sm_state_func);
 void sm_execute(void);
@@ -27,4 +27,4 @@ void sm_error_execute(void);
 int sm_get_enabled_motors_mask(void);
 void sm_set_enabled_motors_mask(int mask);
 
-bool sm_test();
+bool sm_test(void);

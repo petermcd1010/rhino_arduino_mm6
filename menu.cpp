@@ -59,7 +59,7 @@ static const menu_item_t menu_item_by_index[] = {  // TODO: F()
     { '4', "configure robot name",   extended_menu_robot_name,    true,  command_config_robot_name,      "[name] -- Print or set configured robot name."                                            },
     { '0', "write configuration",    NULL,                        true,  command_config_write,           "Write configuration data to EEPROM."                                                      },
     { 'B', "reboot",                 extended_menu_reboot,        true,  command_reboot,                 "REBOOT -- Reboot system. Requires typing 'REBOOT'."                                       },
-    { 'C', "run calibration",        NULL,                        true,  command_run_calibration,        "[motorid] -- Calibrate motor and switch limits; calibrates all motors if none given."     },
+    { 'C', "calibrate motors",       NULL,                        true,  command_calibrate_motors,       "[motorid] -- Calibrate motor and switch limits; calibrates all motors if none given."     },
     { 'D', "PID mode",               NULL,                        false, command_pid_mode,               "-- Enable/disable motors."                                                                },
     { 'E', "set enabled motors",     NULL,                        true,  command_set_enabled_motors,     "[motorids] -- Enable/disable motors, list (e.g 'abce') or blank to disable all."          },
     { 'G', "set gripper position",   NULL,                        true,  command_set_gripper_position,   "-- Set current encoders as gripper?"                                                      },

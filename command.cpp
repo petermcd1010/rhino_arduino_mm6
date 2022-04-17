@@ -4,6 +4,7 @@
  */
 
 #include <stdlib.h>
+#include "calibrate.h"
 #include "command.h"
 #include "config.h"
 #include "hardware.h"
@@ -198,36 +199,21 @@ int command_reboot(char *pargs, size_t args_nbytes)
     return 0;
 }
 
-int command_run_calibration(char *pargs, size_t args_nbytes)
+int command_calibrate_motors(char *args, size_t args_nbytes)
 {
-    assert(pargs);
-    motor_id_t motor_id = -1;
+    assert(args);
 
-    char *p = pargs;
-    size_t nbytes = parse_whitespace(p, args_nbytes);
+    int motor_ids_mask = motor_get_enabled_mask();
+    char *p = args;
+    size_t nbytes = parse_motor_ids(p, args_nbytes, &motor_ids_mask);  // parse_motor_ids will emit message if error.
 
-    args_nbytes -= nbytes;
-    p += nbytes;
+    if ((motor_ids_mask == -1) || (args_nbytes != nbytes))
+        return nbytes;                 // parse_motors_ids prints an error.
 
-    if (args_nbytes > 0) {
-        nbytes = parse_motor_id(p, args_nbytes, &motor_id);
-        if (nbytes == 0)
-            goto error;                // parse_motor_id will emit message if error.
-        args_nbytes -= nbytes;
-        p += nbytes;
+    log_writeln(F("Calibrating motors %d"), motor_ids_mask);
 
-        nbytes = parse_whitespace(p, args_nbytes);
-        args_nbytes -= nbytes;
-        p += nbytes;
-    }
-
-    if (nbytes != args_nbytes)
-        return -1;
-
-    if (motor_id != -1)
-        log_writeln(F("Calibrating motor %c ... %s"), 'A' + motor_id, motor_calibrate(motor_id) ? "passed" : "FAILED");
-    else
-        log_writeln(F("Calibrating all motors ... %s"), motor_calibrate_all() ? "passed" : "FAILED");
+    calibrate_init(motor_ids_mask);
+    sm_set_next_state(calibrate_begin);
 
 error:
     return nbytes;

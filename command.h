@@ -13,7 +13,7 @@ int command_config_robot_serial(char *pargs, size_t args_nbytes);
 int command_config_robot_name(char *pargs, size_t args_nbytes);
 int command_config_write(char *pargs, size_t args_nbytes);
 int command_reboot(char *pargs, size_t args_nbytes);
-int command_run_calibration(char *pargs, size_t args_nbytes);
+int command_calibrate_motors(char *pargs, size_t args_nbytes);
 int command_pid_mode(char *pargs, size_t args_nbytes);
 int command_set_enabled_motors(char *pargs, size_t args_nbytes);
 int command_set_gripper_position(char *pargs, size_t args_nbytes);
