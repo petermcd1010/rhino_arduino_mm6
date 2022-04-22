@@ -5,234 +5,196 @@
 
 #include <Arduino.h>
 #include <EEPROM.h>
+#include "config.h"
+#include "hardware.h"
+#include "log.h"
+#include "motor.h"
+#include "sm.h"
+#include "waypoint.h"
 
 // k/K -> Run WayPointSeq()
-// x -> SetWayPointAngle()
-// r -> GetWayPointAngle()
-// ! -> MoveToAWayPointAngle()
+// x -> set_waypoint_angle()
+// r -> get_waypoint_angle()
+// ! -> move_to_a_waypoint_angle()
 
-struct sWayPoint {
-    uint8_t Number;
-    char    Command;
-    float   A;
-    float   B;
-    float   C;
-    float   D;
-    float   E;
-    float   F;
-};
+typedef enum {
+    COMMAND_MOVE_AT              = 'A',
+    COMMAND_MOVE_BESIDE,
+    COMMAND_MOVE_CLOSE,
+    COMMAND_MOVE_APPROACHING,
+    COMMAND_GOTO_STEP            = 'G',
+    COMMAND_GOTO_STEP_IF_IO      = 'J',
+    COMMAND_INTERROGATE_SWITCHES = 'I',
+    COMMAND_WAIT_MILLIS          = 'W',
+} command_t;
 
-static sWayPoint WayPoint = {
-    0, 0,
-    0, 0,0,  0, 0, 0
-};
+typedef enum {
+    PROGRESS_AT = 0,  // Exactly at waypoint position.
+    PROGRESS_BESIDE,  // Within 1 click of waypoint position.
+    PROGRESS_CLOSE,  // Between 2 and 30 clicks of waypoint position.
+    PROGRESS_APPROACHING,  // Between 30 and 200 clicks of waypoint position.
+    PROGRESS_ON_WAY,  // More than 200 clicks away from waypoint position.
+} progress_t;
 
-#define MotorA 0
-#define MotorB 1
-#define MotorC 2
-#define MotorD 3
-#define MotorE 4
-#define MotorF 5
+static String in_buffer = "";
+static String string_splits[8];  //Used to store waypoints
+static int motion_status[MOTOR_ID_COUNT] = { 0 };  // Motion Status:
+static int tracking = 0;
+static int track_report_encoder_value[MOTOR_ID_COUNT] = { 0 };  // Last value logged while tracking.
+static int limit_prev[MOTOR_ID_COUNT] = { 0 };  // Limit/Home switch Previous Value
 
-#define AtTarget 0
-#define BesideTarget 1  // Within 1 click.
-#define CloseToTarget 2  // between 2 and 30 clicks.
-#define OnApproachToTarget 3  // between 30 and 200 clicks.
-#define OnWayToTarget 4  // More than 200 clicks away.
+static void move_to(config_waypoint_t waypoint);
+static void move_to_a_waypoint_angle();
+static void move_to_waypoint_angle(config_waypoint_t waypoint);
+static bool check_progress(progress_t progress);  // Returns true if status <= progress.
+static void track_report(void);
+static String get_string_part_at_specific_index(String StringToSplit, char SplitChar, int StringPartIndex);
 
-static String InBuffer = "";
-static String StringSplits[8];  //Used to store waypoints
-static int Expansion_IO[] = { A15, A14, A13, A12, 53, 49, 48, 41 };  // Expansion Lines
-static int Motion_Status[] = { 0, 0, 0, 0, 0, 0 };  // Motion Status:
-static int Tracking = 0;
-static int Tracked[] = { 0, 0, 0, 0, 0, 0 };  // Last Value send while tracking.
-static int Limit_Prev[] = { 0, 0, 0, 0, 0, 0 };  // Limit/Home switch Previous Value
-
-static void WayPointMove(int i);
-static void TrackUm();
-static void MoveToAWayPointAngle();
-static void MoveToWayPointAngle(int);
-static bool Check_A();
-static bool Check_B();
-static bool Check_C();
-static bool Check_D();
-static void TrackReport(int tMotor);
-static void ReportWayPoint();
-static String GetStringPartAtSpecificIndex(String StringToSplit, char SplitChar, int StringPartIndex);
-
-static void TurnOnPID()
+static void interrogate_limit_switches()
 {
 }
 
-static void TurnOffPID()
+void waypoint_sm_run(void);
+
+void waypoint_sm_enter(void)
 {
+    sm_set_state_name(F("waypoint_sm_enter"));
+    sm_set_next_state(waypoint_sm_run);
 }
 
-static void InterrogateLimitSwitches2()
+static void waypoint_sm_run(void)
 {
+    sm_set_state_name(F("waypoint_sm_run"));
 }
 
-static void MoveMotorToAngle(int Motor, float Angle)
+static void waypoint_sm_move_to(void)
 {
+    sm_set_state_name(F("waypoint_sm_move_to"));
 }
 
-static int Motor_Position(int tMotor)
+static void waypoint_sm_interrogate_limit_switches(void)
 {
-    // return Motor_Encoder[tMotor] * Motor_Logic[tMotor];
-    return 0;
+    sm_set_state_name(F("waypoint_sm_interrogate_limit_switches"));
 }
 
-static float Motor_Angle(int zMotor)
+static void waypoint_sm_wait_millis(void)
 {
-    // return (Motor_Position(zMotor) - AngleOffset[zMotor]) / EncoderStepsPerDegree(zMotor);
-    return 0.0f;
+    sm_set_state_name(F("waypoint_sm_wait_millis"));
 }
 
-
-static void RunWayPointSeq()
+static void waypoint_run_sequence(void)
 {
-    Serial.println("Start WayPoints");
-    EEPROM.get(0, WayPoint);
-    int NumberOf = WayPoint.A;
+    log_writeln(F("Running waypoint sequence."));
+    config_waypoint_t waypoint = config_get_waypoint(0);
+    int nwaypoints = waypoint.nwaypoints;
 
-    if (NumberOf < 100) {
-        TurnOnPID();
-        for (int Step = 1; Step <= NumberOf; Step++) {
-            int Pin = 4;
-            int val = 0;
-            int Stp = 0;
-            Serial.print("Step: ");
-            Serial.print(Step);
-            Serial.print(" - ");
-            int eeAddress = Step * 40;  //Location we want the data to be put.
-            EEPROM.get(eeAddress, WayPoint);
-            switch (WayPoint.Command) {
-            case 65:;  //A
-            case 66:;  //B
-            case 67:;  //C
-            case 68:;  //D
-                WayPointMove(Step);
+    if (nwaypoints < 100) {
+        // TurnOnPID();
+        for (int step = 1; step < nwaypoints; step++) {
+            log_write(F("step: %d - "), step);
+            waypoint = config_get_waypoint(step);
+            switch (waypoint.command) {
+            case COMMAND_MOVE_AT:  // Fallthrough.
+            case COMMAND_MOVE_BESIDE:  // Fallthrough.
+            case COMMAND_MOVE_CLOSE:  // Fallthrough.
+            case COMMAND_MOVE_APPROACHING:
+                move_to(waypoint);
                 break;
-
-            case 71:  //G
-                Stp = WayPoint.A;
-                Step = Stp - 1;
-                Serial.print("Goto Step ");
-                Serial.println(Stp);
+            case COMMAND_GOTO_STEP:
+                step = waypoint.step - 1;
+                log_writeln(F("Goto step %d."), waypoint.step);
                 break;
-
-            case 73:  //I
-                InterrogateLimitSwitches2();
+            case COMMAND_GOTO_STEP_IF_IO:
+                // pin = waypoint.b;
+                log_writeln(F("Goto step %d if button pressed."), waypoint.step);
+                if (!hardware_get_button_pressed()) // TODO: Support configurable expansion IO line.
+                    step = waypoint.step - 1;
                 break;
-
-            case 74:  //J
-                val = 0;
-                Pin = WayPoint.B;
-                Stp = WayPoint.A;
-                Serial.print("Goto Step ");
-                Serial.print(Stp);
-                Serial.print(" If I/O[");
-                Serial.print(Pin);
-                Serial.println("]");
-                pinMode(Expansion_IO[Pin - 1], INPUT);
-                val = digitalRead(Expansion_IO[Pin - 1]);
-                if (val == 0) Step = Stp - 1;
+            case COMMAND_INTERROGATE_SWITCHES:
+                interrogate_limit_switches();
                 break;
-
-            case 87:  //W
-                val = WayPoint.C;
-                Serial.print("Wait ");
-                Serial.print(val);
-                Serial.print(" Miliseconds");
-                delay(val);
+            case COMMAND_WAIT_MILLIS:
+                log_writeln(F("Wait %d milliseconds."), waypoint.wait_millis);
+                delay(waypoint.wait_millis);
                 break;
             }
         }
-        TurnOffPID();
-        Serial.println("Done");
+        motor_disable_all();
+        log_writeln(F("Done."));
     } else {
-        Serial.println("No Waypoints");
+        log_writeln(F("No Waypoints."));
     }
 }
 
-static void WayPointMove(int i)
+static void move_to(config_waypoint_t waypoint)
 {
-    Serial.print("Goto ");
-    MoveToWayPointAngle(i);
+    log_write(F("Move to "));
+    move_to_waypoint_angle(waypoint);
+    waypoint_print(waypoint);
 
-    switch (WayPoint.Command) {
-    case 65: do {
-            delay(50); TrackUm();
-    } while (Check_A());
+    switch (waypoint.command) {
+    case 'A':
+        do {
+            delay(50);
+            track_report();
+        } while (!check_progress(PROGRESS_AT));
         break;
-    case 66: do {
-            delay(50); TrackUm();
-    } while (Check_B());
+    case 'B':
+        do {
+            delay(50);
+            track_report();
+        } while (!check_progress(PROGRESS_BESIDE));
         break;
-    case 67: do {
-            delay(50); TrackUm();
-    } while (Check_C());
+    case 'C':
+        do {
+            delay(50);
+            track_report();
+        } while (!check_progress(PROGRESS_CLOSE));
         break;
-    case 68: do {
-            delay(50); TrackUm();
-    } while (Check_D());
+    case 'D':
+        do {
+            delay(50);
+            track_report();
+        } while (!check_progress(PROGRESS_APPROACHING));
         break;
     }
 }
 
-static void TrackUm()
+static void track_report(void)
 {
-    if (Tracking > 0) {
-        for (int iMotor = MotorA; iMotor <= MotorF; iMotor++) {
-            TrackReport(iMotor);
+    if (tracking > 0) {
+        for (int motor_id = MOTOR_ID_A; motor_id <= MOTOR_ID_F; motor_id++) {
+            int encoder_value = motor_get_encoder(motor_id);
+            if (track_report_encoder_value[motor_id] != encoder_value) {
+                log_write(F("@"));
+                if (tracking == 1)
+                    log_write(F("%c %d"), char(motor_id + 'A'), motor_get_encoder(motor_id));
+                else if (tracking == 2)
+                    log_write(F("%c %d"), char(motor_id + 'a'), (int)(motor_get_angle(motor_id)));
+                log_writeln(F(":HS %d:"), limit_prev[motor_id]);
+                track_report_encoder_value[motor_id] = encoder_value;
+            }
         }
     }
 }
 
-static boolean Check_A()
+static bool check_progress(progress_t progress)
 {
     return
-        (Motion_Status[MotorC] > AtTarget) ||
-        (Motion_Status[MotorD] > AtTarget) ||
-        (Motion_Status[MotorE] > AtTarget) ||
-        (Motion_Status[MotorF] > AtTarget);
+        (motion_status[MOTOR_ID_C] <= progress) ||
+        (motion_status[MOTOR_ID_D] <= progress) ||
+        (motion_status[MOTOR_ID_E] <= progress) ||
+        (motion_status[MOTOR_ID_F] <= progress);
 }
 
-static boolean Check_B()
-{
-    return
-        (Motion_Status[MotorC] > BesideTarget) ||
-        (Motion_Status[MotorD] > BesideTarget) ||
-        (Motion_Status[MotorE] > BesideTarget) ||
-        (Motion_Status[MotorF] > BesideTarget);
-}
-
-static boolean Check_C()
-{
-    return
-        (Motion_Status[MotorC] > CloseToTarget) ||
-        (Motion_Status[MotorD] > CloseToTarget) ||
-        (Motion_Status[MotorE] > CloseToTarget) ||
-        (Motion_Status[MotorF] > CloseToTarget);
-}
-
-static boolean Check_D()
-{
-    return
-        (Motion_Status[MotorC] > OnApproachToTarget) ||
-        (Motion_Status[MotorD] > OnApproachToTarget) ||
-        (Motion_Status[MotorE] > OnApproachToTarget) ||
-        (Motion_Status[MotorF] > OnApproachToTarget);
-}
-
-static void SplitWayPoint(String waypoint)
+static void split_waypoint(String waypoint)
 {
     for (int i = 0; i < 8; i++) {
-        StringSplits[i] = GetStringPartAtSpecificIndex(waypoint, '!', i);
+        string_splits[i] = get_string_part_at_specific_index(waypoint, '!', i);
     }
 }
 
-static String GetStringPartAtSpecificIndex(String StringToSplit, char SplitChar, int StringPartIndex)
+static String get_string_part_at_specific_index(String StringToSplit, char SplitChar, int StringPartIndex)
 {
     String originallyString = StringToSplit;
     String outString = "";
@@ -243,7 +205,7 @@ static String GetStringPartAtSpecificIndex(String StringToSplit, char SplitChar,
 
         if (SplitIndex == -1)          //is true, if no Char is found at the given Index
 
-            //outString += "Error in GetStringPartAtSpecificIndex: No SplitChar found at String '" + originallyString + "' since StringPart '" + (i1-1) + "'";    //just to find Errors
+            //outString += "Error in get_string_part_at_specific_index: No SplitChar found at String '" + originallyString + "' since StringPart '" + (i1-1) + "'";    //just to find Errors
             return outString;
         for (int i2 = 0; i2 < SplitIndex; i2++) {
             outString += StringToSplit.charAt(i2);  //write the char at Position 0 of StringToSplit to outString
@@ -253,113 +215,104 @@ static String GetStringPartAtSpecificIndex(String StringToSplit, char SplitChar,
     return outString;
 }
 
-static void SetWayPointAngle()
+static void set_waypoint_angle(config_waypoint_t waypoint)
 {
-    InBuffer.setCharAt(0, 32);
-    int Position = InBuffer.toInt();
+    in_buffer.setCharAt(0, ' ');
+    int step = in_buffer.toInt();
 
-    SplitWayPoint(InBuffer);
-    WayPoint.Number = Position;
-    char Comm = StringSplits[1][0];
+    split_waypoint(in_buffer);
+    waypoint.step = step;
+    char command = string_splits[1][0];  // TODO: validate command.
 
-    WayPoint.Command = Comm;
-    WayPoint.A = StringSplits[2].toFloat();
-    WayPoint.B = StringSplits[3].toFloat();
-    WayPoint.C = StringSplits[4].toFloat();
-    WayPoint.D = StringSplits[5].toFloat();
-    WayPoint.E = StringSplits[6].toFloat();
-    WayPoint.F = StringSplits[7].toFloat();
-    int eeAddress = Position * 40;  //Location we want the data to be put.
+    waypoint.command = command;
+    waypoint.motor.a = string_splits[2].toFloat();
+    waypoint.motor.b = string_splits[3].toFloat();
+    waypoint.motor.c = string_splits[4].toFloat();
+    waypoint.motor.d = string_splits[5].toFloat();
+    waypoint.motor.e = string_splits[6].toFloat();
+    waypoint.motor.f = string_splits[7].toFloat();
 
-    EEPROM.put(eeAddress, WayPoint);
-    ReportWayPoint();
+    config_set_waypoint(step, waypoint);
+    waypoint_print(waypoint);
 
-    Serial.println("Set");
+    log_writeln(F("set."));
 }
 
-static void GetWayPointAngle()
+static void get_waypoint_angle(void)
 {
-    InBuffer.setCharAt(0, 32);
-    int Position = InBuffer.toInt();
-    int eeAddress = Position * 40;  //Location we want the data to be put.
+    in_buffer.setCharAt(0, ' ');
+    int index = in_buffer.toInt();
+    config_waypoint_t waypoint = config_get_waypoint(index);
 
-    EEPROM.get(eeAddress, WayPoint);
-    ReportWayPoint();
+    waypoint_print(waypoint);
 }
 
-static void ReportWayPoint()
+static void move_to_a_waypoint_angle(void)
 {
-    Serial.print("WayPoint:");
-    Serial.print(WayPoint.Number);
-    Serial.print("!");
-    Serial.print(WayPoint.Command);
-    Serial.print("!");
-    Serial.print(WayPoint.A);
-    Serial.print("!");
-    Serial.print(WayPoint.B);
-    Serial.print("!");
-    Serial.print(WayPoint.C);
-    Serial.print("!");
-    Serial.print(WayPoint.D);
-    Serial.print("!");
-    Serial.print(WayPoint.E);
-    Serial.print("!");
-    Serial.print(WayPoint.F);
-    Serial.println("!");
+    in_buffer.setCharAt(0, ' ');
+    int step = in_buffer.toInt();
+
+    log_write(F("Move to "));
+    config_waypoint_t waypoint = config_get_waypoint(step);
+
+    waypoint_print(waypoint);
+    move_to_waypoint_angle(waypoint);
 }
 
-static void MoveToAWayPointAngle()
+static void move_to_waypoint_angle(config_waypoint_t waypoint)
 {
-    InBuffer.setCharAt(0, 32);
-    int Position = InBuffer.toInt();
-
-    Serial.print("Goto ");
-    MoveToWayPointAngle(Position);
+    motor_set_target_angle(MOTOR_ID_A, waypoint.motor.a);
+    motor_set_target_angle(MOTOR_ID_B, waypoint.motor.b);
+    motor_set_target_angle(MOTOR_ID_C, waypoint.motor.c);
+    motor_set_target_angle(MOTOR_ID_D, waypoint.motor.d);
+    motor_set_target_angle(MOTOR_ID_E, waypoint.motor.e);
+    motor_set_target_angle(MOTOR_ID_F, waypoint.motor.f);
 }
 
-static void MoveToWayPointAngle(int Position)
+void waypoint_print(config_waypoint_t waypoint)
 {
-    if (Position > 0) {
-        int eeAddress = Position * 40;  //Location we want the data to be put.
-        EEPROM.get(eeAddress, WayPoint);
-        ReportWayPoint();
-        for (int iMotor = MotorA; iMotor <= MotorF; iMotor++) {
-            float Angle = 0;
-            switch (iMotor) {
-            case MotorF: Angle = WayPoint.F;
-                break;
-            case MotorE: Angle = WayPoint.E;
-                break;
-            case MotorD: Angle = WayPoint.D;
-                break;
-            case MotorC: Angle = WayPoint.C;
-                break;
-            case MotorB: Angle = WayPoint.B;
-                break;
-            case MotorA: Angle = WayPoint.A;
-            }
-            MoveMotorToAngle(iMotor, Angle);
-        }
-    }
-}
+    assert(waypoint.step != -1);
 
-static void TrackReport(int tMotor)
-{
-    if (Tracking > 0) {
-        int Position = Motor_Position(tMotor);
-        if (Tracked[tMotor] != Position) {
-            Serial.print("@");
-            if (Tracking == 1) {
-                Serial.print(char(tMotor + 65));
-                Serial.print(Motor_Position(tMotor));
-            } else if (Tracking == 2) {
-                Serial.print(char(tMotor + 97));
-                Serial.print(Motor_Angle(tMotor));
-            }
-            Serial.print(":HS");
-            Serial.print(Limit_Prev[tMotor]);
-            Serial.println(":");
-            Tracked[tMotor] = Position;
-        }
+    switch (waypoint.command) {
+    case COMMAND_MOVE_AT:  // Fallthrough.
+    case COMMAND_MOVE_BESIDE:  // Fallthough.
+    case COMMAND_MOVE_CLOSE:  // Fallthrough.
+    case COMMAND_MOVE_APPROACHING:
+        log_write(F("wapyoint: step:%d command:%c a:%d b:%d c:%d d:%d e:%d f:%d"),
+                  waypoint.step,
+                  waypoint.command,
+                  waypoint.motor.a,
+                  waypoint.motor.b,
+                  waypoint.motor.c,
+                  waypoint.motor.d,
+                  waypoint.motor.e,
+                  waypoint.motor.f);
+        break;
+    case COMMAND_GOTO_STEP:
+        log_write(F("wapyoint: step:%d command:%c (goto step) destination_step: %d"),
+                  waypoint.step,
+                  waypoint.command,
+                  waypoint.goto_step);
+        break;
+    case COMMAND_GOTO_STEP_IF_IO:
+        log_write(F("wapyoint: step:%d command:%c (goto step if IO) destination_step: %d"),
+                  waypoint.step,
+                  waypoint.command,
+                  waypoint.goto_step);
+        break;
+    case COMMAND_INTERROGATE_SWITCHES:
+        log_write(F("wapyoint: step:%d command:%c (interrogate limit switches)"),
+                  waypoint.step,
+                  waypoint.command);
+        break;
+    case COMMAND_WAIT_MILLIS:
+        log_write(F("wapyoint: step:%d command:%c (wait millis) %d"),
+                  waypoint.step,
+                  waypoint.command,
+                  waypoint.wait_millis);
+        break;
+    default:
+        assert(false);
+        break;
     }
 }
