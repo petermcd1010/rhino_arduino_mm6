@@ -1,13 +1,45 @@
-#pragma once
 /*
  * Implementation for Simple Serial Protocol (SSP)
+ * Adapted from https://github.com/HanaMostafa/SSProtocol
  * See the LICENSE file in the root directory of this project for copyright and licensing details.
  */
 
 #include "ssp.h"
 #include "Arduino.h"
 
-void serial_flush_buffer();
+#define SSP_FEND 0
+#define SSP_DT 236
+#define SSP_DEST 1
+#define SSP_SRC 2
+#define SSP_TYPE 3
+// #define SSP_HEADER 8
+#define SSP_INFO 229
+#define SSP_FULL 1
+#define SSP_EMPTY 0
+#define SSP_TX 1
+#define SSP_RX 2
+#define SSP_IDLE 0
+
+/* Set a certain bit in any register */
+#define SET_BIT(REG,BIT) (REG|=(1<<BIT))
+
+/* Clear a certain bit in any register */
+#define CLEAR_BIT(REG,BIT) (REG&=(~(1<<BIT)))
+
+/* Toggle a certain bit in any register */
+#define TOGGLE_BIT(REG,BIT) (REG^=(1<<BIT))
+
+/* Rotate right the register value with specific number of rotates */
+#define ROR(REG,num) ( REG= (REG>>num) | (REG<<(8-num)) )
+
+/* Rotate left the register value with specific number of rotates */
+#define ROL(REG,num) ( REG= (REG<<num) | (REG>>(8-num)) )
+
+/* Check if a specific bit is set in any register and return true if yes */
+#define BIT_IS_SET(REG,BIT) ( REG & (1<<BIT) )
+
+/* Check if a specific bit is cleared in any register and return true if yes */
+#define BIT_IS_CLEAR(REG,BIT) ( !(REG & (1<<BIT)) )
 
 unsigned short compute_crc16(unsigned char *data_p, unsigned char length) {
   unsigned char x;
@@ -33,10 +65,10 @@ unsigned short compute_crc16(unsigned char *data_p, unsigned char length) {
   return crc;
 }
 
-void getdata(uint8 *data, uint16 *data_length, uint8 *dataflag) {
-  *dataflag = EMPTY;
-  uint8 i;
-  uint8 arr[info];
+static void getdata(uint8_t *data, uint16_t *data_length, uint8_t *dataflag) {
+  *dataflag = SSP_EMPTY;
+  uint8_t i;
+  uint8_t arr[SSP_INFO];
 
 
   *data_length = random(0, 229);
@@ -49,28 +81,28 @@ void getdata(uint8 *data, uint16 *data_length, uint8 *dataflag) {
 
   }
 
-  *dataflag = FULL;
+  *dataflag = SSP_FULL;
 }
 
-void control_layer(uint8 *Tx_App_data, uint16 data_length, uint8 Tx_App_desti,
-                   uint8 *Tx_Frm_srce, uint8 Tx_App_type, uint8 *Tx_Frm_type,
-                   uint8 *Tx_Frm_data, uint8 *Tx_Frm_desti, uint8 *Rx_Frm_type,
-                   uint8 *Rx_Frm_data, uint8 *Rx_Frm_dest, uint16 Rx_length,
-                   uint8 *dataflag, uint8 *deframeflag, uint8 *txflag, uint8 *Rx_App_data,
-                   uint8 crcflag, uint16 *tx_size, uint8 *Rx_Frm_src, uint8 *layerflag, uint8 *checkcontrol) {
+static void control_layer(uint8_t *Tx_App_data, uint16_t data_length, uint8_t Tx_App_desti,
+                   uint8_t *Tx_Frm_srce, uint8_t Tx_App_type, uint8_t *Tx_Frm_type,
+                   uint8_t *Tx_Frm_data, uint8_t *Tx_Frm_desti, uint8_t *Rx_Frm_type,
+                   uint8_t *Rx_Frm_data, uint8_t *Rx_Frm_dest, uint16_t Rx_length,
+                   uint8_t *dataflag, uint8_t *deframeflag, uint8_t *txflag, uint8_t *Rx_App_data,
+                   uint8_t crcflag, uint16_t *tx_size, uint8_t *Rx_Frm_src, uint8_t *layerflag, uint8_t *checkcontrol) {
 
 
-  static uint8 controlflag = idle;
-  static uint8 counter = 0;
-  uint8 source = 0x05;
-  uint8 i;
+  static uint8_t controlflag = SSP_IDLE;
+  static uint8_t counter = 0;
+  uint8_t source = 0x05;
+  uint8_t i;
 
-  if (controlflag == idle) {
-    if (*dataflag == FULL  && *txflag == EMPTY) {
+  if (controlflag == SSP_IDLE) {
+    if (*dataflag == SSP_FULL  && *txflag == SSP_EMPTY) {
       Serial1.println("\n Sending  Data \n");
       Serial1.flush();
 
-      controlflag = tx;
+      controlflag = SSP_TX;
       *Tx_Frm_srce = source;
 
       for (i = 0; i < data_length; i++) {
@@ -80,41 +112,41 @@ void control_layer(uint8 *Tx_App_data, uint16 data_length, uint8 Tx_App_desti,
       *tx_size = data_length;
       *Tx_Frm_desti = Tx_App_desti;
       *Tx_Frm_type = Tx_App_type;
-      *txflag = FULL;
-      *dataflag = EMPTY;
+      *txflag = SSP_FULL;
+      *dataflag = SSP_EMPTY;
 
 
-    } else if (*deframeflag == FULL && *layerflag == EMPTY ) {
+    } else if (*deframeflag == SSP_FULL && *layerflag == SSP_EMPTY ) {
 
       if (*Rx_Frm_dest == source) {
         Serial1.print("\n Received Data \n");
         Serial1.flush();
-        controlflag = rx;
-        *layerflag = FULL;
-        *deframeflag = EMPTY;
+        controlflag = SSP_RX;
+        *layerflag = SSP_FULL;
+        *deframeflag = SSP_EMPTY;
 
         for (i = 0; i < Rx_length; i++) {
           Rx_App_data[i] = Rx_Frm_data[i];
         }
       } else {
 
-        *deframeflag = EMPTY;
+        *deframeflag = SSP_EMPTY;
       }
     }
 
   }
 
 
-  else if (controlflag == tx) {
+  else if (controlflag == SSP_TX) {
 
-    if (*deframeflag == FULL) {
+    if (*deframeflag == SSP_FULL) {
 
       if (*Rx_Frm_dest == source && *Rx_Frm_type == 0x02) {
         Serial1.println("\n Respond with an ACK \n");
         Serial1.flush();
-        controlflag = idle;
-        *deframeflag = EMPTY;
-        *checkcontrol = EMPTY;
+        controlflag = SSP_IDLE;
+        *deframeflag = SSP_EMPTY;
+        *checkcontrol = SSP_EMPTY;
         counter = 0;
       }
 
@@ -128,29 +160,29 @@ void control_layer(uint8 *Tx_App_data, uint16 data_length, uint8 Tx_App_desti,
           Tx_Frm_data[i] = Tx_App_data[i];
         }
         *tx_size = data_length;
-        *txflag = FULL;
-        *deframeflag = EMPTY;
-        *checkcontrol = FULL;
+        *txflag = SSP_FULL;
+        *deframeflag = SSP_EMPTY;
+        *checkcontrol = SSP_FULL;
         counter++;
         if (counter == 3)
         {
           Serial1.println("\n NACK Counter= 3 \n");
           Serial1.flush();
-          controlflag = idle;
+          controlflag = SSP_IDLE;
           counter = 0;
-          *txflag = EMPTY;
-          *checkcontrol = EMPTY;
+          *txflag = SSP_EMPTY;
+          *checkcontrol = SSP_EMPTY;
         }
       } else if (*Rx_Frm_dest != source) {
-        *deframeflag = EMPTY;
+        *deframeflag = SSP_EMPTY;
 
 
       }
     }
   }
-  else if (controlflag == rx) {
+  else if (controlflag == SSP_RX) {
 
-    if (crcflag == EMPTY) {
+    if (crcflag == SSP_EMPTY) {
       Serial1.println("\n Correct CRC \n");
       Serial1.flush();
       *Tx_Frm_srce = *Rx_Frm_dest;
@@ -158,39 +190,35 @@ void control_layer(uint8 *Tx_App_data, uint16 data_length, uint8 Tx_App_desti,
 
       *Tx_Frm_desti = *Rx_Frm_src;
       *Tx_Frm_type = 0x02;
-      *txflag = FULL;
-      controlflag = idle;
-      *layerflag = FULL;
-    } else if (crcflag == FULL) {
+      *txflag = SSP_FULL;
+      controlflag = SSP_IDLE;
+      *layerflag = SSP_FULL;
+    } else if (crcflag == SSP_FULL) {
       Serial1.println("\n Wrong CRC \n");
       Serial1.flush();
       *Tx_Frm_srce = *Rx_Frm_dest;
       *tx_size = 0;
       *Tx_Frm_desti = *Rx_Frm_src;
       *Tx_Frm_type = 0x03;
-      *txflag = FULL;
-      controlflag = idle;
+      *txflag = SSP_FULL;
+      controlflag = SSP_IDLE;
     }
   }
 }
 
-void ssp_build_frame(uint8 *txframe, uint8 *data, uint8 desti, uint8 srce,
-                     uint8 typee, uint16 tx_size, uint8 *txflag) {
+void ssp_build_frame(uint8_t *txframe, uint8_t *data, uint8_t desti, uint8_t srce,
+                     uint8_t typee, uint16_t tx_size, uint8_t *txflag) {
 
-  uint16 p, k;
+  uint16_t p, k;
 
-  txframe[fend] = 0xc0;
+  txframe[SSP_FEND] = 0xc0;
+  txframe[SSP_DEST] = desti;
+  txframe[SSP_SRC] = srce;
+  txframe[SSP_TYPE] = typee;
 
-  txframe[DEST] = desti;
-
-  txframe[SRC] = srce;
-
-
-  txframe[typ] = typee;
-
-  uint8 f, d, count = 0, w = 0, count2 = 0, arr[dt];
+  uint8_t f, d, count = 0, w = 0, count2 = 0, arr[SSP_DT];
   int temp = 0, temp2 = 0;
-  uint16 crc, crc0, crc1;
+  uint16_t crc, crc0, crc1;
   for (k = 0; k < tx_size; k++) {
 
     if (data[k] == 0xc0) {
@@ -253,8 +281,8 @@ void ssp_build_frame(uint8 *txframe, uint8 *data, uint8 desti, uint8 srce,
   txframe[(w += 1)] = crc1;                //crc1
   txframe[(w + 1)] = 0xc0;
 
-  uint8 countttt = 1, j, i;
-  for (j = 1; j < dt; j++) {
+  uint8_t countttt = 1, j, i;
+  for (j = 1; j < SSP_DT; j++) {
 
     if (txframe[j] == 0xc0) {
       countttt++;
@@ -273,19 +301,19 @@ void ssp_build_frame(uint8 *txframe, uint8 *data, uint8 desti, uint8 srce,
 
   }
 
-  *txflag = EMPTY;
+  *txflag = SSP_EMPTY;
 }
 
-void ssp_deframing(uint8 *rxframe, uint8 *adddest, uint8 *addsrc, uint8 *type,
-                   uint8 *Rx_data, uint16 *length, uint8 *rxflag, uint8 *crcflag, uint8 *deframeflag) {
-  uint16 i, j, d, size2, size = 1, crc, size3;
-  uint8 count = 0, k, y = 0, arr[dt], datta[info + 4];
+void ssp_deframing(uint8_t *rxframe, uint8_t *adddest, uint8_t *addsrc, uint8_t *type,
+                   uint8_t *Rx_data, uint16_t *length, uint8_t *rxflag, uint8_t *crcflag, uint8_t *deframeflag) {
+  uint16_t i, j, d, size2, size = 1, crc, size3;
+  uint8_t count = 0, k, y = 0, arr[SSP_DT], datta[SSP_INFO + 4];
 
-  *adddest = rxframe[DEST];
-  *addsrc = rxframe[SRC];
-  *type = rxframe[typ];
+  *adddest = rxframe[SSP_DEST];
+  *addsrc = rxframe[SSP_SRC];
+  *type = rxframe[SSP_TYPE];
 
-  for (j = 1; j < dt; j++) {
+  for (j = 1; j < SSP_DT; j++) {
 
     if (rxframe[j] == 0xc0) {
       size++;
@@ -309,9 +337,9 @@ void ssp_deframing(uint8 *rxframe, uint8 *adddest, uint8 *addsrc, uint8 *type,
 
   size2 = size - 3;
 
-  if (rxframe[fend] == 0xc0 && crc == 0x00) {
-    *adddest = rxframe[DEST];
-    *addsrc = rxframe[SRC];
+  if (rxframe[SSP_FEND] == 0xc0 && crc == 0x00) {
+    *adddest = rxframe[SSP_DEST];
+    *addsrc = rxframe[SSP_SRC];
 
     for (i = 4; i < (size - 3); i++) {
 
@@ -361,107 +389,109 @@ void ssp_deframing(uint8 *rxframe, uint8 *adddest, uint8 *addsrc, uint8 *type,
     for (i = 0; i < (*length); i++) {
       Rx_data[i] = datta[i + 4];
     }
-    *crcflag = EMPTY;
+    *crcflag = SSP_EMPTY;
 
   } else {
-    *crcflag = FULL;
+    *crcflag = SSP_FULL;
   }
 
-  *rxflag = EMPTY;
-  *deframeflag = FULL;
+  *rxflag = SSP_EMPTY;
+  *deframeflag = SSP_FULL;
 }
 
 
 #include "Arduino.h"
 #include "ssp.h"
 
-uint8 txframe[dt];
-uint8 data[info];
-uint8 data2[info];
-uint8 rxframe[dt];
-uint8 Rx_data[info];
-uint8 layerdata[info];
+static uint8_t txframe[SSP_DT];
+static uint8_t data[SSP_INFO];
+static uint8_t data2[SSP_INFO];
+static uint8_t rxframe[SSP_DT];
+static uint8_t Rx_data[SSP_INFO];
+static uint8_t layerdata[SSP_INFO];
 
-uint8 type2;
+static uint8_t type2;
 
-uint8 checkcontrol = EMPTY;
-uint16 data_length;
-uint8 dataflag = EMPTY;
-uint8 rxflag = EMPTY;
-void receive_frame_here() {
-  if (rxflag == EMPTY) {
+static uint8_t checkcontrol = SSP_EMPTY;
+static uint16_t data_length;
+static uint8_t dataflag = SSP_EMPTY;
+static uint8_t rxflag = SSP_EMPTY;
+
+
+static void serial_flush_buffer()
+{
+  while (Serial.read() >= 0); // do nothing
+}
+
+static void receive_frame_here() {
+  if (rxflag == SSP_EMPTY) {
     if (Serial.available() > 0) {
       Serial.readBytes(rxframe, 236);
       serial_flush_buffer();
-      rxflag = FULL;
+      rxflag = SSP_FULL;
       Serial1.println("\n Received frame\n");
       Serial1.flush();
     }
   }
 }
 
-void serial_flush_buffer()
-{
-  while (Serial.read() >= 0); // do nothing
-}
-
-void ssp_setup() {
+static void ssp_setup() {
   Serial.begin(9600);
   Serial1.begin(9600);
-  if (checkcontrol == EMPTY) {
+  if (checkcontrol == SSP_EMPTY) {
     getdata(data, &data_length, &dataflag);
-    checkcontrol = FULL;
+    checkcontrol = SSP_FULL;
   }
 
 }
 
-void ssp_loop() {
+static void ssp_loop() {
 
-  static uint8 txflag = EMPTY;
-  uint8 i;
-  static uint8 crcflag = EMPTY;
-  uint8 desti = 0x01;
-  uint8 srce;
-  uint8 typee = 0x02;
-  uint8 desti2;
-  static uint16 tx_size = 0;
-  uint8 adddest;
-  uint8 addsrc;
-  static uint8 type = 0;
-  static uint16 Rx_length = 0;
-  static uint8 layerflag = EMPTY;
-  static uint8 deframeflag = EMPTY;
-  static uint8 framingflag = EMPTY;
+  static uint8_t txflag = SSP_EMPTY;
+  uint8_t i;
+  static uint8_t crcflag = SSP_EMPTY;
+  uint8_t desti = 0x01;
+  uint8_t srce;
+  uint8_t typee = 0x02;
+  uint8_t desti2;
+  static uint16_t tx_size = 0;
+  uint8_t adddest;
+  uint8_t addsrc;
+  static uint8_t type = 0;
+  static uint16_t Rx_length = 0;
+  static uint8_t layerflag = SSP_EMPTY;
+  static uint8_t deframeflag = SSP_EMPTY;
+  static uint8_t framingflag = SSP_EMPTY;
 
 
 
 
   delay(100);
 
-  if (checkcontrol == EMPTY) {
+  if (checkcontrol == SSP_EMPTY) {
     getdata(data, &data_length, &dataflag);
-    checkcontrol = FULL;
+    checkcontrol = SSP_FULL;
   }
 
-  if ((checkcontrol == FULL && txflag == EMPTY)
-      || (checkcontrol == EMPTY && layerflag == EMPTY)) {
+  if ((checkcontrol == SSP_FULL && txflag == SSP_EMPTY)
+      || (checkcontrol == SSP_EMPTY && layerflag == SSP_EMPTY)) {
     control_layer(data, data_length, desti, &srce, typee, &type2, data2, &desti2,
                   &type, Rx_data, &adddest, Rx_length, &dataflag, &deframeflag,
                   &txflag, layerdata, crcflag, &tx_size, &addsrc, &layerflag, &checkcontrol);
 
-    layerflag = EMPTY;
+    layerflag = SSP_EMPTY;
 
   }
 
 
-  if (txflag == FULL) {
+  if (txflag == SSP_FULL) {
     ssp_build_frame(txframe, data2, desti2, srce, type2, tx_size, &txflag);
   }
 
   receive_frame_here();
 
 
-  if (rxflag == FULL && deframeflag == EMPTY ) {
+  if (rxflag == SSP_FULL && deframeflag == SSP_EMPTY ) {
 
     ssp_deframing(rxframe, &adddest, &addsrc, &type, Rx_data, &Rx_length,
                   &rxflag, &crcflag, &deframeflag);
