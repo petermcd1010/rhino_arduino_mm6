@@ -7,6 +7,7 @@
 #include "log.h"
 #include "motor.h"
 #include "parse.h"
+#include "waypoint.h"  // WAYPOINT_COMMAND_*. TODO: sort out config_waypoint_t vs waypoint_command, etc..
 
 size_t parse_whitespace(char *buf, size_t buf_nbytes)
 {
@@ -354,4 +355,129 @@ bool parse_test()
 
 
     return ret;
+}
+
+static size_t parse_waypoint_motors(char *buf, size_t buf_nbytes, config_waypoint_t *out_waypoint)
+{
+    assert(buf);
+    assert(out_waypoint);
+
+    size_t nbytes = parse_float(buf, buf_nbytes, &out_waypoint->motor.a);
+
+    if (nbytes == 0)
+        goto error;
+    buf += nbytes;
+    buf_nbytes -= nbytes;
+
+    nbytes = parse_float(buf, buf_nbytes, &out_waypoint->motor.b);
+    if (nbytes == 0)
+        goto error;
+    buf += nbytes;
+    buf_nbytes -= nbytes;
+
+    nbytes = parse_float(buf, buf_nbytes, &out_waypoint->motor.c);
+    if (nbytes == 0)
+        goto error;
+    buf += nbytes;
+    buf_nbytes -= nbytes;
+
+    nbytes = parse_float(buf, buf_nbytes, &out_waypoint->motor.d);
+    if (nbytes == 0)
+        goto error;
+    buf += nbytes;
+    buf_nbytes -= nbytes;
+
+    nbytes = parse_float(buf, buf_nbytes, &out_waypoint->motor.e);
+    if (nbytes == 0)
+        goto error;
+    buf += nbytes;
+    buf_nbytes -= nbytes;
+
+    nbytes = parse_float(buf, buf_nbytes, &out_waypoint->motor.f);
+    if (nbytes == 0)
+        goto error;
+    buf += nbytes;
+    buf_nbytes -= nbytes;
+
+error:
+    log_writeln(F("ERROR: Failed to process waypoint motor positions."));
+    return 0;
+}
+
+size_t parse_waypoint(char *buf, size_t buf_nbytes, config_waypoint_t *out_waypoint)
+{
+    assert(buf);
+    assert(out_waypoint);
+    char *p = buf;
+
+    const char *command_strings[] = {
+        "a",  // WAYPOINT_COMMAND_MOVE_AT.
+        "b",  // WAYPOINT_COMMAND_MOVE_BESIDE.
+        "c",  // WAYPOINT_COMMAND_MOVE_CLOSE.
+        "d",  // WAYPOINT_COMMAND_MOVE_APPROACHING.
+        "g",  // WAYPOINT_COMMAND_GOTO_STEP.
+        "j",  // WAYPOINT_COMMAND_GOTO_STEP_IF_IO.
+        "i",  // WAYPOINT_COMMAND_INTERROGATE_SWITCHES.
+        "w",  // WAYPOINT_COMMAND_WAIT_MILLIS.
+    };
+
+#define COMMAND_STRINGS_COUNT sizeof(command_strings) / sizeof(command_strings[0])
+
+    int entry_num = -1;
+    size_t nbytes = parse_string_in_table(p, buf_nbytes, command_strings, COMMAND_STRINGS_COUNT, &entry_num);
+    if (nbytes = 0) {
+        log_writeln(F("Error processing waypoint.")); // TODO: Test and remove.
+        return 0;
+    }
+
+    buf_nbytes -= nbytes;
+    p += nbytes;
+
+    switch (entry_num) {
+    case 0:
+        out_waypoint->command = WAYPOINT_COMMAND_MOVE_AT;
+        nbytes = parse_waypoint_motors(p, buf_nbytes, out_waypoint);
+        break;
+    case 1:
+        out_waypoint->command = WAYPOINT_COMMAND_MOVE_BESIDE;
+        nbytes = parse_waypoint_motors(p, buf_nbytes, out_waypoint);
+        break;
+    case 2:
+        out_waypoint->command = WAYPOINT_COMMAND_MOVE_CLOSE;
+        nbytes = parse_waypoint_motors(p, buf_nbytes, out_waypoint);
+        break;
+    case 3:
+        out_waypoint->command = WAYPOINT_COMMAND_MOVE_APPROACHING;
+        nbytes = parse_waypoint_motors(p, buf_nbytes, out_waypoint);
+        break;
+    case 4:
+        out_waypoint->command = WAYPOINT_COMMAND_GOTO_STEP;
+        nbytes = parse_int(p, buf_nbytes, &out_waypoint->goto_step);
+        break;
+    case 5:
+        out_waypoint->command = WAYPOINT_COMMAND_GOTO_STEP_IF_IO;
+        nbytes = parse_int(p, buf_nbytes, &out_waypoint->goto_step);
+        break;
+    case 6:
+        out_waypoint->command = WAYPOINT_COMMAND_INTERROGATE_SWITCHES;
+        nbytes = 0;
+        break;
+    case 7:
+        out_waypoint->command = WAYPOINT_COMMAND_WAIT_MILLIS;
+        nbytes = parse_int(p, buf_nbytes, &out_waypoint->wait_millis);
+        break;
+    default:
+        assert(false);
+        break;
+    }
+
+    buf_nbytes -= nbytes;
+    p += nbytes;
+
+    nbytes = parse_whitespace(p, buf_nbytes);
+
+    buf_nbytes -= nbytes;
+    p += nbytes;
+
+    return p - buf;
 }

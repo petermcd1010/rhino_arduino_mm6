@@ -88,7 +88,7 @@ config_waypoint_t config_get_waypoint(int index)
     waypoint.crc = crc32c_calculate(&waypoint, sizeof(config_waypoint_t));
 
     if (waypoint.crc != saved_crc) {
-        // Bad CRC. Likely reading a waypoint that was never written, but zero anyway.
+        // Bad CRC. Likely reading a waypoint that was never written, but zero it anyway and set step == -1.
         memset(&waypoint, 0, sizeof(config_waypoint_t));
         waypoint.step = -1;
     }

@@ -18,17 +18,6 @@
 // ! -> move_to_a_waypoint_angle()
 
 typedef enum {
-    COMMAND_MOVE_AT              = 'A',
-    COMMAND_MOVE_BESIDE,
-    COMMAND_MOVE_CLOSE,
-    COMMAND_MOVE_APPROACHING,
-    COMMAND_GOTO_STEP            = 'G',
-    COMMAND_GOTO_STEP_IF_IO      = 'J',
-    COMMAND_INTERROGATE_SWITCHES = 'I',
-    COMMAND_WAIT_MILLIS          = 'W',
-} command_t;
-
-typedef enum {
     PROGRESS_AT = 0,  // Exactly at waypoint position.
     PROGRESS_BESIDE,  // Within 1 click of waypoint position.
     PROGRESS_CLOSE,  // Between 2 and 30 clicks of waypoint position.
@@ -37,8 +26,6 @@ typedef enum {
 } progress_t;
 
 static void (*sm_exit_to_state)(void) = NULL;
-static String in_buffer = "";
-static String string_splits[8];  //Used to store waypoints
 static int motion_status[MOTOR_ID_COUNT] = { 0 };  // Motion Status:
 static int tracking = 0;  // TODO: Change to bool or enum.
 static int track_report_encoder_value[MOTOR_ID_COUNT] = { 0 };  // Last value logged while tracking.
@@ -46,7 +33,6 @@ static int limit_prev[MOTOR_ID_COUNT] = { 0 };  // Limit/Home switch Previous Va
 
 static void move_to_a_waypoint_angle();
 static void move_to_waypoint_angle(config_waypoint_t waypoint);
-static String get_string_part_at_specific_index(String StringToSplit, char SplitChar, int StringPartIndex);
 
 static config_waypoint_t current_waypoint = { 0 };
 
@@ -76,42 +62,44 @@ static void sm_execute_next_step(void)
     log_writeln(F("waypoint sm_run"));
     sm_set_state_name(F("waypoint sm_run"));
 
-    log_write(F("step: %d - "), current_waypoint.step);
+    log_write(F("Waypoint: Reading step %d."), current_waypoint.step);
 
     assert(current_waypoint.step < config_get_num_waypoints());
     current_waypoint = config_get_waypoint(current_waypoint.step);
 
+    if (current_waypoint.step == -1)
+        sm_set_next_state(sm_exit);
+
     // TurnOnPID();
     switch (current_waypoint.command) {
-    case COMMAND_MOVE_AT:  // Fallthrough.
-    case COMMAND_MOVE_BESIDE:  // Fallthrough.
-    case COMMAND_MOVE_CLOSE:  // Fallthrough.
-    case COMMAND_MOVE_APPROACHING:
-        log_writeln(F("Waypoint sm_run move_to."), current_waypoint.step);
-        log_write(F("Waypoint sm_run move_to "));
+    case WAYPOINT_COMMAND_MOVE_AT:  // Fallthrough.
+    case WAYPOINT_COMMAND_MOVE_BESIDE:  // Fallthrough.
+    case WAYPOINT_COMMAND_MOVE_CLOSE:  // Fallthrough.
+    case WAYPOINT_COMMAND_MOVE_APPROACHING:
+        log_write(F("Waypoint %d: sm_run move_to "), current_waypoint.step);
         waypoint_print(current_waypoint);
         move_to_waypoint_angle(current_waypoint);
         tracking = 2;  // Track angles.
         sm_set_next_state(sm_track_move_to);
         break;
-    case COMMAND_GOTO_STEP:
-        log_writeln(F("Waypoint sm_run goto step %d."), current_waypoint.goto_step);
+    case WAYPOINT_COMMAND_GOTO_STEP:
+        log_writeln(F("Waypoint %d: goto step %d."), current_waypoint.step);
         current_waypoint.step = current_waypoint.goto_step;
         break;
-    case COMMAND_GOTO_STEP_IF_IO:
+    case WAYPOINT_COMMAND_GOTO_STEP_IF_IO:
         // pin = waypoint.b;
-        log_writeln(F("Waypoint sm_run goto step %d if button pressed."), current_waypoint.goto_step);
+        log_writeln(F("Waypoint %d: goto step %d if button pressed."), current_waypoint.goto_step);
         if (hardware_get_button_pressed()) // TODO: Support configurable expansion IO line.
             current_waypoint.step = current_waypoint.goto_step;
         else
             current_waypoint.step++;
         break;
-    case COMMAND_INTERROGATE_SWITCHES:
-        log_writeln(F("Waypoint sm_run interrogate limit switches."));
+    case WAYPOINT_COMMAND_INTERROGATE_SWITCHES:
+        log_writeln(F("Waypoint %d: interrogate limit switches."), current_waypoint.goto_step);
         sm_set_next_state(sm_interrogate_limit_switches);
         break;
-    case COMMAND_WAIT_MILLIS:
-        log_writeln(F("Waypoint sm_run wait %d milliseconds."), current_waypoint.wait_millis);
+    case WAYPOINT_COMMAND_WAIT_MILLIS:
+        log_writeln(F("Waypoint %d: wait %d milliseconds."), current_waypoint.wait_millis);
         sm_set_next_state(sm_wait_millis);
         break;
     }
@@ -202,6 +190,12 @@ static void sm_exit(void)
     log_writeln(F("Done running waypoint sequence."));
 }
 
+
+
+static String in_buffer = "";
+static String string_splits[8];  //Used to store waypoints
+static String get_string_part_at_specific_index(String StringToSplit, char SplitChar, int StringPartIndex);
+
 static void split_waypoint(String waypoint)
 {
     for (int i = 0; i < 8; i++) {
@@ -289,10 +283,10 @@ void waypoint_print(config_waypoint_t waypoint)
     assert(waypoint.step != -1);
 
     switch (waypoint.command) {
-    case COMMAND_MOVE_AT:  // Fallthrough.
-    case COMMAND_MOVE_BESIDE:  // Fallthough.
-    case COMMAND_MOVE_CLOSE:  // Fallthrough.
-    case COMMAND_MOVE_APPROACHING:
+    case WAYPOINT_COMMAND_MOVE_AT:  // Fallthrough.
+    case WAYPOINT_COMMAND_MOVE_BESIDE:  // Fallthough.
+    case WAYPOINT_COMMAND_MOVE_CLOSE:  // Fallthrough.
+    case WAYPOINT_COMMAND_MOVE_APPROACHING:
         log_write(F("wapyoint: step:%d command:%c a:%d b:%d c:%d d:%d e:%d f:%d"),
                   waypoint.step,
                   waypoint.command,
@@ -303,24 +297,24 @@ void waypoint_print(config_waypoint_t waypoint)
                   waypoint.motor.e,
                   waypoint.motor.f);
         break;
-    case COMMAND_GOTO_STEP:
+    case WAYPOINT_COMMAND_GOTO_STEP:
         log_write(F("wapyoint: step:%d command:%c (goto step) destination_step: %d"),
                   waypoint.step,
                   waypoint.command,
                   waypoint.goto_step);
         break;
-    case COMMAND_GOTO_STEP_IF_IO:
+    case WAYPOINT_COMMAND_GOTO_STEP_IF_IO:
         log_write(F("wapyoint: step:%d command:%c (goto step if IO) destination_step: %d"),
                   waypoint.step,
                   waypoint.command,
                   waypoint.goto_step);
         break;
-    case COMMAND_INTERROGATE_SWITCHES:
+    case WAYPOINT_COMMAND_INTERROGATE_SWITCHES:
         log_write(F("wapyoint: step:%d command:%c (interrogate limit switches)"),
                   waypoint.step,
                   waypoint.command);
         break;
-    case COMMAND_WAIT_MILLIS:
+    case WAYPOINT_COMMAND_WAIT_MILLIS:
         log_write(F("wapyoint: step:%d command:%c (wait millis) %d"),
                   waypoint.step,
                   waypoint.command,
