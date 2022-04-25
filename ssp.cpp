@@ -8,12 +8,12 @@
 #include "Arduino.h"
 
 #define SSP_FEND 0
-#define SSP_DT 236
+#define SSP_DT 236  // Frame size? Buffer length?
 #define SSP_DEST 1
 #define SSP_SRC 2
-#define SSP_TYPE 3
+#define SSP_KIND 3
 // #define SSP_HEADER 8
-#define SSP_INFO 229
+#define SSP_INFO 229  // Data length without framing.
 #define SSP_FULL 1
 #define SSP_EMPTY 0
 #define SSP_TX 1
@@ -66,9 +66,9 @@ uint16_t compute_crc16(uint8_t *data, uint8_t length)
     return crc;
 }
 
-static void control_layer(uint8_t *tx_app_data, uint16_t data_length, uint8_t tx_app_desti,
-                          uint8_t *tx_frm_srce, uint8_t tx_app_type, uint8_t *tx_frm_type,
-                          uint8_t *tx_frm_data, uint8_t *tx_frm_desti, uint8_t *rx_frm_type,
+static void control_layer(uint8_t *tx_app_data, uint16_t data_length, uint8_t tx_app_dest,
+                          uint8_t *tx_frm_srce, uint8_t tx_app_kind, uint8_t *tx_frm_kind,
+                          uint8_t *tx_frm_data, uint8_t *tx_frm_dest, uint8_t *rx_frm_kind,
                           uint8_t *rx_frm_data, uint8_t *rx_frm_dest, uint16_t rx_length,
                           uint8_t *data_flag, uint8_t *deframe_flag, uint8_t *tx_flag, uint8_t *rx_app_data,
                           uint8_t crc_flag, uint16_t *tx_size, uint8_t *rx_frm_src, uint8_t *layer_flag, uint8_t *check_control)
@@ -91,8 +91,8 @@ static void control_layer(uint8_t *tx_app_data, uint16_t data_length, uint8_t tx
             }
 
             *tx_size = data_length;
-            *tx_frm_desti = tx_app_desti;
-            *tx_frm_type = tx_app_type;
+            *tx_frm_dest = tx_app_dest;
+            *tx_frm_kind = tx_app_kind;
             *tx_flag = SSP_FULL;
             *data_flag = SSP_EMPTY;
         } else if (*deframe_flag == SSP_FULL && *layer_flag == SSP_EMPTY) {
@@ -112,7 +112,7 @@ static void control_layer(uint8_t *tx_app_data, uint16_t data_length, uint8_t tx
         }
     } else if (control_flag == SSP_TX) {
         if (*deframe_flag == SSP_FULL) {
-            if (*rx_frm_dest == source && *rx_frm_type == 0x02) {
+            if (*rx_frm_dest == source && *rx_frm_kind == 0x02) {
                 Serial1.println("\n Respond with an ACK \n");
                 Serial1.flush();
                 control_flag = SSP_IDLE;
@@ -120,8 +120,8 @@ static void control_layer(uint8_t *tx_app_data, uint16_t data_length, uint8_t tx
                 *check_control = SSP_EMPTY;
                 counter = 0;
             } else if ((*rx_frm_dest == source)
-                       && (*rx_frm_type == 0x03 || *rx_frm_type == 0x13
-                           || *rx_frm_type == 0x23)) {
+                       && (*rx_frm_kind == 0x03 || *rx_frm_kind == 0x13
+                           || *rx_frm_kind == 0x23)) {
                 Serial1.println("\n Response with NACK \n");
                 Serial1.println("\n Sending Data Again \n");
                 Serial1.flush();
@@ -152,8 +152,8 @@ static void control_layer(uint8_t *tx_app_data, uint16_t data_length, uint8_t tx
             *tx_frm_srce = *rx_frm_dest;
             *tx_size = 0;
 
-            *tx_frm_desti = *rx_frm_src;
-            *tx_frm_type = 0x02;
+            *tx_frm_dest = *rx_frm_src;
+            *tx_frm_kind = 0x02;
             *tx_flag = SSP_FULL;
             control_flag = SSP_IDLE;
             *layer_flag = SSP_FULL;
@@ -162,23 +162,23 @@ static void control_layer(uint8_t *tx_app_data, uint16_t data_length, uint8_t tx
             Serial1.flush();
             *tx_frm_srce = *rx_frm_dest;
             *tx_size = 0;
-            *tx_frm_desti = *rx_frm_src;
-            *tx_frm_type = 0x03;
+            *tx_frm_dest = *rx_frm_src;
+            *tx_frm_kind = 0x03;
             *tx_flag = SSP_FULL;
             control_flag = SSP_IDLE;
         }
     }
 }
 
-void ssp_build_frame(uint8_t *tx_frame, uint8_t *data, uint8_t desti, uint8_t srce,
-                     uint8_t typee, uint16_t tx_size, uint8_t *tx_flag)
+void ssp_build_frame(uint8_t *tx_frame, uint8_t *data, uint8_t dest, uint8_t srce,
+                     uint8_t kinde, uint16_t tx_size, uint8_t *tx_flag)
 {
     uint16_t p, k;
 
     tx_frame[SSP_FEND] = 0xc0;
-    tx_frame[SSP_DEST] = desti;
+    tx_frame[SSP_DEST] = dest;
     tx_frame[SSP_SRC] = srce;
-    tx_frame[SSP_TYPE] = typee;
+    tx_frame[SSP_KIND] = kinde;
 
     uint8_t f, d, count = 0, w = 0, count2 = 0, arr[SSP_DT];
     int temp = 0, temp2 = 0;
@@ -246,15 +246,15 @@ void ssp_build_frame(uint8_t *tx_frame, uint8_t *data, uint8_t desti, uint8_t sr
     *tx_flag = SSP_EMPTY;
 }
 
-void ssp_deframing(uint8_t *rx_frame, uint8_t *adddest, uint8_t *addsrc, uint8_t *type,
+void ssp_deframing(uint8_t *rx_frame, uint8_t *dest, uint8_t *src, uint8_t *kind,
                    uint8_t *rx_data, uint16_t *length, uint8_t *rx_flag, uint8_t *crc_flag, uint8_t *deframe_flag)
 {
     uint16_t i, j, d, size2, size = 1, crc, size3;
     uint8_t count = 0, k, y = 0, arr[SSP_DT], datta[SSP_INFO + 4];
 
-    *adddest = rx_frame[SSP_DEST];
-    *addsrc = rx_frame[SSP_SRC];
-    *type = rx_frame[SSP_TYPE];
+    *dest = rx_frame[SSP_DEST];
+    *src = rx_frame[SSP_SRC];
+    *kind = rx_frame[SSP_KIND];
 
     for (j = 1; j < SSP_DT; j++) {
         if (rx_frame[j] == 0xc0) {
@@ -276,8 +276,8 @@ void ssp_deframing(uint8_t *rx_frame, uint8_t *adddest, uint8_t *addsrc, uint8_t
     size2 = size - 3;
 
     if (rx_frame[SSP_FEND] == 0xc0 && crc == 0x00) {
-        *adddest = rx_frame[SSP_DEST];
-        *addsrc = rx_frame[SSP_SRC];
+        *dest = rx_frame[SSP_DEST];
+        *src = rx_frame[SSP_SRC];
 
         for (i = 4; i < (size - 3); i++) {
             datta[i] = rx_frame[i];
@@ -336,7 +336,7 @@ static uint8_t rx_frame[SSP_DT];
 static uint8_t rx_data[SSP_INFO];
 static uint8_t layer_data[SSP_INFO];
 
-static uint8_t type2;
+static uint8_t kind2;
 
 static uint8_t check_control = SSP_EMPTY;
 static uint16_t data_length;
@@ -364,12 +364,11 @@ static void receive_frame_here()
     }
 }
 
-static void getdata(uint8_t *data, uint16_t *data_length, uint8_t *data_flag)
+static void generate_random_data(uint8_t *data, uint16_t *data_length, uint8_t *data_flag)
 {
     *data_flag = SSP_EMPTY;
     uint8_t i;
     uint8_t arr[SSP_INFO];
-
 
     *data_length = random(0, 229);
     for (i = 0; i < *data_length; i++) {
@@ -388,7 +387,7 @@ static void ssp_setup()
     Serial.begin(9600);
     Serial1.begin(9600);
     if (check_control == SSP_EMPTY) {
-        getdata(data, &data_length, &data_flag);
+        generate_random_data(data, &data_length, &data_flag);
         check_control = SSP_FULL;
     }
 }
@@ -398,14 +397,14 @@ static void ssp_loop()
     static uint8_t tx_flag = SSP_EMPTY;
     uint8_t i;
     static uint8_t crc_flag = SSP_EMPTY;
-    uint8_t desti = 0x01;
+    uint8_t dest = 0x01;
     uint8_t srce;
-    uint8_t typee = 0x02;
-    uint8_t desti2;
+    uint8_t kinde = 0x02;
+    uint8_t dest2;
     static uint16_t tx_size = 0;
     uint8_t adddest;
     uint8_t addsrc;
-    static uint8_t type = 0;
+    static uint8_t kind = 0;
     static uint16_t rx_length = 0;
     static uint8_t layer_flag = SSP_EMPTY;
     static uint8_t deframe_flag = SSP_EMPTY;
@@ -414,26 +413,25 @@ static void ssp_loop()
     delay(100);
 
     if (check_control == SSP_EMPTY) {
-        getdata(data, &data_length, &data_flag);
+        generate_random_data(data, &data_length, &data_flag);
         check_control = SSP_FULL;
     }
 
     if ((check_control == SSP_FULL && tx_flag == SSP_EMPTY)
         || (check_control == SSP_EMPTY && layer_flag == SSP_EMPTY)) {
-        control_layer(data, data_length, desti, &srce, typee, &type2, data2, &desti2,
-                      &type, rx_data, &adddest, rx_length, &data_flag, &deframe_flag,
+        control_layer(data, data_length, dest, &srce, kinde, &kind2, data2, &dest2,
+                      &kind, rx_data, &adddest, rx_length, &data_flag, &deframe_flag,
                       &tx_flag, layer_data, crc_flag, &tx_size, &addsrc, &layer_flag, &check_control);
 
         layer_flag = SSP_EMPTY;
     }
 
-
     if (tx_flag == SSP_FULL)
-        ssp_build_frame(tx_frame, data2, desti2, srce, type2, tx_size, &tx_flag);
+        ssp_build_frame(tx_frame, data2, dest2, srce, kind2, tx_size, &tx_flag);
 
     receive_frame_here();
 
     if (rx_flag == SSP_FULL && deframe_flag == SSP_EMPTY)
-        ssp_deframing(rx_frame, &adddest, &addsrc, &type, rx_data, &rx_length,
+        ssp_deframing(rx_frame, &adddest, &addsrc, &kind, rx_data, &rx_length,
                       &rx_flag, &crc_flag, &deframe_flag);
 }
