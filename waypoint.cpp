@@ -12,11 +12,6 @@
 #include "sm.h"
 #include "waypoint.h"
 
-// k/K -> Run WayPointSeq()
-// x -> set_waypoint_angle()
-// r -> get_waypoint_angle()
-// ! -> move_to_a_waypoint_angle()
-
 typedef enum {
     PROGRESS_AT = 0,  // Exactly at waypoint position.
     PROGRESS_BESIDE,  // Within 1 click of waypoint position.

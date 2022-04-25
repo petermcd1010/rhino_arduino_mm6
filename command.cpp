@@ -500,11 +500,52 @@ int command_print_software_version(char *pargs, size_t args_nbytes)
     return 0;
 }
 
-int command_waypoint(char *pargs, size_t args_nbytes)
+int command_waypoint_run(char *pargs, size_t args_nbytes)
 {
-    // TODO: Implement command_waypoint.
+    // w r [start-step].
     assert(false);
+    return -1;
+}
 
+int command_waypoint_set(char *pargs, size_t args_nbytes)
+{
+    // w s step command [args].
+    assert(false);
+    return -1;
+}
+
+int command_waypoint_insert_before(char *pargs, size_t args_nbytes)
+{
+    // w i step command [args].
+    assert(false);
+    return -1;
+}
+
+int command_waypoint_delete(char *pargs, size_t args_nbytes)
+{
+    // w d step.
+    assert(false);
+    return -1;
+}
+
+int command_waypoint_append(char *pargs, size_t args_nbytes)
+{
+    // w a command [args].
+    assert(false);
+    return -1;
+}
+
+int command_waypoint_print(char *pargs, size_t args_nbytes)
+{
+    // w p [step [count]]
+    assert(false);
+    return -1;
+}
+
+int command_waypoint_execute_single(char *pargs, size_t args_nbytes)
+{
+    // w x step.
+    assert(false);
     return -1;
 }
 
