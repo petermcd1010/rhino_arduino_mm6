@@ -3,7 +3,6 @@
  * See the LICENSE file in the root directory of this project for copyright and licensing details.
  */
 
-#define __ASSERT_USE_STDERR
 #include "log.h"
 #include "motor.h"
 #include "parse.h"
@@ -426,7 +425,7 @@ size_t parse_waypoint(char *buf, size_t buf_nbytes, config_waypoint_t *out_waypo
     int entry_num = -1;
     size_t nbytes = parse_string_in_table(p, buf_nbytes, command_strings, COMMAND_STRINGS_COUNT, &entry_num);
     if (nbytes = 0) {
-        log_writeln(F("Error processing waypoint.")); // TODO: Test and remove.
+        log_writeln(F("Error processing waypoint."));  // TODO: Test and remove.
         return 0;
     }
 

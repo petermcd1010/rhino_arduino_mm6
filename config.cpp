@@ -3,7 +3,6 @@
  * See the LICENSE file in the root directory of this project for copyright and licensing details.
  */
 
-#define __ASSERT_USE_STDERR
 #include <EEPROM.h>
 
 #include "config.h"

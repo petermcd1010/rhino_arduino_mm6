@@ -9,8 +9,6 @@
  *   Run through a static analyzer?
  */
 
-#define __ASSERT_USE_STDERR
-
 #include "config.h"
 #include "hardware.h"
 #include "log.h"
