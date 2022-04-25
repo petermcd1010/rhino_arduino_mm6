@@ -36,126 +36,83 @@ typedef enum {
     PROGRESS_ON_WAY,  // More than 200 clicks away from waypoint position.
 } progress_t;
 
+static void (*sm_exit_to_state)(void) = NULL;
 static String in_buffer = "";
 static String string_splits[8];  //Used to store waypoints
 static int motion_status[MOTOR_ID_COUNT] = { 0 };  // Motion Status:
-static int tracking = 0;
+static int tracking = 0;  // TODO: Change to bool or enum.
 static int track_report_encoder_value[MOTOR_ID_COUNT] = { 0 };  // Last value logged while tracking.
 static int limit_prev[MOTOR_ID_COUNT] = { 0 };  // Limit/Home switch Previous Value
 
-static void move_to(config_waypoint_t waypoint);
 static void move_to_a_waypoint_angle();
 static void move_to_waypoint_angle(config_waypoint_t waypoint);
-static bool check_progress(progress_t progress);  // Returns true if status <= progress.
-static void track_report(void);
 static String get_string_part_at_specific_index(String StringToSplit, char SplitChar, int StringPartIndex);
+
+static config_waypoint_t current_waypoint = { 0 };
+
+static void sm_execute_next_step(void);
+static void sm_track_move_to(void);
+static void sm_interrogate_limit_switches(void);
+static void sm_wait_millis(void);
+static void sm_exit(void);
 
 static void interrogate_limit_switches()
 {
 }
 
-void waypoint_sm_run(void);
-
 void waypoint_sm_enter(void)
 {
+    log_writeln(F("waypoint_sm_enter"));
     sm_set_state_name(F("waypoint_sm_enter"));
-    sm_set_next_state(waypoint_sm_run);
+
+    sm_exit_to_state = sm_get_state();  // State to transition to when waypoints done running.
+    sm_set_next_state(sm_execute_next_step);
+
+    current_waypoint.step = 0;
 }
 
-static void waypoint_sm_run(void)
+static void sm_execute_next_step(void)
 {
-    sm_set_state_name(F("waypoint_sm_run"));
-}
+    log_writeln(F("waypoint sm_run"));
+    sm_set_state_name(F("waypoint sm_run"));
 
-static void waypoint_sm_move_to(void)
-{
-    sm_set_state_name(F("waypoint_sm_move_to"));
-}
+    log_write(F("step: %d - "), current_waypoint.step);
 
-static void waypoint_sm_interrogate_limit_switches(void)
-{
-    sm_set_state_name(F("waypoint_sm_interrogate_limit_switches"));
-}
+    assert(current_waypoint.step < config_get_num_waypoints());
+    current_waypoint = config_get_waypoint(current_waypoint.step);
 
-static void waypoint_sm_wait_millis(void)
-{
-    sm_set_state_name(F("waypoint_sm_wait_millis"));
-}
-
-static void waypoint_run_sequence(void)
-{
-    log_writeln(F("Running waypoint sequence."));
-    config_waypoint_t waypoint = config_get_waypoint(0);
-    int nwaypoints = waypoint.nwaypoints;
-
-    if (nwaypoints < 100) {
-        // TurnOnPID();
-        for (int step = 1; step < nwaypoints; step++) {
-            log_write(F("step: %d - "), step);
-            waypoint = config_get_waypoint(step);
-            switch (waypoint.command) {
-            case COMMAND_MOVE_AT:  // Fallthrough.
-            case COMMAND_MOVE_BESIDE:  // Fallthrough.
-            case COMMAND_MOVE_CLOSE:  // Fallthrough.
-            case COMMAND_MOVE_APPROACHING:
-                move_to(waypoint);
-                break;
-            case COMMAND_GOTO_STEP:
-                step = waypoint.step - 1;
-                log_writeln(F("Goto step %d."), waypoint.step);
-                break;
-            case COMMAND_GOTO_STEP_IF_IO:
-                // pin = waypoint.b;
-                log_writeln(F("Goto step %d if button pressed."), waypoint.step);
-                if (!hardware_get_button_pressed()) // TODO: Support configurable expansion IO line.
-                    step = waypoint.step - 1;
-                break;
-            case COMMAND_INTERROGATE_SWITCHES:
-                interrogate_limit_switches();
-                break;
-            case COMMAND_WAIT_MILLIS:
-                log_writeln(F("Wait %d milliseconds."), waypoint.wait_millis);
-                delay(waypoint.wait_millis);
-                break;
-            }
-        }
-        motor_disable_all();
-        log_writeln(F("Done."));
-    } else {
-        log_writeln(F("No Waypoints."));
-    }
-}
-
-static void move_to(config_waypoint_t waypoint)
-{
-    log_write(F("Move to "));
-    move_to_waypoint_angle(waypoint);
-    waypoint_print(waypoint);
-
-    switch (waypoint.command) {
-    case 'A':
-        do {
-            delay(50);
-            track_report();
-        } while (!check_progress(PROGRESS_AT));
+    // TurnOnPID();
+    switch (current_waypoint.command) {
+    case COMMAND_MOVE_AT:  // Fallthrough.
+    case COMMAND_MOVE_BESIDE:  // Fallthrough.
+    case COMMAND_MOVE_CLOSE:  // Fallthrough.
+    case COMMAND_MOVE_APPROACHING:
+        log_writeln(F("Waypoint sm_run move_to."), current_waypoint.step);
+        log_write(F("Waypoint sm_run move_to "));
+        waypoint_print(current_waypoint);
+        move_to_waypoint_angle(current_waypoint);
+        tracking = 2;  // Track angles.
+        sm_set_next_state(sm_track_move_to);
         break;
-    case 'B':
-        do {
-            delay(50);
-            track_report();
-        } while (!check_progress(PROGRESS_BESIDE));
+    case COMMAND_GOTO_STEP:
+        log_writeln(F("Waypoint sm_run goto step %d."), current_waypoint.goto_step);
+        current_waypoint.step = current_waypoint.goto_step;
         break;
-    case 'C':
-        do {
-            delay(50);
-            track_report();
-        } while (!check_progress(PROGRESS_CLOSE));
+    case COMMAND_GOTO_STEP_IF_IO:
+        // pin = waypoint.b;
+        log_writeln(F("Waypoint sm_run goto step %d if button pressed."), current_waypoint.goto_step);
+        if (hardware_get_button_pressed()) // TODO: Support configurable expansion IO line.
+            current_waypoint.step = current_waypoint.goto_step;
+        else
+            current_waypoint.step++;
         break;
-    case 'D':
-        do {
-            delay(50);
-            track_report();
-        } while (!check_progress(PROGRESS_APPROACHING));
+    case COMMAND_INTERROGATE_SWITCHES:
+        log_writeln(F("Waypoint sm_run interrogate limit switches."));
+        sm_set_next_state(sm_interrogate_limit_switches);
+        break;
+    case COMMAND_WAIT_MILLIS:
+        log_writeln(F("Waypoint sm_run wait %d milliseconds."), current_waypoint.wait_millis);
+        sm_set_next_state(sm_wait_millis);
         break;
     }
 }
@@ -180,11 +137,69 @@ static void track_report(void)
 
 static bool check_progress(progress_t progress)
 {
+    // Returns true if status <= progress.
     return
         (motion_status[MOTOR_ID_C] <= progress) ||
         (motion_status[MOTOR_ID_D] <= progress) ||
         (motion_status[MOTOR_ID_E] <= progress) ||
         (motion_status[MOTOR_ID_F] <= progress);
+}
+
+static void sm_track_move_to(void)
+{
+    log_writeln(F("waypoint sm_track_move_to"));
+    sm_set_state_name(F("waypoint sm_track_move_to"));
+
+    // TODO: Look into millis() rollover and handle appropriately.
+    static int track_millis = -1;
+
+    if ((track_millis < 0) || ((millis() - track_millis) >= 50)) {
+        track_millis = millis();
+        track_report();
+    }
+
+    if (((current_waypoint.command == 'A') && check_progress(PROGRESS_AT)) ||
+        ((current_waypoint.command == 'B') && check_progress(PROGRESS_BESIDE)) ||
+        ((current_waypoint.command == 'C') && check_progress(PROGRESS_CLOSE)) ||
+        ((current_waypoint.command == 'D') && check_progress(PROGRESS_APPROACHING))) {
+        current_waypoint.step++;
+        track_millis = -1;
+    }
+}
+
+static void sm_interrogate_limit_switches(void)
+{
+    log_writeln(F(""));
+    sm_set_state_name(F("waypoint_sm_interrogate_limit_switches"));
+}
+
+static void sm_wait_millis(void)
+{
+    assert(current_waypoint.wait_millis >= 0);
+    static int wait_start_millis = -1;
+
+    log_writeln(F("waypoint sm_wait_millis"));
+    sm_set_state_name(F("waypoint sm_wait_millis"));
+
+    if (wait_start_millis == -1)
+        wait_start_millis = millis();
+
+    if ((millis() - wait_start_millis) > current_waypoint.wait_millis) {
+        // TODO: Look into millis() rollover and handle appropriately.
+        current_waypoint.wait_millis = wait_start_millis = -1;
+        sm_set_next_state(sm_execute_next_step);
+    }
+}
+
+static void sm_exit(void)
+{
+    log_writeln(F("waypoint sm_exit"));
+    sm_set_state_name(F("waypoint sm_exit"));
+
+    motor_disable_all();
+    memset(&current_waypoint, 0, sizeof(config_waypoint_t));
+    sm_set_next_state(sm_exit_to_state);
+    log_writeln(F("Done running waypoint sequence."));
 }
 
 static void split_waypoint(String waypoint)

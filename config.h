@@ -56,7 +56,6 @@ typedef struct __attribute__((packed)) {
     uint8_t step;  // Which waypoint this is in the sequence, -1 if invalid.
     char command;
     union {
-        int nwaypoints;  // First waypoint record stores nwaypoints.
         int goto_step;  // For goto command.
         int wait_millis;  // For wait command.
         struct {

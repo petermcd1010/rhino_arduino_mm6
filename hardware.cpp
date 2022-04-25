@@ -90,6 +90,8 @@ bool hardware_get_button_pressed()
 
     int val = digitalRead(BUTTON);
 
+    // TODO: Look into millis() rollover and handle appropriately.
+
     if (val != prev_val) {
         prev_transition_millis = millis();
         prev_val = val;
