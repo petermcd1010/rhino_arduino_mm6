@@ -83,7 +83,7 @@ config_waypoint_t config_get_waypoint(int index)
 
     uint32_t saved_crc = waypoint.crc;
 
-    waypoint.crc = 0;
+    waypoint.crc = 0;  // Set to 0, as the crc is part of the crc calculation.
     waypoint.crc = crc32c_calculate(&waypoint, sizeof(config_waypoint_t));
 
     if (waypoint.crc != saved_crc) {
@@ -332,7 +332,8 @@ void config_print()
     log_writeln(F("  Gripper open encoder: %d"), config.gripper_open_encoder);
     log_writeln(F("  Gripper close encoder: %d"), config.gripper_close_encoder);
 
-    log_writeln(F(""));
+    log_writeln();
+    log_writeln(F("Reading %d waypoints."), max_num_waypoints);
 
     for (int i = 0; i < max_num_waypoints; i++) {
         config_waypoint_t waypoint = config_get_waypoint(i);

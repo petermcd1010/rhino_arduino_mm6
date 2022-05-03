@@ -53,7 +53,7 @@ typedef struct __attribute__((packed)) {
 
 typedef struct __attribute__((packed)) {
     uint32_t crc;
-    uint8_t step;  // Which waypoint this is in the sequence, -1 if invalid.
+    int16_t step;  // Which waypoint this is in the sequence, -1 if invalid.
     char command;
     union {
         int goto_step;  // For goto command.

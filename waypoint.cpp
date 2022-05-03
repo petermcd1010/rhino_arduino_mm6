@@ -282,40 +282,41 @@ void waypoint_print(config_waypoint_t waypoint)
     case WAYPOINT_COMMAND_MOVE_BESIDE:  // Fallthough.
     case WAYPOINT_COMMAND_MOVE_CLOSE:  // Fallthrough.
     case WAYPOINT_COMMAND_MOVE_APPROACHING:
-        log_write(F("wapyoint: step:%d command:%c a:%d b:%d c:%d d:%d e:%d f:%d"),
-                  waypoint.step,
-                  waypoint.command,
-                  waypoint.motor.a,
-                  waypoint.motor.b,
-                  waypoint.motor.c,
-                  waypoint.motor.d,
-                  waypoint.motor.e,
-                  waypoint.motor.f);
+        log_writeln(F("waypoint: step:%d command:%c a:%d b:%d c:%d d:%d e:%d f:%d"),
+                    waypoint.step,
+                    waypoint.command,
+                    waypoint.motor.a,
+                    waypoint.motor.b,
+                    waypoint.motor.c,
+                    waypoint.motor.d,
+                    waypoint.motor.e,
+                    waypoint.motor.f);
         break;
     case WAYPOINT_COMMAND_GOTO_STEP:
-        log_write(F("wapyoint: step:%d command:%c (goto step) destination_step: %d"),
-                  waypoint.step,
-                  waypoint.command,
-                  waypoint.goto_step);
+        log_writeln(F("waypoint: step:%d command:%c (goto step) destination_step: %d"),
+                    waypoint.step,
+                    waypoint.command,
+                    waypoint.goto_step);
         break;
     case WAYPOINT_COMMAND_GOTO_STEP_IF_IO:
-        log_write(F("wapyoint: step:%d command:%c (goto step if IO) destination_step: %d"),
-                  waypoint.step,
-                  waypoint.command,
-                  waypoint.goto_step);
+        log_writeln(F("waypoint: step:%d command:%c (goto step if IO) destination_step: %d"),
+                    waypoint.step,
+                    waypoint.command,
+                    waypoint.goto_step);
         break;
     case WAYPOINT_COMMAND_INTERROGATE_SWITCHES:
-        log_write(F("wapyoint: step:%d command:%c (interrogate limit switches)"),
-                  waypoint.step,
-                  waypoint.command);
+        log_writeln(F("waypoint: step:%d command:%c (interrogate limit switches)"),
+                    waypoint.step,
+                    waypoint.command);
         break;
     case WAYPOINT_COMMAND_WAIT_MILLIS:
-        log_write(F("wapyoint: step:%d command:%c (wait millis) %d"),
-                  waypoint.step,
-                  waypoint.command,
-                  waypoint.wait_millis);
+        log_writeln(F("waypoint: step:%d command:%c (wait millis) %d"),
+                    waypoint.step,
+                    waypoint.command,
+                    waypoint.wait_millis);
         break;
     default:
+        log_writeln(F("waypoint.command=%d"), waypoint.command);
         assert(false);
         break;
     }

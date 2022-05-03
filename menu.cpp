@@ -70,7 +70,7 @@ static const menu_item_t menu_item_by_index[] = {  // TODO: F()
     { 'Q', "run test sequence",      NULL,                        false, command_run_test_sequence,      ""                                                                                         },
     { 'T', "test motors",            NULL,                        true,  command_test_motors,            "-- Test enabled motors."                                                                  },
     { 'V', "print software version", NULL,                        false, command_print_software_version, "-- Print software version."                                                               },
-    { 'W', "waypoint",               NULL,                        true,  command_waypoint,               ""                                                                                         },
+    { 'W', "waypoint",               NULL,                        true,  command_waypoint_set,           ""                                                                                         },
     { '*', "factory reset",          extended_menu_factory_reset, false, command_factory_reset,          "RESET -- Reset system to factory defaults (clears EEPROM, etc). Requires typing 'RESET'." },
     { '!', "emergency stop",         NULL,                        false, command_emergency_stop,         "-- Execute hardware emergency stop (E-Stop). Enters 'Error' state. Requires reboot."      },
     { '?', "print help",             NULL,                        false, command_print_help,             "-- Print this help message."                                                              },
