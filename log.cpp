@@ -121,7 +121,7 @@ static void log_internal(int line_num, const char *pfunction_name, bool is_error
 
     char buffer[progmem_copy_buffer_nbytes];
 
-    snprintf(buffer, progmem_copy_buffer_nbytes, ":%d:%s:%s ", line_num, pfunction_name, is_error ?  "ERROR:" : "");
+    snprintf(buffer, progmem_copy_buffer_nbytes, ":%d:%s:%s ", line_num, pfunction_name, is_error ? "ERROR:" : "");
     buffer[progmem_copy_buffer_nbytes - 1] = '\0';  // Force null-termination.
     write_string(buffer);
 

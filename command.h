@@ -29,8 +29,8 @@ int command_waypoint_set(char *pargs, size_t args_nbytes);  // w s step command 
 int command_waypoint_insert_before(char *pargs, size_t args_nbytes);  // w i step command [args].
 int command_waypoint_delete(char *pargs, size_t args_nbytes);  // w d step.
 int command_waypoint_append(char *pargs, size_t args_nbytes);  // w a command [args].
-int command_waypoint_print(char *pargs, size_t args_nbytes);  // w p [step [count]]
-int command_waypoint_execute_single(char *pargs, size_t args_nbytes);  // w x step.
+int command_waypoint_print(char *pargs, size_t args_nbytes);  // w p [step [count]].
+int command_waypoint_run(char *pargs, size_t args_nbytes);  // w r [step [step]].
 int command_factory_reset(char *pargs, size_t args_nbytes);
 int command_emergency_stop(char *pargs, size_t args_nbytes);
 int command_print_help(char *pargs, size_t args_nbytes);

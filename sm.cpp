@@ -171,7 +171,7 @@ static void process_serial_input()
                     log_writeln(F("ERROR: Invalid command '%c'. Type '?' for help."), input_char);  // TODO: NAK?
                     reset_prompt = true;
                 } else {
-                    log_write(F("%s"), pmenu_item->pname);
+                    log_write((const __FlashStringHelper *)pmenu_item->name);
                     if (pmenu_item->print_sub_menu_fn)
                         pmenu_item->print_sub_menu_fn();
                     if (pmenu_item->has_args)
@@ -191,12 +191,16 @@ static void process_serial_input()
                 char *p = command_args + nbytes;
                 command_args_nbytes -= nbytes;
 
-                if (pprev_menu_item->pfunction(p, command_args_nbytes) != command_args_nbytes)
+                if (pprev_menu_item->sub_menu) {
+                    menu_set_current_menu(pprev_menu_item->sub_menu);
+                    menu_help();
+                } else if (pprev_menu_item->function && (pprev_menu_item->function(p, command_args_nbytes) != command_args_nbytes)) {
                     log_writeln(F("ERROR: Invalid command arguments. Type '?' for help."));  // TODO: NAK?
+                }
                 reset_prompt = true;
             } else if ((input_char == ASCII_BACKSPACE) || (input_char == ASCII_DELETE)) {
                 // TODO: only 1 BS if we're entering args.
-                int nbackspaces_count = strlen(pprev_menu_item->pname) + 2;  // +2 for " >"
+                int nbackspaces_count = strlen(pprev_menu_item->name) + 2;  // +2 for " >"
                 if (pprev_menu_item->has_args)
                     nbackspaces_count++;  // Account for additional ' '.
                 for (int i = 0; i < nbackspaces_count; i++) {

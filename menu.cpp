@@ -8,6 +8,7 @@
 #include "log.h"
 #include "menu.h"
 
+static const int menu_item_max_count = 40;
 static const int menu_item_max_name_nbytes = 25;
 
 static void extended_menu_robot_id(void)
@@ -52,37 +53,128 @@ static void extended_menu_reboot(void)
     log_write(F(">"));
 }
 
-static const menu_item_t menu_item_by_index[] = {  // TODO: F()
-    { '1', "print configuration",    NULL,                        true,  command_print_config,           "-- Print configuration."                                                                  },
-    { '2', "configure robot ID",     extended_menu_robot_id,      true,  command_config_robot_id,        "[id] -- Print or set configured robot ID."                                                },
-    { '3', "configure robot serial", extended_menu_robot_serial,  true,  command_config_robot_serial,    "[string] -- Print or set configured robot serial."                                        },
-    { '4', "configure robot name",   extended_menu_robot_name,    true,  command_config_robot_name,      "[name] -- Print or set configured robot name."                                            },
-    { '0', "write configuration",    NULL,                        true,  command_config_write,           "Write configuration data to EEPROM."                                                      },
-    { 'B', "reboot",                 extended_menu_reboot,        true,  command_reboot,                 "REBOOT -- Reboot system. Requires typing 'REBOOT'."                                       },
-    { 'C', "calibrate motors",       NULL,                        true,  command_calibrate_motors,       "[motorid] -- Calibrate motor and switch limits; calibrates all motors if none given."     },
-    { 'D', "PID mode",               NULL,                        false, command_pid_mode,               "-- Enable/disable motors."                                                                },
-    { 'E', "set enabled motors",     NULL,                        true,  command_set_enabled_motors,     "[motorids] -- Enable/disable motors, list (e.g 'abce') or blank to disable all."          },
-    { 'G', "set gripper position",   NULL,                        true,  command_set_gripper_position,   "-- Set current encoders as gripper?"                                                      },
-    { 'H', "set home position",      NULL,                        false, command_set_home_position,      "-- Set current encoders as home position."                                                },
-    { 'M', "print motor status",     NULL,                        true,  command_print_motor_status,     "[motorids] -- Print motor status, list (e.g. 'abce') or blank for all."                   },
-    { 'N', "set motor angle",        NULL,                        true,  command_set_motor_angle,        "motorid degrees -- Degrees is 0.0 to 360.0, +15, -20, +, -, ++, --."                      },
-    { 'P', "set motor encoder",      NULL,                        true,  command_set_motor_encoder,      "motorid encoder -- Encoder is in the range X - Y."                                        },     // TODO
-    { 'Q', "run test sequence",      NULL,                        false, command_run_test_sequence,      ""                                                                                         },
-    { 'T', "test motors",            NULL,                        true,  command_test_motors,            "-- Test enabled motors."                                                                  },
-    { 'V', "print software version", NULL,                        false, command_print_software_version, "-- Print software version."                                                               },
-    { 'W', "waypoint",               NULL,                        true,  command_waypoint_set,           ""                                                                                         },
-    { '*', "factory reset",          extended_menu_factory_reset, false, command_factory_reset,          "RESET -- Reset system to factory defaults (clears EEPROM, etc). Requires typing 'RESET'." },
-    { '!', "emergency stop",         NULL,                        false, command_emergency_stop,         "-- Execute hardware emergency stop (E-Stop). Enters 'Error' state. Requires reboot."      },
-    { '?', "print help",             NULL,                        false, command_print_help,             "-- Print this help message."                                                              },
+// These strings are defined outside of the menu below, so they can be stored in flash with PROGMEM.
+static const char MM_1[] PROGMEM = "print configuration";
+static const char MH_1[] PROGMEM = "-- Print configuration.";
+static const char MM_2[] PROGMEM = "configure robot ID";
+static const char MH_2[] PROGMEM = "[id] -- Print or set configured robot ID.";
+static const char MM_3[] PROGMEM = "configure robot serial";
+static const char MH_3[] PROGMEM = "[string] -- Print or set configured robot serial.";
+static const char MM_4[] PROGMEM = "configure robot name";
+static const char MH_4[] PROGMEM = "[name] -- Print or set configured robot name.";
+static const char MM_0[] PROGMEM = "write configuration";
+static const char MH_0[] PROGMEM = "-- Write configuration data to EEPROM.";
+static const char MM_B[] PROGMEM = "reboot";
+static const char MH_B[] PROGMEM = "REBOOT -- Reboot system. Requires typing 'REBOOT'.";
+static const char MM_C[] PROGMEM = "calibrate motors";
+static const char MH_C[] PROGMEM = "[motorid] -- Calibrate motor and switch limits; calibrates all motors if none given.";
+static const char MM_D[] PROGMEM = "PID mode";
+static const char MH_D[] PROGMEM = "-- Enable/disable motors.";
+static const char MM_E[] PROGMEM = "set enabled motors";
+static const char MH_E[] PROGMEM = "[motorids] -- Enable/disable motors, list (e.g 'abce') or blank to disable all.";
+static const char MM_G[] PROGMEM = "set gripper position";
+static const char MH_G[] PROGMEM = "-- Set current encoders as gripper?";
+static const char MM_H[] PROGMEM = "set home position";
+static const char MH_H[] PROGMEM = "-- Set current encoders as home position.";
+static const char MM_M[] PROGMEM = "print motor status";
+static const char MH_M[] PROGMEM = "[motorids] -- Print motor status, list (e.g. 'abce') or blank for all.";
+static const char MM_N[] PROGMEM = "set motor angle";
+static const char MH_N[] PROGMEM = "motorid degrees -- Degrees is 0.0 to 360.0, +15, -20, +, -, ++, --.";
+static const char MM_P[] PROGMEM = "set motor encoder";
+static const char MH_P[] PROGMEM = "motorid encoder -- Encoder is in the range X - Y.";
+static const char MM_Q[] PROGMEM = "run test sequence";
+static const char MH_Q[] PROGMEM = "";
+static const char MM_T[] PROGMEM = "test motors";
+static const char MH_T[] PROGMEM = "-- Test enabled motors.";
+static const char MM_V[] PROGMEM = "print software version";
+static const char MH_V[] PROGMEM = "-- Print software version.";
+static const char MM_W[] PROGMEM = "waypoints menu";
+static const char MH_W[] PROGMEM = "-- Edit and execute waypoints.";
+static const char MM_STAR[] PROGMEM = "factory reset";
+static const char MH_STAR[] PROGMEM = "RESET -- Reset system to factory defaults (clears EEPROM, etc). Requires typing 'RESET'.";
+static const char MM_BANG[] PROGMEM = "emergency stop";
+static const char MH_BANG[] PROGMEM = "-- Execute hardware emergency stop (E-Stop). Enters 'Error' state. Requires reboot.";
+static const char MM_HELP[] PROGMEM = "print help";
+static const char MH_HELP[] PROGMEM = "-- Print this help message.";
+
+extern const menu_item_t waypoint_menu[];  // TODO: Find a better way to predeclare an array and make it static.
+
+static const menu_item_t main_menu[] = {
+    { '1', MM_1,    NULL,                        NULL,          true,  command_print_config,           MH_1    },
+    { '2', MM_2,    extended_menu_robot_id,      NULL,          true,  command_config_robot_id,        MH_2    },
+    { '3', MM_3,    extended_menu_robot_serial,  NULL,          true,  command_config_robot_serial,    MH_3    },
+    { '4', MM_4,    extended_menu_robot_name,    NULL,          true,  command_config_robot_name,      MH_4    },
+    { '0', MM_0,    NULL,                        NULL,          true,  command_config_write,           MH_0    },
+    { 'B', MM_B,    extended_menu_reboot,        NULL,          true,  command_reboot,                 MH_B    },
+    { 'C', MM_C,    NULL,                        NULL,          true,  command_calibrate_motors,       MH_C    },
+    { 'D', MM_D,    NULL,                        NULL,          false, command_pid_mode,               MH_D    },
+    { 'E', MM_E,    NULL,                        NULL,          true,  command_set_enabled_motors,     MH_E    },
+    { 'G', MM_G,    NULL,                        NULL,          true,  command_set_gripper_position,   MH_G    },
+    { 'H', MM_H,    NULL,                        NULL,          false, command_set_home_position,      MH_H    },
+    { 'M', MM_M,    NULL,                        NULL,          true,  command_print_motor_status,     MH_M    },
+    { 'N', MM_N,    NULL,                        NULL,          true,  command_set_motor_angle,        MH_N    },
+    { 'P', MM_P,    NULL,                        NULL,          true,  command_set_motor_encoder,      MH_P    }, // TODO
+    { 'Q', MM_Q,    NULL,                        NULL,          false, command_run_test_sequence,      MH_Q    },
+    { 'T', MM_T,    NULL,                        NULL,          true,  command_test_motors,            MH_T    },
+    { 'V', MM_V,    NULL,                        NULL,          false, command_print_software_version, MH_V    },
+    { 'W', MM_W,    NULL,                        waypoint_menu, true,  NULL,                           MH_W    },
+    { '*', MM_STAR, extended_menu_factory_reset, NULL,          false, command_factory_reset,          MH_STAR },
+    { '!', MM_BANG, NULL,                        NULL,          false, command_emergency_stop,         MH_BANG },
+    { '?', MM_HELP, NULL,                        NULL,          false, command_print_help,             MH_HELP },
+    { 0 }  // Terminate menus with an entry filled with zeros.
 };
-#define MENU_ITEM_COUNT sizeof(menu_item_by_index) / sizeof(menu_item_by_index[0])
+
+static const char WM_1[] PROGMEM = "print waypoints";
+static const char WH_1[] PROGMEM = "[start-step [count]] -- Print waypoints.";
+static const char WM_A[] PROGMEM = "append waypoint";
+static const char WH_A[] PROGMEM = "Set waypoint after last to current motor positions.";
+static const char WM_D[] PROGMEM = "delete waypoint";
+static const char WH_D[] PROGMEM = "step -- Delete waypoint step.";
+static const char WM_I[] PROGMEM = "insert waypint";
+static const char WH_I[] PROGMEM = "waypoint-number -- Set waypoint-number to current motor-positions and move waypoints down.";
+static const char WM_R[] PROGMEM = "run waypoint sequence";
+static const char WH_R[] PROGMEM = "[start-step [count]] -- Run waypoint sequence starting at first waypoint.";
+static const char WM_S[] PROGMEM = "set waypoint";
+static const char WH_S[] PROGMEM = "[step] -- Set next waypoint or waypoint-number to current motor positions.";
+static const char WM_X[] PROGMEM = "exit waypoints menu";
+static const char WH_X[] PROGMEM = "-- Exit waypoints menu.";
+
+static const menu_item_t waypoint_menu[] = {
+    { '1', WM_1,    NULL, NULL,      true,  command_print_config,           WH_1    },
+    { 'A', WM_A,    NULL, NULL,      true,  command_waypoint_append,        WH_A    },
+    { 'D', WM_D,    NULL, NULL,      true,  command_waypoint_delete,        WH_D    },
+    { 'E', MM_E,    NULL, NULL,      true,  command_set_enabled_motors,     MH_E    },
+    { 'I', WM_I,    NULL, NULL,      true,  command_waypoint_insert_before, WH_I    },
+    { 'N', MM_N,    NULL, NULL,      true,  command_set_motor_angle,        MH_N    },
+    { 'P', MM_P,    NULL, NULL,      true,  command_set_motor_encoder,      MH_P    },  // TODO
+    { 'R', WM_R,    NULL, NULL,      true,  command_waypoint_run,           WH_R    },
+    { 'S', WM_S,    NULL, NULL,      true,  command_waypoint_set,           WH_S    },
+    { 'T', MM_T,    NULL, NULL,      true,  command_test_motors,            MH_T    },
+    { 'X', WM_X,    NULL, main_menu, true,  NULL,                           WH_X    },
+    { '!', MM_BANG, NULL, NULL,      false, command_emergency_stop,         MH_BANG },
+    { '?', MM_HELP, NULL, NULL,      false, command_print_help,             MH_HELP },
+    { 0 }  // Terminate menus with an entry filled with zeros.
+};
+
+static const menu_item_t *current_menu = main_menu;
+
+void menu_set_current_menu(const menu_item_t *menu)
+{
+    assert(menu);
+    current_menu = menu;
+}
 
 const menu_item_t * menu_item_by_command_char(char ch)
 {
-    for (int i = 0; i < MENU_ITEM_COUNT; i++) {
-        if (toupper(ch) == toupper(menu_item_by_index[i].command_char))
-            return &menu_item_by_index[i];
+    int n = 0;
+
+    while (current_menu[n].command_char != 0) {
+        assert(n < menu_item_max_count);
+        if (toupper(ch) == toupper(current_menu[n].command_char))
+            return &current_menu[n];
+        n++;
     }
+
     return NULL;
 }
 
@@ -90,49 +182,78 @@ void menu_help(void)
 {
     log_writeln(F("Command list:"));
 
+    int n = 0;
     int longest_name_nbytes = 0;
 
-    for (int i = 0; i < MENU_ITEM_COUNT; i++) {
-        menu_item_t *pitem = &menu_item_by_index[i];
-        int n = strlen(pitem->pname);
-        longest_name_nbytes = n > longest_name_nbytes ? n : longest_name_nbytes;
+    while (current_menu[n].command_char != 0) {
+        assert(n < menu_item_max_count);
+        const menu_item_t *item = &current_menu[n];
+        int len = strlen_P(item->name);
+        longest_name_nbytes = len > longest_name_nbytes ? len : longest_name_nbytes;
+        n++;
     }
 
-    for (int i = 0; i < MENU_ITEM_COUNT; i++) {
-        menu_item_t *pitem = &menu_item_by_index[i];
+    n = 0;
+    while (current_menu[n].command_char != 0) {
+        const menu_item_t *item = &current_menu[n];
+
         // Pad with spaces afer the name to align the help message.
         char spaces[menu_item_max_name_nbytes];  // Just a buffer of whitespace.
-        int nspaces = longest_name_nbytes - strlen(pitem->pname);
+        int nspaces = longest_name_nbytes - strlen_P(item->name);
         nspaces = (nspaces >= menu_item_max_name_nbytes) ? menu_item_max_name_nbytes - 1 : nspaces;
         memset(spaces, ' ', nspaces);
         spaces[nspaces] = '\0';
-        log_writeln(F("  %c : %s %s %s"), pitem->command_char, pitem->pname, spaces, pitem->phelp);
+
+        // log_writeln(F("  %c : %s %s %s"), item->command_char, item->name, spaces, item->help);
+        log_write(F("  %c : "), item->command_char);
+        log_write((const __FlashStringHelper *)item->name);
+        log_write(F("%s"), spaces);
+        log_writeln((const __FlashStringHelper *)item->help);
+        n++;
     }
+}
+
+static bool menu_test_single_menu(const menu_item_t *menu_items)
+{
+    bool ret = true;
+    int n = 0;
+
+    while (menu_items[n].command_char != 0) {
+        if (n >= menu_item_max_count) {
+            LOG_ERROR(F("menu has more than %d items"), menu_item_max_count);
+            ret = false;
+            break;
+        }
+
+        menu_item_t *item = &menu_items[n];
+        if (!item->name) {
+            LOG_ERROR(F("%d NULL name"), n);
+            ret = false;
+        }
+        if (strlen_P(item->name) > menu_item_max_name_nbytes) {
+            LOG_ERROR(F("%d name too long"), n);
+            ret = false;
+        }
+        if ((!item->function) && (!item->sub_menu)) {
+            LOG_ERROR(F("%d NULL function and NULL sub_menu"), n);
+            ret = false;
+        }
+        if (!item->help) {
+            LOG_ERROR(F("%d NULL help"), n);
+            ret = false;
+        }
+
+        n++;
+    }
+    return ret;
 }
 
 bool menu_test(void)
 {
     bool ret = true;
 
-    for (int i = 0; i < MENU_ITEM_COUNT; i++) {
-        menu_item_t *pitem = &menu_item_by_index[i];
-        if (!pitem->pname) {
-            LOG_ERROR(F("%d NULL pname"), i);
-            ret = false;
-        }
-        if (strlen(pitem->pname) > menu_item_max_name_nbytes) {
-            LOG_ERROR(F("%d pname too long"), i);
-            ret = false;
-        }
-        if (!pitem->pfunction) {
-            LOG_ERROR(F("%d NULL pfunction"), i);
-            ret = false;
-        }
-        if (!pitem->phelp) {
-            LOG_ERROR(F("%d NULL phelp"), i);
-            ret = false;
-        }
-    }
+    ret = menu_test_single_menu(main_menu);
+    ret = menu_test_single_menu(waypoint_menu) ? ret : false;
 
     return ret;
 }
