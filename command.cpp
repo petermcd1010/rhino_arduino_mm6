@@ -17,12 +17,12 @@
 static const float software_version = 2.00;
 static const size_t command_args_max_nbytes = 64;
 
-int command_print_config(char *pargs, size_t args_nbytes)
+int command_print_config(char *args, size_t args_nbytes)
 {
-    assert(pargs);
+    assert(args);
 
     // Confirm arguments are empty.
-    size_t nbytes = parse_whitespace(pargs, args_nbytes);
+    size_t nbytes = parse_whitespace(args, args_nbytes);
 
     if (args_nbytes != nbytes)
         return -1;
@@ -32,11 +32,11 @@ int command_print_config(char *pargs, size_t args_nbytes)
     return 0;
 }
 
-int command_config_robot_id(char *pargs, size_t args_nbytes)
+int command_config_robot_id(char *args, size_t args_nbytes)
 {
-    assert(pargs);
+    assert(args);
 
-    char *p = pargs;
+    char *p = args;
 
     size_t nbytes = parse_whitespace(p, args_nbytes);
 
@@ -45,7 +45,7 @@ int command_config_robot_id(char *pargs, size_t args_nbytes)
 
     if (args_nbytes == 0) {
         log_writeln(F("Maintaining robot ID as '%s'."), config_robot_name_by_id[config.robot_id]);
-        return p - pargs;
+        return p - args;
     }
 
     config_robot_id_t robot_id = CONFIG_ROBOT_ID_FIRST - 1;
@@ -70,17 +70,17 @@ int command_config_robot_id(char *pargs, size_t args_nbytes)
 
     config_set_robot_id(robot_id);
 
-    return p - pargs;
+    return p - args;
 
 error:
     return -1;
 }
 
-int command_config_robot_serial(char *pargs, size_t args_nbytes)
+int command_config_robot_serial(char *args, size_t args_nbytes)
 {
-    assert(pargs);
+    assert(args);
 
-    char *p = pargs;
+    char *p = args;
 
     size_t nbytes = parse_whitespace(p, args_nbytes);
 
@@ -89,7 +89,7 @@ int command_config_robot_serial(char *pargs, size_t args_nbytes)
 
     if (args_nbytes == 0) {
         log_writeln(F("Maintaining robot serial '%s'."), config.robot_serial);
-        return p - pargs;
+        return p - args;
     }
 
     char robot_serial[CONFIG_ROBOT_SERIAL_NBYTES];
@@ -107,17 +107,17 @@ int command_config_robot_serial(char *pargs, size_t args_nbytes)
 
     config_set_robot_serial(robot_serial);
 
-    return p - pargs;
+    return p - args;
 
 error:
     return -1;
 }
 
-int command_config_robot_name(char *pargs, size_t args_nbytes)  // TODO: should these return a size_t?
+int command_config_robot_name(char *args, size_t args_nbytes)  // TODO: should these return a size_t?
 {
-    assert(pargs);
+    assert(args);
 
-    char *p = pargs;
+    char *p = args;
 
     size_t nbytes = parse_whitespace(p, args_nbytes);
 
@@ -126,7 +126,7 @@ int command_config_robot_name(char *pargs, size_t args_nbytes)  // TODO: should 
 
     if (args_nbytes == 0) {
         log_writeln(F("Maintaining robot name '%s'."), config.robot_name);
-        return p - pargs;
+        return p - args;
     }
 
     char robot_name[CONFIG_ROBOT_NAME_NBYTES];
@@ -144,18 +144,18 @@ int command_config_robot_name(char *pargs, size_t args_nbytes)  // TODO: should 
 
     config_set_robot_name(robot_name);
 
-    return p - pargs;
+    return p - args;
 
 error:
     return -1;
 }
 
-int command_config_write(char *pargs, size_t args_nbytes)
+int command_config_write(char *args, size_t args_nbytes)
 {
-    assert(pargs);
+    assert(args);
 
     // Confirm arguments are empty.
-    size_t nbytes = parse_whitespace(pargs, args_nbytes);
+    size_t nbytes = parse_whitespace(args, args_nbytes);
 
     if (nbytes != args_nbytes)
         return -1;
@@ -165,13 +165,13 @@ int command_config_write(char *pargs, size_t args_nbytes)
     return 0;
 }
 
-int command_reboot(char *pargs, size_t args_nbytes)
+int command_reboot(char *args, size_t args_nbytes)
 {
-    assert(pargs);
+    assert(args);
 
-    size_t nbytes = parse_whitespace(pargs, args_nbytes);
+    size_t nbytes = parse_whitespace(args, args_nbytes);
 
-    pargs += nbytes;
+    args += nbytes;
     args_nbytes -= nbytes;
     if (args_nbytes == 0)
         return -1;
@@ -179,14 +179,14 @@ int command_reboot(char *pargs, size_t args_nbytes)
     int entry_num = -1;
     char *reboot_table[] = { "REBOOT" };
 
-    nbytes = parse_string_in_table(pargs, args_nbytes, reboot_table, 1, &entry_num);
+    nbytes = parse_string_in_table(args, args_nbytes, reboot_table, 1, &entry_num);
     if (entry_num != 0)
         return -1;
-    pargs += nbytes;
+    args += nbytes;
     args_nbytes -= nbytes;
 
-    nbytes = parse_whitespace(pargs, args_nbytes);
-    pargs += nbytes;
+    nbytes = parse_whitespace(args, args_nbytes);
+    args += nbytes;
     args_nbytes -= nbytes;
 
     if (nbytes != args_nbytes)
@@ -219,7 +219,7 @@ error:
     return nbytes;
 }
 
-int command_pid_mode(char *pargs, size_t args_nbytes)
+int command_pid_mode(char *args, size_t args_nbytes)
 {
     // TODO: Implement command_pid_mode().
     assert(false);
@@ -258,7 +258,7 @@ error:
     return nbytes;
 }
 
-int command_set_gripper_position(char *pargs, size_t args_nbytes)
+int command_set_gripper_position(char *args, size_t args_nbytes)
 {
     // TODO: Implement command_set_gripper_position.
     assert(false);
@@ -266,10 +266,10 @@ int command_set_gripper_position(char *pargs, size_t args_nbytes)
     return -1;
 }
 
-int command_set_home_position(char *pargs, size_t args_nbytes)
+int command_set_home_position(char *args, size_t args_nbytes)
 {
-    assert(pargs);
-    size_t nbytes = parse_whitespace(pargs, args_nbytes);
+    assert(args);
+    size_t nbytes = parse_whitespace(args, args_nbytes);
 
     if (nbytes != args_nbytes)
         return -1;
@@ -327,12 +327,12 @@ int command_print_motor_status(char *args, size_t args_nbytes)
     return nbytes;
 }
 
-int command_set_motor_angle(char *pargs, size_t args_nbytes)
+int command_set_motor_angle(char *args, size_t args_nbytes)
 {
-    assert(pargs);
+    assert(args);
 
     motor_id_t motor_id = MOTOR_ID_A;
-    char *p = pargs;
+    char *p = args;
     size_t nbytes = parse_motor_id(p, args_nbytes, &motor_id);
 
     if (nbytes == 0)
@@ -370,19 +370,19 @@ int command_set_motor_angle(char *pargs, size_t args_nbytes)
         log_writeln(F("ERROR: Motor %c not enabled."), 'A' + motor_id);
         // TODO: error state?
     }
-    return p - pargs;
+    return p - args;
 
 error:
     LOG_ERROR(F(""));
     return -1;
 }
 
-int command_set_motor_encoder(char *pargs, size_t args_nbytes)
+int command_set_motor_encoder(char *args, size_t args_nbytes)
 {
-    assert(pargs);
+    assert(args);
 
     motor_id_t motor_id = MOTOR_ID_A;
-    char *p = pargs;
+    char *p = args;
     size_t nbytes = parse_motor_id(p, args_nbytes, &motor_id);
 
     if (nbytes == 0)
@@ -421,14 +421,14 @@ int command_set_motor_encoder(char *pargs, size_t args_nbytes)
         // TODO: error state?
     }
 
-    return p - pargs;
+    return p - args;
 
 error:
     LOG_ERROR(F(""));
     return -1;
 }
 
-int command_run_test_sequence(char *pargs, size_t args_nbytes)
+int command_run_test_sequence(char *args, size_t args_nbytes)
 {
     // TODO: Implement command_run_test_sequence().
     assert(false);
@@ -477,13 +477,13 @@ error:
     return -1;
 }
 
-int command_print_software_version(char *pargs, size_t args_nbytes)
+int command_print_software_version(char *args, size_t args_nbytes)
 {
-    assert(pargs);
+    assert(args);
     if (args_nbytes >= command_args_max_nbytes)
         return -1;
 
-    char *p = pargs;
+    char *p = args;
     size_t nbytes = parse_whitespace(p, args_nbytes);
 
     args_nbytes -= nbytes;
@@ -500,62 +500,62 @@ int command_print_software_version(char *pargs, size_t args_nbytes)
     return 0;
 }
 
-int command_waypoint_run(char *pargs, size_t args_nbytes)
+int command_waypoint_run(char *args, size_t args_nbytes)
 {
     // w r [start-step].
     assert(false);
     return -1;
 }
 
-int command_waypoint_set(char *pargs, size_t args_nbytes)
+int command_waypoint_set(char *args, size_t args_nbytes)
 {
     // w s step command [args].
     assert(false);
     return -1;
 }
 
-int command_waypoint_insert_before(char *pargs, size_t args_nbytes)
+int command_waypoint_insert_before(char *args, size_t args_nbytes)
 {
     // w i step command [args].
     assert(false);
     return -1;
 }
 
-int command_waypoint_delete(char *pargs, size_t args_nbytes)
+int command_waypoint_delete(char *args, size_t args_nbytes)
 {
     // w d step.
     assert(false);
     return -1;
 }
 
-int command_waypoint_append(char *pargs, size_t args_nbytes)
+int command_waypoint_append(char *args, size_t args_nbytes)
 {
     // w a command [args].
     assert(false);
     return -1;
 }
 
-int command_waypoint_print(char *pargs, size_t args_nbytes)
+int command_waypoint_print(char *args, size_t args_nbytes)
 {
     // w p [step [count]]
     assert(false);
     return -1;
 }
 
-int command_waypoint_execute_single(char *pargs, size_t args_nbytes)
+int command_waypoint_execute_single(char *args, size_t args_nbytes)
 {
     // w x step.
     assert(false);
     return -1;
 }
 
-int command_factory_reset(char *pargs, size_t args_nbytes)
+int command_factory_reset(char *args, size_t args_nbytes)
 {
-    assert(pargs);
+    assert(args);
 
-    char *p = pargs;
+    char *p = args;
 
-    size_t nbytes = parse_whitespace(pargs, args_nbytes);
+    size_t nbytes = parse_whitespace(args, args_nbytes);
 
     args_nbytes -= nbytes;
     p += nbytes;
@@ -565,7 +565,7 @@ int command_factory_reset(char *pargs, size_t args_nbytes)
     int entry_num = -1;
     char *reboot_table[] = { "RESET" };
 
-    nbytes = parse_string_in_table(pargs, args_nbytes, reboot_table, 1, &entry_num);
+    nbytes = parse_string_in_table(args, args_nbytes, reboot_table, 1, &entry_num);
     args_nbytes -= nbytes;
     p += nbytes;
 
@@ -587,10 +587,10 @@ error:
     return -1;
 }
 
-int command_emergency_stop(char *pargs, size_t args_nbytes)
+int command_emergency_stop(char *args, size_t args_nbytes)
 {
     // Confirm arguments are empty.
-    size_t nbytes = parse_whitespace(pargs, args_nbytes);
+    size_t nbytes = parse_whitespace(args, args_nbytes);
 
     if (args_nbytes != nbytes)
         return -1;
@@ -601,12 +601,12 @@ int command_emergency_stop(char *pargs, size_t args_nbytes)
     return 0;
 }
 
-int command_print_help(char *pargs, size_t args_nbytes)
+int command_print_help(char *args, size_t args_nbytes)
 {
-    assert(pargs);
+    assert(args);
 
     // Confirm arguments are empty.
-    size_t nbytes = parse_whitespace(pargs, args_nbytes);
+    size_t nbytes = parse_whitespace(args, args_nbytes);
 
     if (nbytes != args_nbytes)
         return -1;
