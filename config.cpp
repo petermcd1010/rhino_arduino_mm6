@@ -26,9 +26,17 @@ const char * const config_robot_name_by_id[CONFIG_ROBOT_ID_COUNT] = {
 static const int config_base_address = 4000;
 static const int config_version = 1;
 static const int config_magic = 0x5678FEAD;
-static const int max_num_waypoints = config_base_address / sizeof(config_waypoint_t);
 
 config_t config = {};
+
+void config_get_waypoint_eeprom_region(int *base_address, int *nbytes)
+{
+    assert(base_address);
+    assert(nbytes);
+
+    *base_address = 0;
+    *nbytes = config_base_address;
+}
 
 static bool buffer_contains(char *pbuffer, size_t buffer_nbytes, char c)
 {
@@ -64,58 +72,6 @@ bool config_write()
 
     EEPROM.put(config_base_address, config);  // Doesn't return success/failure indiction.
     return true;
-}
-
-int config_get_num_waypoints(void)
-{
-    return max_num_waypoints;
-}
-
-config_waypoint_t config_get_waypoint(int index)
-{
-    assert(index < max_num_waypoints);
-
-    int address = index * sizeof(config_waypoint_t);
-
-    config_waypoint_t waypoint;
-
-    EEPROM.get(address, waypoint);
-
-    uint32_t saved_crc = waypoint.crc;
-
-    waypoint.crc = 0;  // Set to 0, as the crc is part of the crc calculation.
-    waypoint.crc = crc32c_calculate(&waypoint, sizeof(config_waypoint_t));
-
-    if (waypoint.crc != saved_crc) {
-        // Bad CRC. Likely reading a waypoint that was never written, but zero it anyway and set step == -1.
-        memset(&waypoint, 0, sizeof(config_waypoint_t));
-        waypoint.step = -1;
-    }
-
-    return waypoint;
-}
-
-void config_set_waypoint(int index, config_waypoint_t waypoint)
-{
-    assert(index < max_num_waypoints);
-    assert(waypoint.step >= 0);
-
-    waypoint.crc = 0;
-    waypoint.crc = crc32c_calculate(&waypoint, sizeof(config_waypoint_t));
-
-    int address = index * sizeof(config_waypoint_t);
-
-    EEPROM.put(address, waypoint);
-}
-
-void config_erase_waypoint(int index)
-{
-    assert(index < max_num_waypoints);
-
-    config_waypoint_t waypoint = { 0 };
-    int address = index * sizeof(config_waypoint_t);
-
-    EEPROM.put(address, waypoint);
 }
 
 bool config_check()
@@ -333,10 +289,10 @@ void config_print()
     log_writeln(F("  Gripper close encoder: %d"), config.gripper_close_encoder);
 
     log_writeln();
-    log_writeln(F("Reading %d waypoints."), max_num_waypoints);
+    log_writeln(F("Reading %d waypoints."), waypoint_get_max_count());
 
-    for (int i = 0; i < max_num_waypoints; i++) {
-        config_waypoint_t waypoint = config_get_waypoint(i);
+    for (int i = 0; i < waypoint_get_max_count(); i++) {
+        config_waypoint_t waypoint = waypoint_get(i);
         if (waypoint.step != -1)
             waypoint_print(waypoint);
     }

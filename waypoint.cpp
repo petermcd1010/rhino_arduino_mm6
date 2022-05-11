@@ -6,6 +6,7 @@
 #include <Arduino.h>
 #include <EEPROM.h>
 #include "config.h"
+#include "crc32c.h"
 #include "hardware.h"
 #include "log.h"
 #include "motor.h"
@@ -59,8 +60,8 @@ static void sm_execute_next_step(void)
 
     log_write(F("Waypoint: Reading step %d."), current_waypoint.step);
 
-    assert(current_waypoint.step < config_get_num_waypoints());
-    current_waypoint = config_get_waypoint(current_waypoint.step);
+    assert(current_waypoint.step < waypoint_get_max_count());
+    current_waypoint = waypoint_get(current_waypoint.step);
 
     if (current_waypoint.step == -1)
         sm_set_next_state(sm_exit);
@@ -236,7 +237,7 @@ static void set_waypoint_angle(config_waypoint_t waypoint)
     waypoint.motor.e = string_splits[6].toFloat();
     waypoint.motor.f = string_splits[7].toFloat();
 
-    config_set_waypoint(step, waypoint);
+    waypoint_set(step, waypoint);
     waypoint_print(waypoint);
 
     log_writeln(F("set."));
@@ -246,7 +247,7 @@ static void get_waypoint_angle(void)
 {
     in_buffer.setCharAt(0, ' ');
     int index = in_buffer.toInt();
-    config_waypoint_t waypoint = config_get_waypoint(index);
+    config_waypoint_t waypoint = waypoint_get(index);
 
     waypoint_print(waypoint);
 }
@@ -257,7 +258,7 @@ static void move_to_a_waypoint_angle(void)
     int step = in_buffer.toInt();
 
     log_write(F("Move to "));
-    config_waypoint_t waypoint = config_get_waypoint(step);
+    config_waypoint_t waypoint = waypoint_get(step);
 
     waypoint_print(waypoint);
     move_to_waypoint_angle(waypoint);
@@ -273,6 +274,76 @@ static void move_to_waypoint_angle(config_waypoint_t waypoint)
     motor_set_target_angle(MOTOR_ID_F, waypoint.motor.f);
 }
 
+int waypoint_get_max_count(void)
+{
+    int start_address = 0;
+    int nbytes = 0;
+
+    config_get_waypoint_eeprom_region(&start_address, &nbytes);
+
+    static const int max_num_waypoints = nbytes / sizeof(config_waypoint_t);
+
+    return max_num_waypoints;
+}
+
+static int get_eeprom_address(int index)
+{
+    assert(index >= 0);
+    assert(index < waypoint_get_max_count());
+
+    int start_address = 0;
+    int nbytes = 0;
+
+    config_get_waypoint_eeprom_region(&start_address, &nbytes);
+
+    return start_address + index * sizeof(config_waypoint_t);
+}
+
+config_waypoint_t waypoint_get(int index)
+{
+    assert(index >= 0);
+    assert(index < waypoint_get_max_count());
+
+    config_waypoint_t waypoint;
+
+    EEPROM.get(get_eeprom_address(index), waypoint);
+
+    uint32_t saved_crc = waypoint.crc;
+
+    waypoint.crc = 0;  // Set to 0, as the crc is part of the crc calculation.
+    waypoint.crc = crc32c_calculate(&waypoint, sizeof(config_waypoint_t));
+
+    if (waypoint.crc != saved_crc) {
+        // Bad CRC. Likely reading a waypoint that was never written, but zero it anyway and set step == -1.
+        memset(&waypoint, 0, sizeof(config_waypoint_t));
+        waypoint.step = -1;
+    }
+
+    return waypoint;
+}
+
+void waypoint_set(int index, config_waypoint_t waypoint)
+{
+    assert(index >= 0);
+    assert(index < waypoint_get_max_count());
+    assert(waypoint.step == index);
+
+    waypoint.crc = 0;
+    waypoint.crc = crc32c_calculate(&waypoint, sizeof(config_waypoint_t));
+
+    EEPROM.put(get_eeprom_address(index), waypoint);
+}
+
+void waypoint_delete(int index)
+{
+    assert(index >= 0);
+    assert(index < waypoint_get_max_count());
+
+    config_waypoint_t waypoint = { 0 };
+
+    EEPROM.put(get_eeprom_address(index), waypoint);
+}
+
 void waypoint_print(config_waypoint_t waypoint)
 {
     assert(waypoint.step != -1);
@@ -285,12 +356,12 @@ void waypoint_print(config_waypoint_t waypoint)
         log_writeln(F("waypoint: step:%d command:%c a:%d b:%d c:%d d:%d e:%d f:%d"),
                     waypoint.step,
                     waypoint.command,
-                    waypoint.motor.a,
-                    waypoint.motor.b,
-                    waypoint.motor.c,
-                    waypoint.motor.d,
-                    waypoint.motor.e,
-                    waypoint.motor.f);
+                    (int)waypoint.motor.a,
+                    (int)waypoint.motor.b,
+                    (int)waypoint.motor.c,
+                    (int)waypoint.motor.d,
+                    (int)waypoint.motor.e,
+                    (int)waypoint.motor.f);
         break;
     case WAYPOINT_COMMAND_GOTO_STEP:
         log_writeln(F("waypoint: step:%d command:%c (goto step) destination_step: %d"),

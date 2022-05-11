@@ -135,12 +135,12 @@ static const char WH_I[] PROGMEM = "waypoint-number -- Set waypoint-number to cu
 static const char WM_R[] PROGMEM = "run waypoint sequence";
 static const char WH_R[] PROGMEM = "[start-step [count]] -- Run waypoint sequence starting at first waypoint.";
 static const char WM_S[] PROGMEM = "set waypoint";
-static const char WH_S[] PROGMEM = "[step] -- Set next waypoint or waypoint-number to current motor positions.";
+static const char WH_S[] PROGMEM = "[step] -- Set waypoint step (or next waypoint) to current motor positions.";
 static const char WM_X[] PROGMEM = "exit waypoints menu";
 static const char WH_X[] PROGMEM = "-- Exit waypoints menu.";
 
 static const menu_item_t waypoint_menu[] = {
-    { '1', WM_1,    NULL, NULL,      true,  command_print_config,           WH_1    },
+    { '1', WM_1,    NULL, NULL,      true,  command_waypoint_print,         WH_1    },
     { 'A', WM_A,    NULL, NULL,      true,  command_waypoint_append,        WH_A    },
     { 'D', WM_D,    NULL, NULL,      true,  command_waypoint_delete,        WH_D    },
     { 'E', MM_E,    NULL, NULL,      true,  command_set_enabled_motors,     MH_E    },

@@ -13,6 +13,7 @@
 #include "motor.h"
 #include "parse.h"
 #include "sm.h"
+#include "waypoint.h"
 
 static const float software_version = 2.00;
 static const size_t command_args_max_nbytes = 64;
@@ -509,8 +510,52 @@ int command_waypoint_run(char *args, size_t args_nbytes)
 
 int command_waypoint_set(char *args, size_t args_nbytes)
 {
-    // w s step command [args].
-    assert(false);
+    // TODO: Add commands other than move motors to current position.
+    // w s [step].
+    assert(args);
+
+    static int step = 0;
+
+    char *p = args;
+
+    size_t nbytes = parse_whitespace(p, args_nbytes);
+
+    args_nbytes -= nbytes;
+    p += nbytes;
+
+    if (args_nbytes > 0) {
+        nbytes = parse_int(p, args_nbytes, &step);
+        args_nbytes -= nbytes;
+        p += nbytes;
+    }
+
+    nbytes = parse_whitespace(p, args_nbytes);
+    args_nbytes -= nbytes;
+    p += nbytes;
+
+    if (args_nbytes > 0)
+        goto error;
+
+    log_writeln(F("Setting waypoint %d to current position."), step);
+
+    config_waypoint_t waypoint = { 0 };
+
+    waypoint.step = step;
+    waypoint.command = WAYPOINT_COMMAND_MOVE_AT;
+    waypoint.motor.a = motor_get_encoder(MOTOR_ID_A);
+    waypoint.motor.b = motor_get_encoder(MOTOR_ID_B);
+    waypoint.motor.c = motor_get_encoder(MOTOR_ID_C);
+    waypoint.motor.d = motor_get_encoder(MOTOR_ID_D);
+    waypoint.motor.e = motor_get_encoder(MOTOR_ID_E);
+    waypoint.motor.f = motor_get_encoder(MOTOR_ID_F);
+
+    waypoint_set(step, waypoint);
+
+    step++;  // Advance to next step.
+
+    return p - args;
+
+error:
     return -1;
 }
 
@@ -524,7 +569,37 @@ int command_waypoint_insert_before(char *args, size_t args_nbytes)
 int command_waypoint_delete(char *args, size_t args_nbytes)
 {
     // w d step.
-    assert(false);
+    static int step = 0;
+
+    char *p = args;
+
+    size_t nbytes = parse_whitespace(p, args_nbytes);
+
+    args_nbytes -= nbytes;
+    p += nbytes;
+
+    if (args_nbytes > 0) {
+        nbytes = parse_int(p, args_nbytes, &step);
+        args_nbytes -= nbytes;
+        p += nbytes;
+    }
+
+    nbytes = parse_whitespace(p, args_nbytes);
+    args_nbytes -= nbytes;
+    p += nbytes;
+
+    if (args_nbytes > 0)
+        goto error;
+
+    log_writeln(F("Deleting waypoint %d."), step);
+
+    waypoint_delete(step);
+
+    step++;  // Advance to next step.
+
+    return p - args;
+
+error:
     return -1;
 }
 
@@ -538,8 +613,20 @@ int command_waypoint_append(char *args, size_t args_nbytes)
 int command_waypoint_print(char *args, size_t args_nbytes)
 {
     // w p [step [count]]
-    assert(false);
-    return -1;
+
+    char *p = args;
+    size_t nbytes = parse_whitespace(p, args_nbytes);
+
+    args_nbytes -= nbytes;
+    p += nbytes;
+
+    for (int i = 0; i < waypoint_get_max_count(); i++) {
+        config_waypoint_t waypoint = waypoint_get(i);
+        if (waypoint.step != -1)
+            waypoint_print(waypoint);
+    }
+
+    return p - args;
 }
 
 int command_waypoint_execute_single(char *args, size_t args_nbytes)

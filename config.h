@@ -71,6 +71,7 @@ typedef struct __attribute__((packed)) {
 
 extern config_t config;
 
+void config_get_waypoint_eeprom_region(int *base_address, int *nbytes);
 bool config_read(void);
 bool config_write(void);
 bool config_check(void);
@@ -84,12 +85,5 @@ void config_set_motor_polarity(motor_id_t motor_id, motor_polarity_t motor_polar
 void config_set_gripper_open_encoder(int encoder);
 void config_set_gripper_close_encoder(int encoder);
 void config_set_angle_offsets(int B, int C, int D, int E, int F);
-
-// Waypoints:
-int config_get_num_waypoints(void);  // Returns max numbrer of waypoints that can be stored.
-config_waypoint_t config_get_waypoint(int index);
-void config_set_waypoint(int index, config_waypoint_t waypoint);
-void config_erase_waypoint(int index);
-
 void config_print(void);
 bool config_test(void);

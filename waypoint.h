@@ -26,4 +26,8 @@ typedef enum {
     WAYPOINT_COMMAND_WAIT_MILLIS          = 'W',
 } waypoint_command_t;
 
+int waypoint_get_max_count(void);  // Returns max number of waypoints that can be stored.
+config_waypoint_t waypoint_get(int index);
+void waypoint_set(int index, config_waypoint_t waypoint);
+void waypoint_delete(int index);
 void waypoint_print(config_waypoint_t waypoint);
