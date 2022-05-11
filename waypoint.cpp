@@ -28,9 +28,9 @@ static int track_report_encoder_value[MOTOR_ID_COUNT] = { 0 };  // Last value lo
 static int limit_prev[MOTOR_ID_COUNT] = { 0 };  // Limit/Home switch Previous Value
 
 static void move_to_a_waypoint_angle();
-static void move_to_waypoint_angle(config_waypoint_t waypoint);
+static void move_to_waypoint_angle(waypoint_t waypoint);
 
-static config_waypoint_t current_waypoint = { 0 };
+static waypoint_t current_waypoint = { 0 };
 
 static void sm_execute_next_step(void);
 static void sm_track_move_to(void);
@@ -181,7 +181,7 @@ static void sm_exit(void)
     sm_set_state_name(F("waypoint sm_exit"));
 
     motor_disable_all();
-    memset(&current_waypoint, 0, sizeof(config_waypoint_t));
+    memset(&current_waypoint, 0, sizeof(waypoint_t));
     sm_set_next_state(sm_exit_to_state);
     log_writeln(F("Done running waypoint sequence."));
 }
@@ -220,7 +220,7 @@ static String get_string_part_at_specific_index(String StringToSplit, char Split
     return outString;
 }
 
-static void set_waypoint_angle(config_waypoint_t waypoint)
+static void set_waypoint_angle(waypoint_t waypoint)
 {
     in_buffer.setCharAt(0, ' ');
     int step = in_buffer.toInt();
@@ -247,7 +247,7 @@ static void get_waypoint_angle(void)
 {
     in_buffer.setCharAt(0, ' ');
     int index = in_buffer.toInt();
-    config_waypoint_t waypoint = waypoint_get(index);
+    waypoint_t waypoint = waypoint_get(index);
 
     waypoint_print(waypoint);
 }
@@ -258,13 +258,13 @@ static void move_to_a_waypoint_angle(void)
     int step = in_buffer.toInt();
 
     log_write(F("Move to "));
-    config_waypoint_t waypoint = waypoint_get(step);
+    waypoint_t waypoint = waypoint_get(step);
 
     waypoint_print(waypoint);
     move_to_waypoint_angle(waypoint);
 }
 
-static void move_to_waypoint_angle(config_waypoint_t waypoint)
+static void move_to_waypoint_angle(waypoint_t waypoint)
 {
     motor_set_target_angle(MOTOR_ID_A, waypoint.motor.a);
     motor_set_target_angle(MOTOR_ID_B, waypoint.motor.b);
@@ -281,7 +281,7 @@ int waypoint_get_max_count(void)
 
     config_get_waypoint_eeprom_region(&start_address, &nbytes);
 
-    static const int max_num_waypoints = nbytes / sizeof(config_waypoint_t);
+    static const int max_num_waypoints = nbytes / sizeof(waypoint_t);
 
     return max_num_waypoints;
 }
@@ -296,40 +296,40 @@ static int get_eeprom_address(int index)
 
     config_get_waypoint_eeprom_region(&start_address, &nbytes);
 
-    return start_address + index * sizeof(config_waypoint_t);
+    return start_address + index * sizeof(waypoint_t);
 }
 
-config_waypoint_t waypoint_get(int index)
+waypoint_t waypoint_get(int index)
 {
     assert(index >= 0);
     assert(index < waypoint_get_max_count());
 
-    config_waypoint_t waypoint;
+    waypoint_t waypoint;
 
     EEPROM.get(get_eeprom_address(index), waypoint);
 
     uint32_t saved_crc = waypoint.crc;
 
     waypoint.crc = 0;  // Set to 0, as the crc is part of the crc calculation.
-    waypoint.crc = crc32c_calculate(&waypoint, sizeof(config_waypoint_t));
+    waypoint.crc = crc32c_calculate(&waypoint, sizeof(waypoint_t));
 
     if (waypoint.crc != saved_crc) {
         // Bad CRC. Likely reading a waypoint that was never written, but zero it anyway and set step == -1.
-        memset(&waypoint, 0, sizeof(config_waypoint_t));
+        memset(&waypoint, 0, sizeof(waypoint_t));
         waypoint.step = -1;
     }
 
     return waypoint;
 }
 
-void waypoint_set(int index, config_waypoint_t waypoint)
+void waypoint_set(int index, waypoint_t waypoint)
 {
     assert(index >= 0);
     assert(index < waypoint_get_max_count());
     assert(waypoint.step == index);
 
     waypoint.crc = 0;
-    waypoint.crc = crc32c_calculate(&waypoint, sizeof(config_waypoint_t));
+    waypoint.crc = crc32c_calculate(&waypoint, sizeof(waypoint_t));
 
     EEPROM.put(get_eeprom_address(index), waypoint);
 }
@@ -339,12 +339,12 @@ void waypoint_delete(int index)
     assert(index >= 0);
     assert(index < waypoint_get_max_count());
 
-    config_waypoint_t waypoint = { 0 };
+    waypoint_t waypoint = { 0 };
 
     EEPROM.put(get_eeprom_address(index), waypoint);
 }
 
-void waypoint_print(config_waypoint_t waypoint)
+void waypoint_print(waypoint_t waypoint)
 {
     assert(waypoint.step != -1);
 

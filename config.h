@@ -51,24 +51,6 @@ typedef struct __attribute__((packed)) {
     int gripper_close_encoder;
 } config_t;
 
-typedef struct __attribute__((packed)) {
-    uint32_t crc;
-    int16_t step;  // Which waypoint this is in the sequence, -1 if invalid.
-    char command;
-    union {
-        int goto_step;  // For goto command.
-        int wait_millis;  // For wait command.
-        struct {
-            float a;
-            float b;
-            float c;
-            float d;
-            float e;
-            float f;
-        } motor;
-    };
-} config_waypoint_t;
-
 extern config_t config;
 
 void config_get_waypoint_eeprom_region(int *base_address, int *nbytes);

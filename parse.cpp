@@ -6,7 +6,7 @@
 #include "log.h"
 #include "motor.h"
 #include "parse.h"
-#include "waypoint.h"  // WAYPOINT_COMMAND_*. TODO: sort out config_waypoint_t vs waypoint_command, etc..
+#include "waypoint.h"  // WAYPOINT_COMMAND_*.
 
 size_t parse_whitespace(char *buf, size_t buf_nbytes)
 {
@@ -356,7 +356,7 @@ bool parse_test()
     return ret;
 }
 
-static size_t parse_waypoint_motors(char *buf, size_t buf_nbytes, config_waypoint_t *out_waypoint)
+static size_t parse_waypoint_motors(char *buf, size_t buf_nbytes, waypoint_t *out_waypoint)
 {
     assert(buf);
     assert(out_waypoint);
@@ -403,7 +403,7 @@ error:
     return 0;
 }
 
-size_t parse_waypoint(char *buf, size_t buf_nbytes, config_waypoint_t *out_waypoint)
+size_t parse_waypoint(char *buf, size_t buf_nbytes, waypoint_t *out_waypoint)
 {
     assert(buf);
     assert(out_waypoint);

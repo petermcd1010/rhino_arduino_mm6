@@ -292,7 +292,7 @@ void config_print()
     log_writeln(F("Reading %d waypoints."), waypoint_get_max_count());
 
     for (int i = 0; i < waypoint_get_max_count(); i++) {
-        config_waypoint_t waypoint = waypoint_get(i);
+        waypoint_t waypoint = waypoint_get(i);
         if (waypoint.step != -1)
             waypoint_print(waypoint);
     }

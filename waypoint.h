@@ -26,8 +26,27 @@ typedef enum {
     WAYPOINT_COMMAND_WAIT_MILLIS          = 'W',
 } waypoint_command_t;
 
+
+typedef struct __attribute__((packed)) {
+    uint32_t crc;
+    int16_t step;  // Which waypoint this is in the sequence, -1 if invalid.
+    char command;
+    union {
+        int goto_step;  // For goto command.
+        int wait_millis;  // For wait command.
+        struct {
+            float a;
+            float b;
+            float c;
+            float d;
+            float e;
+            float f;
+        } motor;
+    };
+} waypoint_t;
+
 int waypoint_get_max_count(void);  // Returns max number of waypoints that can be stored.
-config_waypoint_t waypoint_get(int index);
-void waypoint_set(int index, config_waypoint_t waypoint);
+waypoint_t waypoint_get(int index);
+void waypoint_set(int index, waypoint_t waypoint);
 void waypoint_delete(int index);
-void waypoint_print(config_waypoint_t waypoint);
+void waypoint_print(waypoint_t waypoint);

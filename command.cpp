@@ -538,7 +538,7 @@ int command_waypoint_set(char *args, size_t args_nbytes)
 
     log_writeln(F("Setting waypoint %d to current position."), step);
 
-    config_waypoint_t waypoint = { 0 };
+    waypoint_t waypoint = { 0 };
 
     waypoint.step = step;
     waypoint.command = WAYPOINT_COMMAND_MOVE_AT;
@@ -621,7 +621,7 @@ int command_waypoint_print(char *args, size_t args_nbytes)
     p += nbytes;
 
     for (int i = 0; i < waypoint_get_max_count(); i++) {
-        config_waypoint_t waypoint = waypoint_get(i);
+        waypoint_t waypoint = waypoint_get(i);
         if (waypoint.step != -1)
             waypoint_print(waypoint);
     }
