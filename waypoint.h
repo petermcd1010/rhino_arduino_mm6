@@ -21,7 +21,8 @@ typedef enum {
     WAYPOINT_COMMAND_MOVE_CLOSE,
     WAYPOINT_COMMAND_MOVE_APPROACHING,
     WAYPOINT_COMMAND_GOTO_STEP            = 'G',
-    WAYPOINT_COMMAND_GOTO_STEP_IF_IO      = 'J',
+    WAYPOINT_COMMAND_IF_IO_PIN_GOTO_STEP  = 'J',
+    WAYPOINT_COMMAND_WAIT_IO_PIN          = 'K',
     WAYPOINT_COMMAND_INTERROGATE_SWITCHES = 'I',
     WAYPOINT_COMMAND_WAIT_MILLIS          = 'W',
 } waypoint_command_t;
@@ -29,10 +30,12 @@ typedef enum {
 
 typedef struct __attribute__((packed)) {
     uint32_t crc;
-    int16_t step;  // Which waypoint this is in the sequence, -1 if invalid.
-    char command;
+    char command;  // -1 if entry has not been set or has been deleted.
     union {
-        int goto_step;  // For goto command.
+        struct {
+            int pin;  // Pin to potentially check or wait for trigger.
+            int step;  // Step to potentially goto.
+        } io_goto;
         int wait_millis;  // For wait command.
         struct {
             float a;
@@ -49,4 +52,4 @@ int waypoint_get_max_count(void);  // Returns max number of waypoints that can b
 waypoint_t waypoint_get(int index);
 void waypoint_set(int index, waypoint_t waypoint);
 void waypoint_delete(int index);
-void waypoint_print(waypoint_t waypoint);
+void waypoint_print(int index);

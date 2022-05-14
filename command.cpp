@@ -503,18 +503,16 @@ int command_print_software_version(char *args, size_t args_nbytes)
 
 int command_waypoint_run(char *args, size_t args_nbytes)
 {
-    // w r [start-step].
     assert(false);
     return -1;
 }
 
 int command_waypoint_set(char *args, size_t args_nbytes)
 {
-    // TODO: Add commands other than move motors to current position.
-    // w s [step].
     assert(args);
 
-    static int step = 0;
+    int step = -1;
+    waypoint_t waypoint = { 0 };
 
     char *p = args;
 
@@ -523,35 +521,26 @@ int command_waypoint_set(char *args, size_t args_nbytes)
     args_nbytes -= nbytes;
     p += nbytes;
 
-    if (args_nbytes > 0) {
-        nbytes = parse_int(p, args_nbytes, &step);
-        args_nbytes -= nbytes;
-        p += nbytes;
-    }
+    nbytes = parse_int(p, args_nbytes, &step);
+    if (nbytes == 0)
+        goto error;
+    if ((step < 0) || (step >= waypoint_get_max_count()))
+        goto error;
+    args_nbytes -= nbytes;
+    p += nbytes;
 
     nbytes = parse_whitespace(p, args_nbytes);
     args_nbytes -= nbytes;
     p += nbytes;
 
+    nbytes = parse_waypoint(p, args_nbytes, &waypoint);
+    args_nbytes -= nbytes;
+    p += nbytes;
     if (args_nbytes > 0)
         goto error;
 
-    log_writeln(F("Setting waypoint %d to current position."), step);
-
-    waypoint_t waypoint = { 0 };
-
-    waypoint.step = step;
-    waypoint.command = WAYPOINT_COMMAND_MOVE_AT;
-    waypoint.motor.a = motor_get_encoder(MOTOR_ID_A);
-    waypoint.motor.b = motor_get_encoder(MOTOR_ID_B);
-    waypoint.motor.c = motor_get_encoder(MOTOR_ID_C);
-    waypoint.motor.d = motor_get_encoder(MOTOR_ID_D);
-    waypoint.motor.e = motor_get_encoder(MOTOR_ID_E);
-    waypoint.motor.f = motor_get_encoder(MOTOR_ID_F);
-
+    log_writeln(F("Setting waypoint %d."), step);
     waypoint_set(step, waypoint);
-
-    step++;  // Advance to next step.
 
     return p - args;
 
@@ -622,8 +611,8 @@ int command_waypoint_print(char *args, size_t args_nbytes)
 
     for (int i = 0; i < waypoint_get_max_count(); i++) {
         waypoint_t waypoint = waypoint_get(i);
-        if (waypoint.step != -1)
-            waypoint_print(waypoint);
+        if (waypoint.command != -1)
+            waypoint_print(i);
     }
 
     return p - args;
@@ -650,9 +639,9 @@ int command_factory_reset(char *args, size_t args_nbytes)
         return -1;
 
     int entry_num = -1;
-    char *reboot_table[] = { "RESET" };
+    char *reset_table[] = { "RESET" };
 
-    nbytes = parse_string_in_table(args, args_nbytes, reboot_table, 1, &entry_num);
+    nbytes = parse_string_in_table(args, args_nbytes, reset_table, 1, &entry_num);
     args_nbytes -= nbytes;
     p += nbytes;
 

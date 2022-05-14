@@ -10,6 +10,7 @@
 #include "log.h"
 #include "waypoint.h"
 
+// TODO: Switch to PROGMEM.
 const char * const config_robot_name_by_id[CONFIG_ROBOT_ID_COUNT] = {
     "Not configured",
     "Rhino XR-1 6-axis arm",
@@ -293,8 +294,8 @@ void config_print()
 
     for (int i = 0; i < waypoint_get_max_count(); i++) {
         waypoint_t waypoint = waypoint_get(i);
-        if (waypoint.step != -1)
-            waypoint_print(waypoint);
+        if (waypoint.command != -1)
+            waypoint_print(i);
     }
 }
 

@@ -53,6 +53,42 @@ static void extended_menu_reboot(void)
     log_write(F(">"));
 }
 
+static void extended_menu_append_waypoint(void)
+{
+    log_writeln(F(""));
+    log_writeln(F("A <ENTER> -- Append waypoint to move motors to current positions."));
+    log_writeln(F("G step <ENTER> -- Append waypoint to goto step."));
+    log_writeln(F("J pin step <ENTER> -- Append waypoint so if IO pin triggered, goto step."));
+    log_writeln(F("K pin <ENTER> -- Append waypoint to wait for IO pin triggered."));
+    log_writeln(F("W milliseconds <ENTER> -- Append waypoint to wait milliseconds."));
+    log_writeln(F("I <ENTER> -- Append waypoint to interrogate switches."));
+    log_write(F(">"));
+}
+
+static void extended_menu_insert_waypoint(void)
+{
+    log_writeln(F(""));
+    log_writeln(F("step A <ENTER> -- Insert waypoint before step to move motors to current positions."));
+    log_writeln(F("step G step <ENTER> -- Insert waypoint before step to goto step."));
+    log_writeln(F("step J pin step <ENTER> -- Insert waypoint before step so if IO pin triggered, goto step."));
+    log_writeln(F("step K pin <ENTER> -- Insert waypoint before step to wait for IO pin triggered."));
+    log_writeln(F("step W milliseconds <ENTER> -- Insert waypoint before step to wait milliseconds."));
+    log_writeln(F("step I <ENTER> -- Insert waypoint before step to interrogate switches."));
+    log_write(F(">"));
+}
+
+static void extended_menu_set_waypoint(void)
+{
+    log_writeln(F(""));
+    log_writeln(F("step A <ENTER> -- Set waypoint step to move motors to current positions."));
+    log_writeln(F("step G step <ENTER> -- Set waypoint step to goto step."));
+    log_writeln(F("step J pin step <ENTER> -- Set waypoint step so if IO pin triggered, goto step."));
+    log_writeln(F("step K pin <ENTER> -- Set waypoint step to wait for IO pin triggered."));
+    log_writeln(F("step W milliseconds <ENTER> -- Set waypoint step to wait milliseconds."));
+    log_writeln(F("step I <ENTER> -- Set waypoint step to interrogate switches."));
+    log_write(F(">"));
+}
+
 // These strings are defined outside of the menu below, so they can be stored in flash with PROGMEM.
 static const char MM_1[] PROGMEM = "print configuration";
 static const char MH_1[] PROGMEM = "-- Print configuration.";
@@ -112,8 +148,8 @@ static const menu_item_t main_menu[] = {
     { 'G', MM_G,    NULL,                        NULL,          true,  command_set_gripper_position,   MH_G    },
     { 'H', MM_H,    NULL,                        NULL,          false, command_set_home_position,      MH_H    },
     { 'M', MM_M,    NULL,                        NULL,          true,  command_print_motor_status,     MH_M    },
-    { 'N', MM_N,    NULL,                        NULL,          true,  command_set_motor_angle,        MH_N    },
-    { 'P', MM_P,    NULL,                        NULL,          true,  command_set_motor_encoder,      MH_P    }, // TODO
+    { 'N', MM_N,    NULL,                        NULL,          true,  command_set_motor_angle,        MH_N    }, // TODO.
+    { 'P', MM_P,    NULL,                        NULL,          true,  command_set_motor_encoder,      MH_P    },
     { 'Q', MM_Q,    NULL,                        NULL,          false, command_run_test_sequence,      MH_Q    },
     { 'T', MM_T,    NULL,                        NULL,          true,  command_test_motors,            MH_T    },
     { 'V', MM_V,    NULL,                        NULL,          false, command_print_software_version, MH_V    },
@@ -127,11 +163,11 @@ static const menu_item_t main_menu[] = {
 static const char WM_1[] PROGMEM = "print waypoints";
 static const char WH_1[] PROGMEM = "[start-step [count]] -- Print waypoints.";
 static const char WM_A[] PROGMEM = "append waypoint";
-static const char WH_A[] PROGMEM = "Set waypoint after last to current motor positions.";
+static const char WH_A[] PROGMEM = "Append waypoint to end of list.";
 static const char WM_D[] PROGMEM = "delete waypoint";
 static const char WH_D[] PROGMEM = "step -- Delete waypoint step.";
 static const char WM_I[] PROGMEM = "insert waypint";
-static const char WH_I[] PROGMEM = "waypoint-number -- Set waypoint-number to current motor-positions and move waypoints down.";
+static const char WH_I[] PROGMEM = "step -- Insert waypoint before step.";
 static const char WM_R[] PROGMEM = "run waypoint sequence";
 static const char WH_R[] PROGMEM = "[start-step [count]] -- Run waypoint sequence starting at first waypoint.";
 static const char WM_S[] PROGMEM = "set waypoint";
@@ -140,21 +176,22 @@ static const char WM_X[] PROGMEM = "exit waypoints menu";
 static const char WH_X[] PROGMEM = "-- Exit waypoints menu.";
 
 static const menu_item_t waypoint_menu[] = {
-    { '1', WM_1,    NULL, NULL,      true,  command_waypoint_print,         WH_1    },
-    { 'A', WM_A,    NULL, NULL,      true,  command_waypoint_append,        WH_A    },
-    { 'D', WM_D,    NULL, NULL,      true,  command_waypoint_delete,        WH_D    },
-    { 'E', MM_E,    NULL, NULL,      true,  command_set_enabled_motors,     MH_E    },
-    { 'I', WM_I,    NULL, NULL,      true,  command_waypoint_insert_before, WH_I    },
-    { 'N', MM_N,    NULL, NULL,      true,  command_set_motor_angle,        MH_N    },
-    { 'P', MM_P,    NULL, NULL,      true,  command_set_motor_encoder,      MH_P    },  // TODO
-    { 'R', WM_R,    NULL, NULL,      true,  command_waypoint_run,           WH_R    },
-    { 'S', WM_S,    NULL, NULL,      true,  command_waypoint_set,           WH_S    },
-    { 'T', MM_T,    NULL, NULL,      true,  command_test_motors,            MH_T    },
-    { 'X', WM_X,    NULL, main_menu, true,  NULL,                           WH_X    },
-    { '!', MM_BANG, NULL, NULL,      false, command_emergency_stop,         MH_BANG },
-    { '?', MM_HELP, NULL, NULL,      false, command_print_help,             MH_HELP },
+    { '1', WM_1,    NULL,                          NULL,      true,  command_waypoint_print,         WH_1    },
+    { 'A', WM_A,    extended_menu_append_waypoint, NULL,      true,  command_waypoint_append,        WH_A    },
+    { 'D', WM_D,    NULL,                          NULL,      true,  command_waypoint_delete,        WH_D    },
+    { 'E', MM_E,    NULL,                          NULL,      true,  command_set_enabled_motors,     MH_E    },
+    { 'I', WM_I,    extended_menu_insert_waypoint, NULL,      true,  command_waypoint_insert_before, WH_I    },
+    { 'N', MM_N,    NULL,                          NULL,      true,  command_set_motor_angle,        MH_N    }, // TODO.
+    { 'P', MM_P,    NULL,                          NULL,      true,  command_set_motor_encoder,      MH_P    },
+    { 'R', WM_R,    NULL,                          NULL,      true,  command_waypoint_run,           WH_R    },
+    { 'S', WM_S,    extended_menu_set_waypoint,    NULL,      true,  command_waypoint_set,           WH_S    },
+    { 'T', MM_T,    NULL,                          NULL,      true,  command_test_motors,            MH_T    },
+    { 'X', WM_X,    NULL,                          main_menu, true,  NULL,                           WH_X    },
+    { '!', MM_BANG, NULL,                          NULL,      false, command_emergency_stop,         MH_BANG },
+    { '?', MM_HELP, NULL,                          NULL,      false, command_print_help,             MH_HELP },
     { 0 }  // Terminate menus with an entry filled with zeros.
 };
+
 
 static const menu_item_t *current_menu = main_menu;
 
@@ -199,7 +236,7 @@ void menu_help(void)
 
         // Pad with spaces afer the name to align the help message.
         char spaces[menu_item_max_name_nbytes];  // Just a buffer of whitespace.
-        int nspaces = longest_name_nbytes - strlen_P(item->name);
+        int nspaces = longest_name_nbytes - strlen_P(item->name) + 1;
         nspaces = (nspaces >= menu_item_max_name_nbytes) ? menu_item_max_name_nbytes - 1 : nspaces;
         memset(spaces, ' ', nspaces);
         spaces[nspaces] = '\0';

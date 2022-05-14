@@ -26,6 +26,7 @@ size_t parse_bool(char *buf, size_t buf_nbytes, bool *out_bool)
     assert(buf);
     assert(out_bool);
 
+    // TODO: switch to table of PROGMEM.
     const char *bool_strings[] = {
         "on",
         "off",
@@ -220,8 +221,7 @@ size_t parse_string_in_table(char *buf, size_t buf_nbytes, char *table[], int nt
 
     for (int i = 0; i < ntable_entries; i++) {
         size_t nbytes = strlen(table[i]);
-        if (nbytes == (end - buf) &&
-            (strncasecmp(table[i], buf, end - buf) == 0)) {
+        if ((nbytes == (end - buf)) && (strncasecmp(table[i], buf, end - buf) == 0)) {
             *out_entry_num = i;
             return nbytes;
         }
@@ -403,80 +403,105 @@ error:
     return 0;
 }
 
-size_t parse_waypoint(char *buf, size_t buf_nbytes, waypoint_t *out_waypoint)
+size_t parse_waypoint(char *args, size_t args_nbytes, waypoint_t *out_waypoint)
 {
-    assert(buf);
+    assert(args);
     assert(out_waypoint);
-    char *p = buf;
 
-    const char *command_strings[] = {
-        "a",  // WAYPOINT_COMMAND_MOVE_AT.
-        "b",  // WAYPOINT_COMMAND_MOVE_BESIDE.
-        "c",  // WAYPOINT_COMMAND_MOVE_CLOSE.
-        "d",  // WAYPOINT_COMMAND_MOVE_APPROACHING.
-        "g",  // WAYPOINT_COMMAND_GOTO_STEP.
-        "j",  // WAYPOINT_COMMAND_GOTO_STEP_IF_IO.
-        "i",  // WAYPOINT_COMMAND_INTERROGATE_SWITCHES.
-        "w",  // WAYPOINT_COMMAND_WAIT_MILLIS.
-    };
-
-#define COMMAND_STRINGS_COUNT sizeof(command_strings) / sizeof(command_strings[0])
+    char *p = args;
+    size_t nbytes = parse_whitespace(p, args_nbytes);
 
     int entry_num = -1;
-    size_t nbytes = parse_string_in_table(p, buf_nbytes, command_strings, COMMAND_STRINGS_COUNT, &entry_num);
-    if (nbytes = 0) {
-        log_writeln(F("Error processing waypoint."));  // TODO: Test and remove.
-        return 0;
-    }
+    char *command_table[] = { "A", "G", "J", "K", "W", "I" };
+    int goto_step = -1;
+    int io_pin_or_millis = -1;
 
-    buf_nbytes -= nbytes;
+    nbytes = parse_string_in_table(args, 1, command_table, 6, &entry_num);
+    args_nbytes -= nbytes;
+    p += nbytes;
+
+    if ((entry_num < 0) || (entry_num > 5))
+        goto error;
+
+    nbytes = parse_whitespace(p, args_nbytes);
+    args_nbytes -= nbytes;
     p += nbytes;
 
     switch (entry_num) {
     case 0:
+        if (args_nbytes != 0)
+            goto error;
         out_waypoint->command = WAYPOINT_COMMAND_MOVE_AT;
-        nbytes = parse_waypoint_motors(p, buf_nbytes, out_waypoint);
+        out_waypoint->motor.a = motor_get_encoder(MOTOR_ID_A);
+        out_waypoint->motor.b = motor_get_encoder(MOTOR_ID_B);
+        out_waypoint->motor.c = motor_get_encoder(MOTOR_ID_C);
+        out_waypoint->motor.d = motor_get_encoder(MOTOR_ID_D);
+        out_waypoint->motor.e = motor_get_encoder(MOTOR_ID_E);
+        out_waypoint->motor.f = motor_get_encoder(MOTOR_ID_F);
         break;
     case 1:
-        out_waypoint->command = WAYPOINT_COMMAND_MOVE_BESIDE;
-        nbytes = parse_waypoint_motors(p, buf_nbytes, out_waypoint);
+        nbytes = parse_int(p, args_nbytes, &goto_step);
+        if (nbytes == 0)
+            goto error;
+        args_nbytes -= nbytes;
+        p += nbytes;
+        out_waypoint->command = WAYPOINT_COMMAND_GOTO_STEP;
+        out_waypoint->io_goto.step = goto_step;
         break;
     case 2:
-        out_waypoint->command = WAYPOINT_COMMAND_MOVE_CLOSE;
-        nbytes = parse_waypoint_motors(p, buf_nbytes, out_waypoint);
+        nbytes = parse_int(p, args_nbytes, &io_pin_or_millis);
+        if (nbytes == 0)
+            goto error;
+        args_nbytes -= nbytes;
+        p += nbytes;
+
+        nbytes = parse_whitespace(p, args_nbytes);
+        args_nbytes -= nbytes;
+        p += nbytes;
+
+        nbytes = parse_int(p, args_nbytes, &goto_step);
+        if (nbytes == 0)
+            goto error;
+        args_nbytes -= nbytes;
+        p += nbytes;
+
+        out_waypoint->command = WAYPOINT_COMMAND_IF_IO_PIN_GOTO_STEP;
+        out_waypoint->io_goto.pin = io_pin_or_millis;
+        out_waypoint->io_goto.step = goto_step;
         break;
     case 3:
-        out_waypoint->command = WAYPOINT_COMMAND_MOVE_APPROACHING;
-        nbytes = parse_waypoint_motors(p, buf_nbytes, out_waypoint);
+        nbytes = parse_int(p, args_nbytes, &io_pin_or_millis);
+        if (nbytes == 0)
+            goto error;
+        args_nbytes -= nbytes;
+        p += nbytes;
+        out_waypoint->command = WAYPOINT_COMMAND_WAIT_IO_PIN;
+        out_waypoint->io_goto.pin = io_pin_or_millis;
         break;
     case 4:
-        out_waypoint->command = WAYPOINT_COMMAND_GOTO_STEP;
-        nbytes = parse_int(p, buf_nbytes, &out_waypoint->goto_step);
+        nbytes = parse_int(p, args_nbytes, &io_pin_or_millis);
+        if (nbytes == 0)
+            goto error;
+        args_nbytes -= nbytes;
+        p += nbytes;
+        out_waypoint->command = WAYPOINT_COMMAND_WAIT_MILLIS;
+        out_waypoint->wait_millis = io_pin_or_millis;
         break;
     case 5:
-        out_waypoint->command = WAYPOINT_COMMAND_GOTO_STEP_IF_IO;
-        nbytes = parse_int(p, buf_nbytes, &out_waypoint->goto_step);
-        break;
-    case 6:
+        if (args_nbytes != 0)
+            goto error;
         out_waypoint->command = WAYPOINT_COMMAND_INTERROGATE_SWITCHES;
-        nbytes = 0;
-        break;
-    case 7:
-        out_waypoint->command = WAYPOINT_COMMAND_WAIT_MILLIS;
-        nbytes = parse_int(p, buf_nbytes, &out_waypoint->wait_millis);
         break;
     default:
         assert(false);
-        break;
     }
 
-    buf_nbytes -= nbytes;
+    nbytes = parse_whitespace(p, args_nbytes);
+    args_nbytes -= nbytes;
     p += nbytes;
 
-    nbytes = parse_whitespace(p, buf_nbytes);
+    return p - args;
 
-    buf_nbytes -= nbytes;
-    p += nbytes;
-
-    return p - buf;
+error:
+    return -1;
 }
