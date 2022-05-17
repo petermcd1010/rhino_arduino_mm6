@@ -12,6 +12,7 @@ size_t parse_whitespace(char *buf, size_t buf_nbytes);
 size_t parse_bool(char *buf, size_t buf_nbytes, bool *out_bool);
 size_t parse_char(char *buf, size_t buf_nbytes, char *out_char);
 size_t parse_int(char *buf, size_t buf_nbytes, int *out_int);
+size_t parse_long_int(char *buf, size_t buf_nbytes, long int *out_int);
 size_t parse_float(char *buf, size_t buf_nbytes, float *out_float);
 size_t parse_string(char *buf, size_t buf_nbytes, char *out_string, size_t out_string_nbytes);
 size_t parse_string_in_table(char *buf, size_t buf_nbytes, char *table[], int ntable_entries, int *out_entry_num);

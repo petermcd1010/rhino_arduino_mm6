@@ -65,14 +65,6 @@ void loop()
         log_writeln(F("ERROR: System integrity check failed."));
     }
 
-    static bool button_prev = false;
-    bool button = hardware_get_button_pressed();
-
-    if (button_prev != button) {
-        log_writeln(F("Button %d"), button);
-        button_prev = button;
-    }
-
     sm_execute();
 
     return;

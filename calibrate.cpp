@@ -82,13 +82,13 @@ void calibrate_begin(void)
 
     log_writeln(F("Calibration beginning."));
 
-    sm_set_next_state(select_next_motor);
+    sm_set_next_state(select_next_motor, NULL);
 }
 
 static void calibrate_end(void)
 {
     memset(&cal_data, 0, sizeof(cal_data));
-    sm_set_next_state(sm_motors_off_enter);
+    sm_set_next_state(sm_motors_off_enter, NULL);
 
     log_writeln(F("Calibration ended."));
 }
@@ -97,7 +97,7 @@ static void select_next_motor(void)
 {
     do {
         if ((cal_data.motor_ids_mask & (1 << cal_data.motor_id)) != 0) {
-            sm_set_next_state(calibrate_current_motor);
+            sm_set_next_state(calibrate_current_motor, NULL);
             break;
         } else {
             log_writeln(F("Not calibrating motor %c."), 'A' + cal_data.motor_id);
@@ -105,7 +105,7 @@ static void select_next_motor(void)
         }
 
         if (cal_data.motor_id >= MOTOR_ID_COUNT) {
-            sm_set_next_state(calibrate_end);
+            sm_set_next_state(calibrate_end, NULL);
             break;
         }
     } while (1);
@@ -115,7 +115,7 @@ static void calibrate_current_motor(void)
 {
     log_writeln(F("Calibrating motor %c."), 'A' + cal_data.motor_id);
     cal_data.motor_id = (int)cal_data.motor_id + 1;
-    sm_set_next_state(select_next_motor);
+    sm_set_next_state(select_next_motor, NULL);
 }
 
 static bool is_stuck(cal_data_t *pcal_data)

@@ -355,7 +355,7 @@ bool motor_configured(motor_id_t motor_id)
 void motor_set_target_encoder(motor_id_t motor_id, int encoder)
 {
     assert((motor_id >= MOTOR_ID_FIRST) && (motor_id <= MOTOR_ID_LAST));
-    log_writeln(F("motor_set_target_encoder %d %d"), motor_id, encoder);
+    // log_writeln(F("motor_set_target_encoder %d %d"), motor_id, encoder);
 
     // TODO: assert valid encoder?
     if (!motor_get_enabled(motor_id)) {

@@ -16,6 +16,7 @@
 static sm_state_func current_state;
 static sm_state_func exit_current_state;
 static sm_state_func next_state;
+static sm_state_func break_handler;
 
 static int enabled_motors_mask = 0;
 
@@ -105,7 +106,7 @@ static void process_serial_input()
     static bool reset_prompt = true;
 
     bool status_updated = false;
-    static status_t previous_status = {};
+    static status_t previous_status = { 0 };
     status_t status;
 
     gather_status(&status);
@@ -155,8 +156,10 @@ static void process_serial_input()
         char input_char = Serial.read();
 
         if (input_char == ASCII_CTRL_C) {
-            log_writeln(F("<CTRL+C>"));
             reset_prompt = true;
+            log_writeln(F("<CTRL+C>"));
+            if (break_handler)
+                break_handler();
         } else if (!have_command) {
             if (input_char == ASCII_RETURN) {
                 log_writeln(F(""));
@@ -252,9 +255,9 @@ void sm_init(void)
     log_writeln(F("Ready."));
 
     if (config_read_success && self_test_success)
-        sm_set_next_state(sm_motors_off_enter);
+        sm_set_next_state(sm_motors_off_enter, NULL);
     else
-        sm_set_next_state(sm_error_enter);
+        sm_set_next_state(sm_error_enter, NULL);
 }
 
 sm_state_func sm_get_state()
@@ -262,11 +265,12 @@ sm_state_func sm_get_state()
     return current_state;
 }
 
-void sm_set_next_state(sm_state_func s)
+void sm_set_next_state(sm_state_func s, sm_state_func in_break_handler)
 {
     assert(s);
 
     next_state = s;
+    break_handler = in_break_handler;
 }
 
 void sm_set_exit_current_state(sm_state_func s)
@@ -278,6 +282,8 @@ void sm_set_exit_current_state(sm_state_func s)
 
 void sm_execute(void)
 {
+    process_serial_input();
+
     if (next_state) {
         if (exit_current_state) {
             exit_current_state();
@@ -307,7 +313,7 @@ void sm_motors_off_enter(void)
         motor_set_enabled(i, false);
     }
 
-    sm_set_next_state(sm_motors_off_execute);
+    sm_set_next_state(sm_motors_off_execute, NULL);
 }
 
 void sm_motors_off_execute(void)
@@ -318,7 +324,7 @@ void sm_motors_off_execute(void)
 void sm_motors_on_enter(void)
 {
     sm_set_state_name(F("motors on"));
-    sm_set_next_state(sm_motors_on_execute);
+    sm_set_next_state(sm_motors_on_execute, NULL);
 
     for (int i = 0; i < MOTOR_ID_COUNT; i++) {
         bool enabled = enabled_motors_mask & (1 << i);
@@ -335,7 +341,7 @@ void sm_motors_on_execute(void)
 
 void sm_motors_on_exit(void)
 {
-    motor_disable_all();
+    // motor_disable_all();
 }
 
 void sm_error_enter(void)
@@ -344,7 +350,7 @@ void sm_error_enter(void)
 
     sm_set_state_name(F("ERROR"));
     motor_disable_all();
-    sm_set_next_state(sm_error_execute);
+    sm_set_next_state(sm_error_execute, NULL);
 }
 
 void sm_error_execute(void)

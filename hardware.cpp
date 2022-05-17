@@ -80,8 +80,10 @@ void hardware_set_speaker_enabled(bool enabled)
     digitalWrite(SPEAKER, enabled);
 }
 
-bool hardware_get_button_pressed()
+bool hardware_get_button_pressed(int io_pin)
 {
+    // TODO: Handle more than the one fixed IO pin.
+
     static int ret_val = 0;
     static int prev_val = -1;
     static unsigned prev_transition_millis = -1;

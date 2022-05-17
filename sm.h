@@ -10,11 +10,11 @@ typedef void (*sm_state_func)(void);
 
 void sm_init(void);
 sm_state_func sm_get_state(void);
-void sm_set_next_state(sm_state_func);
+void sm_set_next_state(sm_state_func state_func, sm_state_func break_handler);  // Break handler may be NULL.
 void sm_set_exit_current_state(sm_state_func);
 void sm_execute(void);
 
-void sm_set_state_name(const __FlashStringHelper *name);
+void sm_set_state_name(const __FlashStringHelper *name);  // TODO: Needed?
 
 void sm_motors_off_enter(void);
 void sm_motors_off_execute(void);

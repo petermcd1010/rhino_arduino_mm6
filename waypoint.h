@@ -36,7 +36,7 @@ typedef struct __attribute__((packed)) {
             int pin;  // Pin to potentially check or wait for trigger.
             int step;  // Step to potentially goto.
         } io_goto;
-        int wait_millis;  // For wait command.
+        unsigned long wait_millis;  // For wait command.
         struct {
             float a;
             float b;
@@ -53,3 +53,5 @@ waypoint_t waypoint_get(int index);
 void waypoint_set(int index, waypoint_t waypoint);
 void waypoint_delete(int index);
 void waypoint_print(int index);
+void waypoint_run_step(int step);
+void waypoint_run(void);

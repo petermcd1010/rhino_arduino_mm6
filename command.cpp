@@ -214,7 +214,7 @@ int command_calibrate_motors(char *args, size_t args_nbytes)
     log_writeln(F("Calibrating motors %d"), motor_ids_mask);
 
     calibrate_init(motor_ids_mask);
-    sm_set_next_state(calibrate_begin);
+    sm_set_next_state(calibrate_begin, NULL);
 
 error:
     return nbytes;
@@ -251,9 +251,9 @@ int command_set_enabled_motors(char *args, size_t args_nbytes)
     sm_set_enabled_motors_mask(motor_ids_mask);
 
     if (motor_ids_mask == 0)
-        sm_set_next_state(sm_motors_off_enter);
+        sm_set_next_state(sm_motors_off_enter, NULL);
     else if (motor_ids_mask <= 0x3f)
-        sm_set_next_state(sm_motors_on_enter);
+        sm_set_next_state(sm_motors_on_enter, NULL);
 
 error:
     return nbytes;
@@ -503,7 +503,36 @@ int command_print_software_version(char *args, size_t args_nbytes)
 
 int command_waypoint_run(char *args, size_t args_nbytes)
 {
-    assert(false);
+    assert(args);
+    char *p = args;
+    static int step = -1;
+
+    size_t nbytes = parse_whitespace(p, args_nbytes);
+
+    args_nbytes -= nbytes;
+    p += nbytes;
+    if (args_nbytes == 0) {
+        waypoint_run();
+        return p - args;
+    }
+
+    // TODO: Support [start-step [count]].
+    nbytes = parse_int(p, args_nbytes, &step);
+    args_nbytes -= nbytes;
+    p += nbytes;
+
+    nbytes = parse_whitespace(p, args_nbytes);
+    args_nbytes -= nbytes;
+    p += nbytes;
+
+    if (args_nbytes > 0)
+        goto error;
+
+    waypoint_run_step(step);
+
+    return p - args;
+
+error:
     return -1;
 }
 
@@ -511,10 +540,9 @@ int command_waypoint_set(char *args, size_t args_nbytes)
 {
     assert(args);
 
+    char *p = args;
     int step = -1;
     waypoint_t waypoint = { 0 };
-
-    char *p = args;
 
     size_t nbytes = parse_whitespace(p, args_nbytes);
 

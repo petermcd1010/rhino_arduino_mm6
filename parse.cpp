@@ -3,6 +3,7 @@
  * See the LICENSE file in the root directory of this project for copyright and licensing details.
  */
 
+#include "limits.h"
 #include "log.h"
 #include "motor.h"
 #include "parse.h"
@@ -67,12 +68,29 @@ size_t parse_char(char *buf, size_t buf_nbytes, char *out_char)
 
 size_t parse_int(char *buf, size_t buf_nbytes, int *out_int)
 {
+    long int li = -1;
+    size_t nbytes = parse_long_int(buf, buf_nbytes, &li);
+
+    if (nbytes != buf_nbytes)
+        return -1;
+
+    *out_int = (int)li;
+    if (*out_int != li) {
+        LOG_ERROR(F("Overflow. %ld is larger than maximum integer of %d."), li, INT_MAX);
+        return -1;
+    }
+
+    return nbytes;
+}
+
+size_t parse_long_int(char *buf, size_t buf_nbytes, long int *out_int)
+{
     assert(buf);
     assert(out_int);
     int sign = 1;
     bool is_valid = false;
     char *p = buf;
-    int i = 0;
+    long int i = 0;
 
     while (*p && (p - buf < buf_nbytes)) {
         if (isspace(*p))
@@ -414,7 +432,8 @@ size_t parse_waypoint(char *args, size_t args_nbytes, waypoint_t *out_waypoint)
     int entry_num = -1;
     char *command_table[] = { "A", "G", "J", "K", "W", "I" };
     int goto_step = -1;
-    int io_pin_or_millis = -1;
+    int io_pin = -1;
+    long int millis = -1;
 
     nbytes = parse_string_in_table(args, 1, command_table, 6, &entry_num);
     args_nbytes -= nbytes;
@@ -449,7 +468,7 @@ size_t parse_waypoint(char *args, size_t args_nbytes, waypoint_t *out_waypoint)
         out_waypoint->io_goto.step = goto_step;
         break;
     case 2:
-        nbytes = parse_int(p, args_nbytes, &io_pin_or_millis);
+        nbytes = parse_int(p, args_nbytes, &io_pin);
         if (nbytes == 0)
             goto error;
         args_nbytes -= nbytes;
@@ -466,26 +485,32 @@ size_t parse_waypoint(char *args, size_t args_nbytes, waypoint_t *out_waypoint)
         p += nbytes;
 
         out_waypoint->command = WAYPOINT_COMMAND_IF_IO_PIN_GOTO_STEP;
-        out_waypoint->io_goto.pin = io_pin_or_millis;
+        out_waypoint->io_goto.pin = io_pin;
         out_waypoint->io_goto.step = goto_step;
         break;
     case 3:
-        nbytes = parse_int(p, args_nbytes, &io_pin_or_millis);
+        nbytes = parse_int(p, args_nbytes, &io_pin);
         if (nbytes == 0)
             goto error;
         args_nbytes -= nbytes;
         p += nbytes;
         out_waypoint->command = WAYPOINT_COMMAND_WAIT_IO_PIN;
-        out_waypoint->io_goto.pin = io_pin_or_millis;
+        out_waypoint->io_goto.pin = io_pin;
         break;
     case 4:
-        nbytes = parse_int(p, args_nbytes, &io_pin_or_millis);
+        nbytes = parse_long_int(p, args_nbytes, &millis);
         if (nbytes == 0)
             goto error;
         args_nbytes -= nbytes;
         p += nbytes;
+
+        long int max_wait_millis = 86400000;  // 24 * 60 * 60 * 1000.
+        if ((millis < 0) || (millis > max_wait_millis)) {
+            log_writeln(F("Invalid wait of %ld milliseconds. Maximum wait time is 24 hours (24 * 60 * 60 * 1000 = %ld)."), millis, max_wait_millis);
+            goto error;
+        }
         out_waypoint->command = WAYPOINT_COMMAND_WAIT_MILLIS;
-        out_waypoint->wait_millis = io_pin_or_millis;
+        out_waypoint->wait_millis = millis;
         break;
     case 5:
         if (args_nbytes != 0)
