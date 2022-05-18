@@ -53,5 +53,4 @@ waypoint_t waypoint_get(int index);
 void waypoint_set(int index, waypoint_t waypoint);
 void waypoint_delete(int index);
 void waypoint_print(int index);
-void waypoint_run_step(int step);
-void waypoint_run(void);
+void waypoint_run(int start_index, int count);  // If count == -1, then run until done.

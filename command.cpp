@@ -505,35 +505,52 @@ int command_waypoint_run(char *args, size_t args_nbytes)
 {
     assert(args);
     char *p = args;
-    static int step = -1;
+    int start_step = 0;
+    int count = -1;
 
+    log_writeln(F("0: '%s'"), args);
     size_t nbytes = parse_whitespace(p, args_nbytes);
 
     args_nbytes -= nbytes;
     p += nbytes;
-    if (args_nbytes == 0) {
-        waypoint_run();
-        return p - args;
+
+    if (args_nbytes > 0) {
+        log_writeln(F("1: '%s'"), args);
+        // Parse optional start-step integer parameter.
+        nbytes = parse_int(p, args_nbytes, &start_step);
+        args_nbytes -= nbytes;
+        p += nbytes;
+
+        nbytes = parse_whitespace(p, args_nbytes);
+        args_nbytes -= nbytes;
+        p += nbytes;
+
+        log_writeln(F("start_step: %d"), start_step);
+
+        if (args_nbytes > 0) {
+            log_writeln(F("2: '%s'"), args);
+            // Parse optional count parameter.
+            nbytes = parse_int(p, args_nbytes, &count);
+            args_nbytes -= nbytes;
+            p += nbytes;
+
+            nbytes = parse_whitespace(p, args_nbytes);
+            args_nbytes -= nbytes;
+            p += nbytes;
+
+            log_writeln(F("count: %d"), count);
+
+            if (args_nbytes > 0)
+                return -1;
+        }
     }
 
-    // TODO: Support [start-step [count]].
-    nbytes = parse_int(p, args_nbytes, &step);
-    args_nbytes -= nbytes;
-    p += nbytes;
+    if ((start_step < 0) || (count < -1))
+        return -1;
 
-    nbytes = parse_whitespace(p, args_nbytes);
-    args_nbytes -= nbytes;
-    p += nbytes;
-
-    if (args_nbytes > 0)
-        goto error;
-
-    waypoint_run_step(step);
+    waypoint_run(start_step, count);
 
     return p - args;
-
-error:
-    return -1;
 }
 
 int command_waypoint_set(char *args, size_t args_nbytes)

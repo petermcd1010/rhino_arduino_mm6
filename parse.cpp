@@ -71,8 +71,8 @@ size_t parse_int(char *buf, size_t buf_nbytes, int *out_int)
     long int li = -1;
     size_t nbytes = parse_long_int(buf, buf_nbytes, &li);
 
-    if (nbytes != buf_nbytes)
-        return -1;
+    if (nbytes == 0)
+        return 0;
 
     *out_int = (int)li;
     if (*out_int != li) {

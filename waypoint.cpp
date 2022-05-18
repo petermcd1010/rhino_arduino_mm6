@@ -21,52 +21,33 @@ typedef enum {
     PROGRESS_ON_WAY,  // More than 200 clicks away from waypoint position.
 } progress_t;
 
-static sm_state_func previous_state = NULL;
-static void (*sm_exit_to_state)(void) = NULL;
+static sm_state_func exit_to_state = NULL;  // Transition to this state when done running waypoints.
+
 static int motion_status[MOTOR_ID_COUNT] = { 0 };  // Motion Status:
 static int tracking = 0;  // TODO: Change to bool or enum.
 static int track_report_encoder_value[MOTOR_ID_COUNT] = { 0 };  // Last value logged while tracking.
 static int limit_prev[MOTOR_ID_COUNT] = { 0 };  // Limit/Home switch Previous Value.
 
-static void move_to_a_waypoint_angle();
-static void move_to_waypoint_angle(waypoint_t waypoint);
-
+static int current_waypoint_index = 0;
 static waypoint_t current_waypoint = { 0 };
 
-static void sm_execute_next_step(void);
-static void sm_track_move_to(void);
-static void sm_interrogate_limit_switches(void);
-static void sm_wait_millis(void);
-static void sm_exit(void);
 
-static void run_enter(void);
-static void run(void);
-static void run_exit(void);
 static void break_handler(void);
-static int waypoint_run_index = 0;
+static void start(void);
+static void run(void);
+static void stop(void);
 
+#if 0
 static void interrogate_limit_switches()
 {
 }
-
-void waypoint_sm_enter(void)
-{
-    log_writeln(F("waypoint_sm_enter"));
-    sm_set_state_name(F("waypoint_sm_enter"));
-
-    sm_exit_to_state = sm_get_state();  // State to transition to when waypoints done running.
-    sm_set_next_state(sm_execute_next_step, NULL);
-
-    // current_waypoint.step = 0;
-}
+#endif
 
 static void sm_execute_next_step(void)
 {
     log_writeln(F("waypoint sm_run"));
     sm_set_state_name(F("waypoint sm_run"));
 #if 0
-    log_write(F("Waypoint: Reading step %d."), current_waypoint.step);
-
     assert(current_waypoint.step < waypoint_get_max_count());
     current_waypoint = waypoint_get(current_waypoint.step);
 
@@ -85,33 +66,6 @@ static void sm_execute_next_step(void)
         tracking = 2;  // Track angles.
         sm_set_next_state(sm_track_move_to, NULL);
         break;
-    case WAYPOINT_COMMAND_GOTO_STEP:
-        log_writeln(F("Waypoint %d: goto step %d."), current_waypoint.step);
-        current_waypoint.step = current_waypoint.io_goto.step;
-        break;
-    case WAYPOINT_COMMAND_IF_IO_PIN_GOTO_STEP:
-        // pin = waypoint.b;
-        log_writeln(F("Waypoint %d: if IO pin %d triggered, goto step %d."), 0, current_waypoint.io_goto.step);
-        if (hardware_get_button_pressed()) // TODO: Support configurable expansion IO line.
-            current_waypoint.step = current_waypoint.io_goto.step;
-        else
-            current_waypoint.step++;
-        break;
-    case WAYPOINT_COMMAND_WAIT_IO_PIN:
-        // pin = waypoint.b;
-        log_writeln(F("Waypoint %d: wait if IO pin %d triggered."), 0, current_waypoint.io_goto.step);
-        if (hardware_get_button_pressed()) // TODO: Support configurable expansion IO line.
-            current_waypoint.step++;
-        break;
-    case WAYPOINT_COMMAND_INTERROGATE_SWITCHES:
-        log_writeln(F("Waypoint %d: interrogate limit switches."), current_waypoint.io_goto.step);
-        sm_set_next_state(sm_interrogate_limit_switches, NULL);
-        break;
-    case WAYPOINT_COMMAND_WAIT_MILLIS:
-        log_writeln(F("Waypoint %d: wait %d milliseconds."), current_waypoint.wait_millis);
-        sm_set_next_state(sm_wait_millis, NULL);
-        break;
-    }
 #endif
 }
 
@@ -164,30 +118,6 @@ static void sm_track_move_to(void)
         track_millis = -1;
 }
 
-static void sm_interrogate_limit_switches(void)
-{
-    log_writeln(F(""));
-    sm_set_state_name(F("waypoint_sm_interrogate_limit_switches"));
-}
-
-static void sm_wait_millis(void)
-{
-    assert(current_waypoint.wait_millis >= 0);
-    static int wait_start_millis = -1;
-
-    log_writeln(F("waypoint sm_wait_millis"));
-    sm_set_state_name(F("waypoint sm_wait_millis"));
-
-    if (wait_start_millis == -1)
-        wait_start_millis = millis();
-
-    if ((millis() - wait_start_millis) > current_waypoint.wait_millis) {
-        // TODO: Look into millis() rollover and handle appropriately.
-        current_waypoint.wait_millis = wait_start_millis = -1;
-        sm_set_next_state(sm_execute_next_step, NULL);
-    }
-}
-
 static void sm_exit(void)
 {
     log_writeln(F("waypoint sm_exit"));
@@ -195,95 +125,7 @@ static void sm_exit(void)
 
     motor_disable_all();
     memset(&current_waypoint, 0, sizeof(waypoint_t));
-    sm_set_next_state(sm_exit_to_state, NULL);
     log_writeln(F("Done running waypoint sequence."));
-}
-
-
-
-static String in_buffer = "";
-static String string_splits[8];  //Used to store waypoints
-static String get_string_part_at_specific_index(String StringToSplit, char SplitChar, int StringPartIndex);
-
-static void split_waypoint(String waypoint)
-{
-    for (int i = 0; i < 8; i++) {
-        string_splits[i] = get_string_part_at_specific_index(waypoint, '!', i);
-    }
-}
-
-static String get_string_part_at_specific_index(String StringToSplit, char SplitChar, int StringPartIndex)
-{
-    String originallyString = StringToSplit;
-    String outString = "";
-
-    for (int i1 = 0; i1 <= StringPartIndex; i1++) {
-        outString = "";                //if the for loop starts again reset the outString (in this case other part of the String is needed to take out)
-        int SplitIndex = StringToSplit.indexOf(SplitChar);  //set the SplitIndex with the position of the SplitChar in StringToSplit
-
-        if (SplitIndex == -1)          //is true, if no Char is found at the given Index
-
-            //outString += "Error in get_string_part_at_specific_index: No SplitChar found at String '" + originallyString + "' since StringPart '" + (i1-1) + "'";    //just to find Errors
-            return outString;
-        for (int i2 = 0; i2 < SplitIndex; i2++) {
-            outString += StringToSplit.charAt(i2);  //write the char at Position 0 of StringToSplit to outString
-        }
-        StringToSplit = StringToSplit.substring(StringToSplit.indexOf(SplitChar) + 1);  //change the String to the Substring starting at the position+1 where last SplitChar found
-    }
-    return outString;
-}
-
-static void set_waypoint_angle(waypoint_t waypoint)
-{
-    in_buffer.setCharAt(0, ' ');
-    int step = in_buffer.toInt();
-
-    split_waypoint(in_buffer);
-    char command = string_splits[1][0];  // TODO: validate command.
-
-    waypoint.command = command;
-    waypoint.motor.a = string_splits[2].toFloat();
-    waypoint.motor.b = string_splits[3].toFloat();
-    waypoint.motor.c = string_splits[4].toFloat();
-    waypoint.motor.d = string_splits[5].toFloat();
-    waypoint.motor.e = string_splits[6].toFloat();
-    waypoint.motor.f = string_splits[7].toFloat();
-
-    waypoint_set(step, waypoint);
-    waypoint_print(step);
-
-    log_writeln(F("set."));
-}
-
-static void get_waypoint_angle(void)
-{
-    in_buffer.setCharAt(0, ' ');
-    int index = in_buffer.toInt();
-    waypoint_t waypoint = waypoint_get(index);
-
-    waypoint_print(index);
-}
-
-static void move_to_a_waypoint_angle(void)
-{
-    in_buffer.setCharAt(0, ' ');
-    int index = in_buffer.toInt();
-
-    log_write(F("Move to "));
-    waypoint_t waypoint = waypoint_get(index);
-
-    waypoint_print(index);
-    move_to_waypoint_angle(waypoint);
-}
-
-static void move_to_waypoint_angle(waypoint_t waypoint)
-{
-    motor_set_target_angle(MOTOR_ID_A, waypoint.motor.a);
-    motor_set_target_angle(MOTOR_ID_B, waypoint.motor.b);
-    motor_set_target_angle(MOTOR_ID_C, waypoint.motor.c);
-    motor_set_target_angle(MOTOR_ID_D, waypoint.motor.d);
-    motor_set_target_angle(MOTOR_ID_E, waypoint.motor.e);
-    motor_set_target_angle(MOTOR_ID_F, waypoint.motor.f);
 }
 
 int waypoint_get_max_count(void)
@@ -393,8 +235,8 @@ void waypoint_print(int index)
                     waypoint.io_goto.pin);
         break;
     case WAYPOINT_COMMAND_INTERROGATE_SWITCHES:
-        log_writeln(F("%d: Interrogate switches."),
-                    index);
+        log_writeln(F("%d: Interrogate switches."), index);
+        // TODO.
         break;
     case WAYPOINT_COMMAND_WAIT_MILLIS:
         log_writeln(F("%d: Wait %ld milliseconds."),
@@ -408,27 +250,30 @@ void waypoint_print(int index)
     }
 }
 
+void waypoint_run(int start_index, int count)
+{
+    assert(start_index >= 0);
+    assert(start_index < waypoint_get_max_count());
+
+    log_writeln(F("waypoint_run at %d count %d"), start_index, count);  // TODO: Use count.
+
+    current_waypoint_index = start_index;
+
+    exit_to_state = sm_get_state();
+    sm_set_next_state(start, break_handler);
+}
+
 static void break_handler(void)
 {
     log_writeln(F("Break detected. Stopping waypoint sequence."));
     motor_disable_all();
-    sm_set_next_state(run_exit, NULL);
+    sm_set_next_state(stop, NULL);
 }
 
-void waypoint_run(void)
+void start(void)
 {
-    log_writeln(F("waypoint_run"));
-
-    waypoint_run_index = 0;
-
-    previous_state = sm_get_state();
-    sm_set_next_state(run_enter, break_handler);
-}
-
-void run_enter(void)
-{
-    assert(waypoint_run_index >= 0);
-    assert(waypoint_run_index < waypoint_get_max_count());
+    assert(current_waypoint_index >= 0);
+    assert(current_waypoint_index < waypoint_get_max_count());
 
     for (int i = MOTOR_ID_A; i <= MOTOR_ID_LAST; i++) {
         motor_set_enabled((motor_id_t)i, true);
@@ -467,48 +312,48 @@ static bool set_target_waypoint(waypoint_t waypoint)
 
 static void run(void)
 {
-    assert(waypoint_run_index >= 0);
-    assert(waypoint_run_index < waypoint_get_max_count());
+    assert(current_waypoint_index >= 0);
+    assert(current_waypoint_index < waypoint_get_max_count());
 
-    waypoint_t waypoint = waypoint_get(waypoint_run_index);
+    waypoint_t waypoint = waypoint_get(current_waypoint_index);  // TODO: Only get when index changes.
 
     static bool wait_millis_run = false;
     static unsigned long wait_millis_start = -1;  // millis() returns unsigned_long.
 
-    static int prev_waypoint_run_index = -1;
+    static int prev_waypoint_index = -1;
 
-    if ((prev_waypoint_run_index != waypoint_run_index) && (waypoint.command != -1)) {
-        waypoint_print(waypoint_run_index);
-        prev_waypoint_run_index = waypoint_run_index;
+    if ((prev_waypoint_index != current_waypoint_index) && (waypoint.command != -1)) {
+        waypoint_print(current_waypoint_index);
+        prev_waypoint_index = current_waypoint_index;
     }
 
     switch (waypoint.command) {
     case -1:
-        waypoint_run_index++;
+        current_waypoint_index++;
         break;
     case WAYPOINT_COMMAND_MOVE_AT:
         if (at_waypoint(waypoint))
-            waypoint_run_index++;
+            current_waypoint_index++;
         else
-            set_target_waypoint(waypoint);
+            set_target_waypoint(waypoint);  // TODO: Only set when index changed.
         break;
     case WAYPOINT_COMMAND_GOTO_STEP:
-        waypoint_run_index = waypoint.io_goto.step;
+        current_waypoint_index = waypoint.io_goto.step;
         break;
     case WAYPOINT_COMMAND_IF_IO_PIN_GOTO_STEP:
         if (hardware_get_button_pressed(waypoint.io_goto.pin))
-            waypoint_run_index = waypoint.io_goto.step;
+            current_waypoint_index = waypoint.io_goto.step;
         else
-            waypoint_run_index++;
+            current_waypoint_index++;
         break;
     case WAYPOINT_COMMAND_WAIT_IO_PIN:
         if (hardware_get_button_pressed(waypoint.io_goto.pin)) {
             log_writeln(F("Pin %d triggered."), waypoint.io_goto.pin);
-            waypoint_run_index = waypoint.io_goto.step;
+            current_waypoint_index = waypoint.io_goto.step;
         }
         break;
     case WAYPOINT_COMMAND_INTERROGATE_SWITCHES:
-        waypoint_run_index++;
+        current_waypoint_index++;
         break;
     case WAYPOINT_COMMAND_WAIT_MILLIS:
         if (wait_millis_run == false) {
@@ -518,7 +363,7 @@ static void run(void)
 
         if (millis() - wait_millis_start >= waypoint.wait_millis) {
             wait_millis_run = false;;
-            waypoint_run_index++;
+            current_waypoint_index++;
         }
         break;
     default:
@@ -527,26 +372,17 @@ static void run(void)
         break;
     }
 
-    if (waypoint_run_index >= waypoint_get_max_count())
-        sm_set_next_state(run_exit, NULL);
+    if (current_waypoint_index >= waypoint_get_max_count())
+        sm_set_next_state(stop, NULL);
 }
 
-void waypoint_run_step(int index)
+static void stop(void)
 {
-    assert(index >= 0);
-    assert(index < waypoint_get_max_count());
+    current_waypoint_index = -1;
 
-    waypoint_t waypoint = waypoint_get(index);
+    motor_disable_all();
+    memset(&current_waypoint, 0, sizeof(waypoint_t));
+    log_writeln(F("Done running waypoint sequence."));
 
-    if (waypoint.command == WAYPOINT_COMMAND_MOVE_AT)
-        set_target_waypoint(waypoint);
-}
-
-static void run_exit(void)
-{
-    log_writeln(F("waypoint run_exit"));
-
-    waypoint_run_index = -1;
-
-    sm_set_next_state(previous_state, NULL);
+    sm_set_next_state(exit_to_state, NULL);
 }
