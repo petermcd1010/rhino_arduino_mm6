@@ -37,14 +37,7 @@ typedef struct __attribute__((packed)) {
             int step;  // Step to potentially goto.
         } io_goto;
         unsigned long wait_millis;  // For wait command.
-        struct {
-            float a;
-            float b;
-            float c;
-            float d;
-            float e;
-            float f;
-        } motor;
+        float         motor[MOTOR_ID_COUNT];
     };
 } waypoint_t;
 

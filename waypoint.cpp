@@ -211,12 +211,12 @@ void waypoint_print(int index)
     case WAYPOINT_COMMAND_MOVE_APPROACHING:
         log_writeln(F("%d: Move to a:%d b:%d c:%d d:%d e:%d f:%d."),
                     index,
-                    (int)waypoint.motor.a,
-                    (int)waypoint.motor.b,
-                    (int)waypoint.motor.c,
-                    (int)waypoint.motor.d,
-                    (int)waypoint.motor.e,
-                    (int)waypoint.motor.f);
+                    (int)waypoint.motor[0],
+                    (int)waypoint.motor[1],
+                    (int)waypoint.motor[2],
+                    (int)waypoint.motor[3],
+                    (int)waypoint.motor[4],
+                    (int)waypoint.motor[5]);
         break;
     case WAYPOINT_COMMAND_GOTO_STEP:
         log_writeln(F("%d: Goto %d."),
@@ -287,27 +287,21 @@ static bool at_waypoint(waypoint_t waypoint)
 {
     assert(waypoint.command == WAYPOINT_COMMAND_MOVE_AT);
 
-    if ((motor_get_encoder(MOTOR_ID_A) == waypoint.motor.a) &&
-        (motor_get_encoder(MOTOR_ID_B) == waypoint.motor.b) &&
-        (motor_get_encoder(MOTOR_ID_C) == waypoint.motor.c) &&
-        (motor_get_encoder(MOTOR_ID_D) == waypoint.motor.d) &&
-        (motor_get_encoder(MOTOR_ID_E) == waypoint.motor.e) &&
-        (motor_get_encoder(MOTOR_ID_F) == waypoint.motor.f))
-        return true;
-    return false;
+    for (int i = 0; i < MOTOR_ID_COUNT; i++) {
+        if (motor_get_encoder((motor_id_t)i) != waypoint.motor[i])
+            return false;
+    }
+
+    return true;
 }
 
 static bool set_target_waypoint(waypoint_t waypoint)
 {
     assert(waypoint.command == WAYPOINT_COMMAND_MOVE_AT);
 
-    // TODO: Do this in a loop.
-    motor_set_target_encoder(MOTOR_ID_A, waypoint.motor.a);
-    motor_set_target_encoder(MOTOR_ID_B, waypoint.motor.b);
-    motor_set_target_encoder(MOTOR_ID_C, waypoint.motor.c);
-    motor_set_target_encoder(MOTOR_ID_D, waypoint.motor.d);
-    motor_set_target_encoder(MOTOR_ID_E, waypoint.motor.e);
-    motor_set_target_encoder(MOTOR_ID_F, waypoint.motor.f);
+    for (int i = 0; i < MOTOR_ID_COUNT; i++) {
+        motor_set_target_encoder((motor_id_t)i, waypoint.motor[i]);
+    }
 }
 
 static void run(void)

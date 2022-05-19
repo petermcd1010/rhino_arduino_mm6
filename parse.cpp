@@ -374,53 +374,6 @@ bool parse_test()
     return ret;
 }
 
-static size_t parse_waypoint_motors(char *buf, size_t buf_nbytes, waypoint_t *out_waypoint)
-{
-    assert(buf);
-    assert(out_waypoint);
-
-    size_t nbytes = parse_float(buf, buf_nbytes, &out_waypoint->motor.a);
-
-    if (nbytes == 0)
-        goto error;
-    buf += nbytes;
-    buf_nbytes -= nbytes;
-
-    nbytes = parse_float(buf, buf_nbytes, &out_waypoint->motor.b);
-    if (nbytes == 0)
-        goto error;
-    buf += nbytes;
-    buf_nbytes -= nbytes;
-
-    nbytes = parse_float(buf, buf_nbytes, &out_waypoint->motor.c);
-    if (nbytes == 0)
-        goto error;
-    buf += nbytes;
-    buf_nbytes -= nbytes;
-
-    nbytes = parse_float(buf, buf_nbytes, &out_waypoint->motor.d);
-    if (nbytes == 0)
-        goto error;
-    buf += nbytes;
-    buf_nbytes -= nbytes;
-
-    nbytes = parse_float(buf, buf_nbytes, &out_waypoint->motor.e);
-    if (nbytes == 0)
-        goto error;
-    buf += nbytes;
-    buf_nbytes -= nbytes;
-
-    nbytes = parse_float(buf, buf_nbytes, &out_waypoint->motor.f);
-    if (nbytes == 0)
-        goto error;
-    buf += nbytes;
-    buf_nbytes -= nbytes;
-
-error:
-    log_writeln(F("ERROR: Failed to process waypoint motor positions."));
-    return 0;
-}
-
 size_t parse_waypoint(char *args, size_t args_nbytes, waypoint_t *out_waypoint)
 {
     assert(args);
@@ -451,12 +404,9 @@ size_t parse_waypoint(char *args, size_t args_nbytes, waypoint_t *out_waypoint)
         if (args_nbytes != 0)
             goto error;
         out_waypoint->command = WAYPOINT_COMMAND_MOVE_AT;
-        out_waypoint->motor.a = motor_get_encoder(MOTOR_ID_A);
-        out_waypoint->motor.b = motor_get_encoder(MOTOR_ID_B);
-        out_waypoint->motor.c = motor_get_encoder(MOTOR_ID_C);
-        out_waypoint->motor.d = motor_get_encoder(MOTOR_ID_D);
-        out_waypoint->motor.e = motor_get_encoder(MOTOR_ID_E);
-        out_waypoint->motor.f = motor_get_encoder(MOTOR_ID_F);
+        for (int i = 0; i < MOTOR_ID_COUNT; i++) {
+            out_waypoint->motor[i] = motor_get_encoder((motor_id_t)i);
+        }
         break;
     case 1:
         nbytes = parse_int(p, args_nbytes, &goto_step);
