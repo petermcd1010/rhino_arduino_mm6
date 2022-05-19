@@ -15,7 +15,8 @@ static const int OPRLED = 13;
 static const int SPEAKER = A15;
 static const int BUTTON = A14;
 
-// static const int expansion_io_pinout[] = { A15, A14, A13, A12, 53, 49, 48, 41 };
+static const int header_pins[] = { A15, A14, A13, A12, 53, 49, 48, 41 };
+#define NUM_HEADER_PINS (sizeof(header_pins) / sizeof(header_pins[0]))
 
 void hardware_init(void)
 {
@@ -80,26 +81,33 @@ void hardware_set_speaker_enabled(bool enabled)
     digitalWrite(SPEAKER, enabled);
 }
 
-bool hardware_get_button_pressed(int io_pin)
+int hardware_get_num_header_pins()
 {
-    // TODO: Handle more than the one fixed IO pin.
+    return NUM_HEADER_PINS;
+}
 
-    static int ret_val = 0;
-    static int prev_val = -1;
+bool hardware_get_header_pin_pressed(int pin_index)
+{
+    assert(pin_index < NUM_HEADER_PINS);
+
+    static uint8_t ret_vals[NUM_HEADER_PINS] = { 0 };
+    static uint8_t prev_vals[NUM_HEADER_PINS] = { -1 };
+
     static unsigned prev_transition_millis = -1;
     unsigned const debounce_delay_millis = 50;
 
-    int val = digitalRead(BUTTON);
+    pinMode(header_pins[pin_index], INPUT);
+    int val = digitalRead(header_pins[pin_index]);
 
     // TODO: Look into millis() rollover and handle appropriately.
 
-    if (val != prev_val) {
+    if (val != prev_vals[pin_index]) {
         prev_transition_millis = millis();
-        prev_val = val;
+        prev_vals[pin_index] = val;
     }
 
     if ((millis() - prev_transition_millis) > debounce_delay_millis)
-        ret_val = prev_val;
+        ret_vals[pin_index] = val;
 
-    return ret_val;
+    return ret_vals[pin_index];
 }

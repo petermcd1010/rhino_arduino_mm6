@@ -116,6 +116,8 @@ static const char MM_M[] PROGMEM = "print motor status";
 static const char MH_M[] PROGMEM = "[motorids] -- Print motor status, list (e.g. 'abce') or blank for all.";
 static const char MM_N[] PROGMEM = "set motor angle";
 static const char MH_N[] PROGMEM = "motorid degrees -- Degrees is 0.0 to 360.0, +15, -20, +, -, ++, --.";
+static const char MM_O[] PROGMEM = "poll header pins";
+static const char MH_O[] PROGMEM = "-- Poll header pins for changes in polarity. Useful for debugging buttons.";
 static const char MM_P[] PROGMEM = "set motor encoder";
 static const char MH_P[] PROGMEM = "motorid encoder -- Encoder is in the range X - Y.";
 static const char MM_Q[] PROGMEM = "run test sequence";
@@ -149,6 +151,7 @@ static const menu_item_t main_menu[] = {
     { 'H', MM_H,    NULL,                        NULL,          false, command_set_home_position,      MH_H    },
     { 'M', MM_M,    NULL,                        NULL,          true,  command_print_motor_status,     MH_M    },
     { 'N', MM_N,    NULL,                        NULL,          true,  command_set_motor_angle,        MH_N    }, // TODO.
+    { 'O', MM_O,    NULL,                        NULL,          true,  command_poll_pins,              MH_O    },
     { 'P', MM_P,    NULL,                        NULL,          true,  command_set_motor_encoder,      MH_P    },
     { 'Q', MM_Q,    NULL,                        NULL,          false, command_run_test_sequence,      MH_Q    },
     { 'T', MM_T,    NULL,                        NULL,          true,  command_test_motors,            MH_T    },

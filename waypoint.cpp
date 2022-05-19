@@ -341,13 +341,13 @@ static void run(void)
         current_waypoint_index = waypoint.io_goto.step;
         break;
     case WAYPOINT_COMMAND_IF_IO_PIN_GOTO_STEP:
-        if (hardware_get_button_pressed(waypoint.io_goto.pin))
+        if (hardware_get_header_pin_pressed(waypoint.io_goto.pin))
             current_waypoint_index = waypoint.io_goto.step;
         else
             current_waypoint_index++;
         break;
     case WAYPOINT_COMMAND_WAIT_IO_PIN:
-        if (hardware_get_button_pressed(waypoint.io_goto.pin)) {
+        if (hardware_get_header_pin_pressed(waypoint.io_goto.pin)) {
             log_writeln(F("Pin %d triggered."), waypoint.io_goto.pin);
             current_waypoint_index = waypoint.io_goto.step;
         }

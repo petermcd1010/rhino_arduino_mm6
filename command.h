@@ -20,6 +20,7 @@ int command_set_gripper_position(char *args, size_t args_nbytes);
 int command_set_home_position(char *args, size_t args_nbytes);
 int command_print_motor_status(char *args, size_t args_nbytes);
 int command_set_motor_angle(char *args, size_t args_nbytes);
+int command_poll_pins(char *args, size_t args_nbytes);
 int command_set_motor_encoder(char *args, size_t args_nbytes);
 int command_run_test_sequence(char *args, size_t args_nbytes);
 int command_test_motors(char *args, size_t args_nbytes);

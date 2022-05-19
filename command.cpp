@@ -378,6 +378,52 @@ error:
     return -1;
 }
 
+static sm_state_func poll_pins_exit_to_state = NULL;
+static bool poll_pins_prev_val[8] = { false };  // TODO: Fix this hard-coded index.
+
+static void poll_pins_break_handler(void)
+{
+    log_writeln(F("Break detected. Stopping polling of header pins."));
+    sm_set_next_state(poll_pins_exit_to_state, NULL);
+
+    for (int i = 0; i < 8; i++) {  // TODO: Fix hard-coded 8.
+        poll_pins_prev_val[i] = false;
+    }
+}
+
+static void poll_pins(void)
+{
+    int npins = hardware_get_num_header_pins();
+
+    for (int i = 0; i < npins; i++) {
+        bool val = hardware_get_header_pin_pressed(i);
+        if (val != poll_pins_prev_val[i]) {
+            poll_pins_prev_val[i] = val;
+            log_writeln(F("Pin index %d is %s"), i, val ? "HIGH" : "LOW");
+        }
+    }
+}
+
+int command_poll_pins(char *args, size_t args_nbytes)
+{
+    assert(args);
+
+    char *p = args;
+    size_t nbytes = parse_whitespace(p, args_nbytes);
+
+    args_nbytes -= nbytes;
+    p += nbytes;
+    if (nbytes != 0)
+        return -1;
+
+    log_writeln(F("Attach device(s) to IO pins and test. Output will print here when polarity changes. Press <CTRL+C> when done."));
+
+    poll_pins_exit_to_state = sm_get_state();
+    sm_set_next_state(poll_pins, poll_pins_break_handler);
+
+    return p - args;
+}
+
 int command_set_motor_encoder(char *args, size_t args_nbytes)
 {
     assert(args);
