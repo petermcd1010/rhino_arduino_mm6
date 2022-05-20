@@ -181,7 +181,7 @@ void waypoint_set(int index, waypoint_t waypoint)
     assert(index >= 0);
     assert(index < waypoint_get_max_count());
 
-    waypoint.crc = 0;
+    waypoint.crc = 0;  // Set to zero to make the CRC reproducible.
     waypoint.crc = crc32c_calculate(&waypoint, sizeof(waypoint_t));
 
     EEPROM.put(get_eeprom_address(index), waypoint);
@@ -244,7 +244,7 @@ void waypoint_print(int index)
                     waypoint.wait_millis);
         break;
     default:
-        log_writeln(F("waypoint.command=%d"), waypoint.command);
+        log_writeln(F("waypoint.command == %d"), waypoint.command);
         assert(false);
         break;
     }
@@ -309,15 +309,17 @@ static void run(void)
     assert(current_waypoint_index >= 0);
     assert(current_waypoint_index < waypoint_get_max_count());
 
-    waypoint_t waypoint = waypoint_get(current_waypoint_index);  // TODO: Only get when index changes.
+    static waypoint_t waypoint = { 0 };
 
     static bool wait_millis_run = false;
     static unsigned long wait_millis_start = -1;  // millis() returns unsigned_long.
 
     static int prev_waypoint_index = -1;
 
-    if ((prev_waypoint_index != current_waypoint_index) && (waypoint.command != -1)) {
-        waypoint_print(current_waypoint_index);
+    if (prev_waypoint_index != current_waypoint_index) {
+        waypoint = waypoint_get(current_waypoint_index);
+        if (waypoint.command != -1)
+            waypoint_print(current_waypoint_index);
         prev_waypoint_index = current_waypoint_index;
     }
 
