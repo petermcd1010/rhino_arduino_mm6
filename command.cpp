@@ -561,7 +561,6 @@ int command_waypoint_run(char *args, size_t args_nbytes)
     p += nbytes;
 
     if (args_nbytes > 0) {
-        log_writeln(F("1: '%s'"), args);
         // Parse optional start-step integer parameter.
         nbytes = parse_int(p, args_nbytes, &start_step);
         args_nbytes -= nbytes;
@@ -574,7 +573,6 @@ int command_waypoint_run(char *args, size_t args_nbytes)
         log_writeln(F("start_step: %d"), start_step);
 
         if (args_nbytes > 0) {
-            log_writeln(F("2: '%s'"), args);
             // Parse optional count parameter.
             nbytes = parse_int(p, args_nbytes, &count);
             args_nbytes -= nbytes;
@@ -583,8 +581,6 @@ int command_waypoint_run(char *args, size_t args_nbytes)
             nbytes = parse_whitespace(p, args_nbytes);
             args_nbytes -= nbytes;
             p += nbytes;
-
-            log_writeln(F("count: %d"), count);
 
             if (args_nbytes > 0)
                 return -1;

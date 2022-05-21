@@ -80,7 +80,10 @@ static void extended_menu_insert_waypoint(void)
 static void extended_menu_set_waypoint(void)
 {
     log_writeln(F(""));
-    log_writeln(F("step A <ENTER> -- Set waypoint step to move motors to current positions."));
+    log_writeln(F("step A <ENTER> -- Set waypoint step to move motors to exactly current positions."));
+    log_writeln(F("step B <ENTER> -- Set waypoint step to move motors to within 1 encoder value of current positions."));
+    log_writeln(F("step C <ENTER> -- Set waypoint step to move motors to within 30 encoder values of current positions."));
+    log_writeln(F("step D <ENTER> -- Set waypoint step to move motors to within 200 encoder values current positions."));
     log_writeln(F("step G step <ENTER> -- Set waypoint step to goto step."));
     log_writeln(F("step J pin step <ENTER> -- Set waypoint step so if IO pin triggered, goto step."));
     log_writeln(F("step K pin <ENTER> -- Set waypoint step to wait for IO pin triggered."));

@@ -383,7 +383,7 @@ size_t parse_waypoint(char *args, size_t args_nbytes, waypoint_t *out_waypoint)
     size_t nbytes = parse_whitespace(p, args_nbytes);
 
     int entry_num = -1;
-    char *command_table[] = { "A", "G", "J", "K", "W", "I" };
+    char *command_table[] = { "A", "B", "C", "D", "G", "J", "K", "W", "I" };
     int goto_step = -1;
     int io_pin = -1;
     long int millis = -1;
@@ -400,7 +400,7 @@ size_t parse_waypoint(char *args, size_t args_nbytes, waypoint_t *out_waypoint)
     p += nbytes;
 
     switch (entry_num) {
-    case 0:
+    case 0:  // A: Set waypoint step to move motors to exactly current positions.
         if (args_nbytes != 0)
             goto error;
         out_waypoint->command = WAYPOINT_COMMAND_MOVE_AT;
@@ -408,7 +408,31 @@ size_t parse_waypoint(char *args, size_t args_nbytes, waypoint_t *out_waypoint)
             out_waypoint->motor[i] = motor_get_encoder((motor_id_t)i);
         }
         break;
-    case 1:
+    case 1:  // B: Set waypoint step to move motors to within 1 encoder value of current positions.
+        if (args_nbytes != 0)
+            goto error;
+        out_waypoint->command = WAYPOINT_COMMAND_MOVE_BESIDE;
+        for (int i = 0; i < MOTOR_ID_COUNT; i++) {
+            out_waypoint->motor[i] = motor_get_encoder((motor_id_t)i);
+        }
+        break;
+    case 2:  // C: Set waypoint step to move motors to within 30 encoder values of current positions.
+        if (args_nbytes != 0)
+            goto error;
+        out_waypoint->command = WAYPOINT_COMMAND_MOVE_CLOSE;
+        for (int i = 0; i < MOTOR_ID_COUNT; i++) {
+            out_waypoint->motor[i] = motor_get_encoder((motor_id_t)i);
+        }
+        break;
+    case 3:  // D: Set waypoint step to move motors to within 200 encoder values current positions.
+        if (args_nbytes != 0)
+            goto error;
+        out_waypoint->command = WAYPOINT_COMMAND_MOVE_APPROACHING;
+        for (int i = 0; i < MOTOR_ID_COUNT; i++) {
+            out_waypoint->motor[i] = motor_get_encoder((motor_id_t)i);
+        }
+        break;
+    case 4:  // G: Set waypoint step to goto step.
         nbytes = parse_int(p, args_nbytes, &goto_step);
         if (nbytes == 0)
             goto error;
@@ -417,7 +441,7 @@ size_t parse_waypoint(char *args, size_t args_nbytes, waypoint_t *out_waypoint)
         out_waypoint->command = WAYPOINT_COMMAND_GOTO_STEP;
         out_waypoint->io_goto.step = goto_step;
         break;
-    case 2:
+    case 5:  // J: Set waypoint step so if IO pin triggered, goto step.
         nbytes = parse_int(p, args_nbytes, &io_pin);
         if (nbytes == 0)
             goto error;
@@ -438,7 +462,7 @@ size_t parse_waypoint(char *args, size_t args_nbytes, waypoint_t *out_waypoint)
         out_waypoint->io_goto.pin = io_pin;
         out_waypoint->io_goto.step = goto_step;
         break;
-    case 3:
+    case 6:  // K: Set waypoint step to wait for IO pin triggered.
         nbytes = parse_int(p, args_nbytes, &io_pin);
         if (nbytes == 0)
             goto error;
@@ -447,7 +471,7 @@ size_t parse_waypoint(char *args, size_t args_nbytes, waypoint_t *out_waypoint)
         out_waypoint->command = WAYPOINT_COMMAND_WAIT_IO_PIN;
         out_waypoint->io_goto.pin = io_pin;
         break;
-    case 4:
+    case 7:  // W: Set waypoint step to wait milliseconds.
         nbytes = parse_long_int(p, args_nbytes, &millis);
         if (nbytes == 0)
             goto error;
@@ -462,7 +486,7 @@ size_t parse_waypoint(char *args, size_t args_nbytes, waypoint_t *out_waypoint)
         out_waypoint->command = WAYPOINT_COMMAND_WAIT_MILLIS;
         out_waypoint->wait_millis = millis;
         break;
-    case 5:
+    case 8:  // I: Set waypoint step to interrogate switches.
         if (args_nbytes != 0)
             goto error;
         out_waypoint->command = WAYPOINT_COMMAND_INTERROGATE_SWITCHES;
