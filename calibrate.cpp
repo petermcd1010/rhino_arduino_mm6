@@ -9,10 +9,15 @@
 #include "motor.h"
 #include "sm.h"
 
-static bool initialized = false;
-
+static sm_state_func exit_to_state = NULL;  // Transition to this state when done running waypoints.
 static int motor_ids_mask = 0;
 
+static void break_handler(void);
+static void start(void);
+static void run(void);
+static void stop(void);
+
+static bool initialized = false;
 typedef enum {
     CAL_STATE_INIT = 0,
     CAL_STATE_SEARCH,
@@ -593,4 +598,46 @@ bool motor_calibrate_all(void)
             ret = false;
     }
     return ret;
+}
+
+
+void calibrate_run(int in_motor_ids_mask)
+{
+    assert(in_motor_ids_mask >= 0);
+
+    log_writeln(F("calibrate_run"));
+
+    motor_ids_mask = in_motor_ids_mask;
+    exit_to_state = sm_get_state();
+    sm_set_next_state(start, break_handler);
+}
+
+static void break_handler(void)
+{
+    log_writeln(F("Break detected. Stopping calibration."));
+    motor_disable_all();
+    sm_set_next_state(stop, NULL);
+}
+
+void start(void)
+{
+    for (int i = MOTOR_ID_A; i <= MOTOR_ID_LAST; i++) {
+        motor_set_enabled((motor_id_t)i, true);
+    }
+
+    sm_set_next_state(run, break_handler);
+}
+
+static void run(void)
+{
+    log_writeln(F("calibrate run"));
+    sm_set_next_state(stop, NULL);
+}
+
+static void stop(void)
+{
+    motor_disable_all();
+    log_writeln(F("Calibration complete."));
+
+    sm_set_next_state(exit_to_state, NULL);
 }

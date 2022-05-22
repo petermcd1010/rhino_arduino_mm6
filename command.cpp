@@ -209,12 +209,11 @@ int command_calibrate_motors(char *args, size_t args_nbytes)
     size_t nbytes = parse_motor_ids(p, args_nbytes, &motor_ids_mask);  // parse_motor_ids will emit message if error.
 
     if ((motor_ids_mask == -1) || (args_nbytes != nbytes))
-        return nbytes;                 // parse_motors_ids prints an error.
+        return nbytes;
 
     log_writeln(F("Calibrating motors %d"), motor_ids_mask);
 
-    calibrate_init(motor_ids_mask);
-    sm_set_next_state(calibrate_begin, NULL);
+    calibrate_run(motor_ids_mask);
 
 error:
     return nbytes;
