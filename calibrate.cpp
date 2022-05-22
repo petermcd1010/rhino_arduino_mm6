@@ -11,12 +11,16 @@
 
 static sm_state_func exit_to_state = NULL;  // Transition to this state when done running waypoints.
 static int motor_ids_mask = 0;
+static motor_id_t current_motor_id = -1;
 
 static void break_handler(void);
 static void start(void);
-static void run(void);
+static void calibrate_all(void);
+static void calibrate_one(void);
+static void calibrate_one_done(void);
 static void stop(void);
 
+#if 0
 static bool initialized = false;
 typedef enum {
     CAL_STATE_INIT = 0,
@@ -599,7 +603,7 @@ bool motor_calibrate_all(void)
     }
     return ret;
 }
-
+#endif
 
 void calibrate_run(int in_motor_ids_mask)
 {
@@ -625,13 +629,45 @@ void start(void)
         motor_set_enabled((motor_id_t)i, true);
     }
 
-    sm_set_next_state(run, break_handler);
+    current_motor_id = MOTOR_ID_A;
+    sm_set_next_state(calibrate_all, break_handler);
 }
 
-static void run(void)
+static void calibrate_all(void)
 {
-    log_writeln(F("calibrate run"));
-    sm_set_next_state(stop, NULL);
+    // Sum of all powers of 2 of an n-bit number is 2^n-1.
+    static int max_motor_ids_mask = (1 << MOTOR_ID_COUNT) - 1;
+
+    assert((motor_ids_mask >= 0) && (motor_ids_mask <= max_motor_ids_mask));
+
+    log_writeln(F("calibrate_all"));
+
+    if (motor_ids_mask & (1 << current_motor_id)) {
+        motor_set_enabled(current_motor_id, true);
+        sm_set_next_state(calibrate_one, break_handler);
+    }
+
+    if (current_motor_id > MOTOR_ID_LAST)
+        sm_set_next_state(stop, NULL);
+}
+
+static void calibrate_one(void)
+{
+    assert((current_motor_id >= MOTOR_ID_A) && (current_motor_id <= MOTOR_ID_LAST));
+
+    log_writeln(F("calibrate_one motor=%d"), current_motor_id);
+
+    if (1)
+        sm_set_next_state(calibrate_one_done, break_handler);
+}
+
+static void calibrate_one_done(void)
+{
+    assert((current_motor_id >= MOTOR_ID_A) && (current_motor_id <= MOTOR_ID_LAST));
+
+    motor_set_enabled(current_motor_id, false);
+    current_motor_id = current_motor_id + 1;
+    sm_set_next_state(calibrate_all, break_handler);
 }
 
 static void stop(void)
@@ -639,5 +675,6 @@ static void stop(void)
     motor_disable_all();
     log_writeln(F("Calibration complete."));
 
+    current_motor_id = -1;
     sm_set_next_state(exit_to_state, NULL);
 }
