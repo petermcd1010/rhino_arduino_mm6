@@ -113,24 +113,36 @@ static void write_file_name(const __FlashStringHelper *file_path)
     write_string(buffer);
 }
 
+static void log_internal_position(int line_num, const char *function_name, bool is_error)
+{
+    assert(line_num > 0);
+    assert(function_name);
+
+    char buffer[progmem_copy_buffer_nbytes];
+
+    if (function_name)
+        snprintf(buffer, progmem_copy_buffer_nbytes, ":%d:%s:%s ", line_num, function_name, is_error ? "ERROR:" : "");
+    else
+        snprintf(buffer, progmem_copy_buffer_nbytes, ":%d:%s ", line_num, is_error ? "ERROR:" : "");
+
+    buffer[progmem_copy_buffer_nbytes - 1] = '\0';  // Force null-termination.
+    write_string(buffer);
+}
+
 static void log_internal(int line_num, const char *function_name, bool is_error, const __FlashStringHelper *format, va_list args)
 {
     assert(line_num > 0);
     assert(function_name);
     assert(format);
 
-    char buffer[progmem_copy_buffer_nbytes];
+    log_internal_position(line_num, function_name, is_error);
 
-    snprintf(buffer, progmem_copy_buffer_nbytes, ":%d:%s:%s ", line_num, function_name, is_error ? "ERROR:" : "");
-    buffer[progmem_copy_buffer_nbytes - 1] = '\0';  // Force null-termination.
-    write_string(buffer);
+    char buffer[progmem_copy_buffer_nbytes];
 
     strncpy_P(buffer, (char *)format, progmem_copy_buffer_nbytes);
     buffer[progmem_copy_buffer_nbytes - 1] = '\0';  // Force null-termination.
     assert(strlen(buffer) != progmem_copy_buffer_nbytes - 1);
-
     log_format_string_va_list(buffer, args);
-
     write_string(F("\n\r"));
 }
 
@@ -200,6 +212,38 @@ void log_assert(const __FlashStringHelper *file_path, int line_num, const char *
 
     hardware_halt();
 }
+
+void log_assert_short(const __FlashStringHelper *file_path, int line_num)
+{
+    // The function name and va-args take up a significant amount of RAM. This version saves that RAM.
+
+    // Don't check for valid arguments, because this function is what the assert() macro calls.
+
+    static bool in_assert = false;
+
+    if (in_assert)
+        return;                        // Avoid infinite assert() loops.
+    in_assert = true;
+
+    motor_disable_all();
+
+    write_file_name(file_path);
+
+    const __FlashStringHelper *format = F("assertion failed.");
+
+    va_list args;
+
+    log_internal_position(line_num, NULL, true);
+    write_string(F("\n\r"));
+    log_flush();
+
+    in_assert = false;
+    // TODO: Write the assertion to persistent memory, reboot, and print it at boot.
+    //   assert_get(), assert_clear()?
+
+    hardware_halt();
+}
+
 
 bool log_test()
 {

@@ -21,7 +21,14 @@ void log_flush(void);
 #ifdef assert
 #undef assert
 #endif
+
 void log_assert(const __FlashStringHelper *file_path, int line_num, const char *function_name, ...);
+void log_assert_short(const __FlashStringHelper *file_path, int line_num);  // More memory-efficient version.
+
+#if 1
 #define assert(EX) (void)((EX) || (log_assert(F(__FILE__), __LINE__, __FUNCTION__, #EX), 0))
+#else
+#define assert(EX) (void)((EX) || (log_assert_short(F(__FILE__), __LINE__), 0))
+#endif
 
 bool log_test();
