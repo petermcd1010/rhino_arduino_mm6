@@ -204,12 +204,20 @@ int command_calibrate_motors(char *args, size_t args_nbytes)
 {
     assert(args);
 
-    int motor_ids_mask = motor_get_enabled_mask();
+    int motor_ids_mask = 0;
     char *p = args;
     size_t nbytes = parse_motor_ids(p, args_nbytes, &motor_ids_mask);  // parse_motor_ids will emit message if error.
 
     if ((motor_ids_mask == -1) || (args_nbytes != nbytes))
         return nbytes;
+
+    if (motor_ids_mask == 0)
+        motor_ids_mask = motor_get_enabled_mask();
+
+    if (motor_ids_mask == 0) {
+        log_writeln(F("No motors enabled and no motors specified. Skipping calibration."));
+        goto error;
+    }
 
     log_writeln(F("Calibrating motors %d"), motor_ids_mask);
 
@@ -275,8 +283,6 @@ int command_set_home_position(char *args, size_t args_nbytes)
         return -1;
 
     LOG_ERROR(F("TODO"));
-
-    // motor_exec_all(motor_set_position_to_home);
 
     return nbytes;
 }

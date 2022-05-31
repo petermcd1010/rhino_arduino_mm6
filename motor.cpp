@@ -294,14 +294,12 @@ void motor_set_enabled(motor_id_t motor_id, bool enabled)
     if (enabled) {
         motor_state[motor_id].target_encoder = noinit_data.encoder[motor_id];
         set_brake(motor_id, false);
-        motor_state[motor_id].enabled = true;
-        // config.motor[motor_id].configured = true;
     } else {
-        set_brake(motor_id, true);
-        digitalWrite(motor_pinout[motor_id].out_pwm, LOW);  // Set PWM speed to zero.  TODO: Redundant with set_speed below?
         motor_set_speed(motor_id, 0);
-        motor_state[motor_id].enabled = false;
+        set_brake(motor_id, true);
     }
+
+    motor_state[motor_id].enabled = enabled;
 }
 
 bool motor_get_enabled(motor_id_t motor_id)
@@ -352,19 +350,36 @@ bool motor_configured(motor_id_t motor_id)
     return config.motor[motor_id].configured;
 }
 
+void motor_set_home_encoder(motor_id_t motor_id, int home_encoder)
+{
+    assert((motor_id >= MOTOR_ID_FIRST) && (motor_id <= MOTOR_ID_LAST));
+
+    noinit_data.encoder[motor_id] -= home_encoder;
+    motor_state[motor_id].target_encoder -= home_encoder;
+}
+
 void motor_set_target_encoder(motor_id_t motor_id, int encoder)
 {
     assert((motor_id >= MOTOR_ID_FIRST) && (motor_id <= MOTOR_ID_LAST));
-    // log_writeln(F("motor_set_target_encoder %d %d"), motor_id, encoder);
+    log_writeln(F("motor_set_target_encoder %d %d"), motor_id, encoder);
 
     // TODO: assert valid encoder?
     if (!motor_get_enabled(motor_id)) {
-        log_writeln(F("motor_set_target_encoder -- pid not enabled"));
+        LOG_ERROR(F("Motor %c not enabled."), 'A' + motor_id);
         return;
     }
 
     motor_state[motor_id].target_encoder = encoder * motor_state[motor_id].logic;
     motor_state[motor_id].progress = MOTOR_PROGRESS_ON_WAY_TO_TARGET;
+
+    LOG_DEBUG(F("target_encoder = %d"), motor_state[motor_id].target_encoder);
+}
+
+int motor_get_target_encoder(motor_id_t motor_id)
+{
+    assert((motor_id >= MOTOR_ID_FIRST) && (motor_id <= MOTOR_ID_LAST));
+
+    return motor_state[motor_id].target_encoder * motor_state[motor_id].logic;
 }
 
 int motor_get_encoder(motor_id_t motor_id)
@@ -446,14 +461,6 @@ float motor_get_angle(motor_id_t motor_id)
     return (motor_get_encoder(motor_id) - config.motor[motor_id].angle_offset) / motor_get_encoder_steps_per_degree(motor_id);
 }
 
-void motor_set_position_to_home(motor_id_t motor_id)
-{
-    assert((motor_id >= MOTOR_ID_FIRST) && (motor_id <= MOTOR_ID_LAST));
-
-    motor_state[motor_id].target_encoder = 0;
-    log_writeln(F("Setting motor %c current position to home."), 'A' + motor_id);
-}
-
 void motor_set_speed(motor_id_t motor_id, int speed)
 {
     assert((motor_id >= MOTOR_ID_FIRST) && (motor_id <= MOTOR_ID_LAST));
@@ -469,12 +476,21 @@ void motor_set_speed(motor_id_t motor_id, int speed)
     if (speed == 0) {
         motor_state[motor_id].pwm = 0;
     } else {
-        int pwm = abs(speed);
+        unsigned int pwm = (abs(speed) * motor_state[motor_id].max_speed_256ths) / 256;
         motor_state[motor_id].pwm = pwm < motor_min_pwm ? motor_min_pwm : pwm;
     }
+
     digitalWrite(motor_pinout[motor_id].out_direction, speed >= 0 ? motor_direction_forward : motor_direction_reverse);
     analogWrite(motor_pinout[motor_id].out_pwm, motor_state[motor_id].pwm);
     motor_state[motor_id].speed = speed;
+}
+
+void motor_set_max_speed_percent(motor_id_t motor_id, float max_speed_percent)
+{
+    assert((motor_id >= MOTOR_ID_FIRST) && (motor_id <= MOTOR_ID_LAST));
+    assert((max_speed_percent >= 0.0f) && (max_speed_percent <= 100.0f));
+
+    motor_state[motor_id].max_speed_256ths = (int)(max_speed_percent * 2.56f);
 }
 
 bool motor_get_switch_triggered(motor_id_t motor_id)
@@ -482,6 +498,18 @@ bool motor_get_switch_triggered(motor_id_t motor_id)
     assert((motor_id >= MOTOR_ID_FIRST) && (motor_id <= MOTOR_ID_LAST));
     if (!motor_get_enabled(motor_id))
         return false;
+
+    int in_switch = !digitalRead(motor_pinout[motor_id].in_switch);
+
+#if 0
+    // TODO: Add debouncing or other filtering to switch values, due to false triggers
+    // when motor is stuck at max speed.
+    if (in_switch != motor_state[motor_id].switch_triggered) {
+        LOG_ERROR(F("%d %d"), in_switch, motor_state[motor_id].switch_triggered);
+        return false;
+    }
+#endif
+
     return motor_state[motor_id].switch_triggered;
 }
 
@@ -684,15 +712,6 @@ static void motor_track_report(motor_id_t motor_id)
     }
 }
 
-static void set_zero_position(motor_id_t motor_id)
-{
-    assert((motor_id >= MOTOR_ID_FIRST) && (motor_id <= MOTOR_ID_LAST));
-
-    noinit_data.encoder[motor_id] = 0;
-    motor_state[motor_id].target_encoder = 0;
-    log_writeln(F("Motor %c position set to zero."), motor_id);
-}
-
 void motor_dump(motor_id_t motor_id)
 {
     assert((motor_id >= MOTOR_ID_FIRST) && (motor_id <= MOTOR_ID_LAST));
@@ -786,17 +805,17 @@ ISR(TIMER1_COMPA_vect){
         } else if (qe_state == qe_inc_states[noinit_data.previous_quadrature_encoder[qe_motor_id]]) {
             // Quadrature encoder reading indicates moving in positive direction.
             motor_state[qe_motor_id].previous_direction = 1;
-            if (noinit_data.encoder[qe_motor_id] == INT_MAX)
-                motor_state[qe_motor_id].error_flags |= MOTOR_ERROR_FLAG_ENCODER_OVERFLOW;
-            noinit_data.encoder[qe_motor_id]++;  // Wraps from 65535 to 0.
-            motor_state[qe_motor_id].pid_dvalue = 0;
+            if (noinit_data.encoder[qe_motor_id] != INT_MAX) {
+                noinit_data.encoder[qe_motor_id]++;
+                motor_state[qe_motor_id].pid_dvalue = 0;
+            }
         } else if (qe_state == qe_dec_states[noinit_data.previous_quadrature_encoder[qe_motor_id]]) {
             // Quadrature encoder reading indicates moving in negative direction.
             motor_state[qe_motor_id].previous_direction = -1;
-            if (noinit_data.encoder[qe_motor_id] == INT_MIN)
-                motor_state[qe_motor_id].error_flags |= MOTOR_ERROR_FLAG_ENCODER_UNDERFLOW;
-            noinit_data.encoder[qe_motor_id]--;  // Wraps from 0 to 65535.
-            motor_state[qe_motor_id].pid_dvalue = 0;
+            if (noinit_data.encoder[qe_motor_id] != INT_MIN) {
+                noinit_data.encoder[qe_motor_id]--;
+                motor_state[qe_motor_id].pid_dvalue = 0;
+            }
         } else {
             motor_state[qe_motor_id].error_flags |= MOTOR_ERROR_FLAG_INVALID_ENCODER_TRANSITION;
         }
@@ -905,7 +924,15 @@ ISR(TIMER1_COMPA_vect){
         //==========================================================
         // Calculate PID Proportional Error
         //==========================================================
-        int PIDPError = (motor_state[motor_id].target_encoder - noinit_data.encoder[motor_id]);
+        int PIDPError = 0;
+        int target = motor_state[motor_id].target_encoder;
+        int encoder = -noinit_data.encoder[motor_id];
+        if ((target > 0) && (encoder > INT_MAX - target))
+            PIDPError = INT_MAX;       // handle overflow by clamping to INT_MAX.
+        else if ((target < 0) && (encoder < INT_MIN - target))
+            PIDPError = INT_MIN;       // handle underflow by clamping to INT_MIN.
+        else
+            PIDPError = target + encoder;
 
 #if 0
         // TODO: Make this work.
@@ -920,7 +947,7 @@ ISR(TIMER1_COMPA_vect){
 
         //==========================================================
         // Calc the Target Speed from the Proportional Error
-        // The target speed is just the differnce between the
+        // The target speed is just the difference between the
         //  Current Position and the Target Position (with limits).
         // Results in a speed of +/- 255.
         //==========================================================

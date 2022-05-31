@@ -53,6 +53,7 @@ typedef struct {
     bool               enabled;
     int                speed;
     int                target_speed;
+    int                max_speed_256ths;  // (int)(max_speed_percent * 2.56f).
     int                pwm;
     int                logic; // -1 or +1.
     int                previous_direction;
@@ -62,12 +63,12 @@ typedef struct {
     int                current_draw; // TODO: units? counts?
     motor_progress_t   progress;
 
-    bool               switch_previously_triggered; // Alignment switch previous value used for debounce.
-    bool               switch_triggered; // Alignment switch previous value used for debounce.
-    int                switch_forward_on; // Alighment switch forward direction high value.
-    int                switch_forward_off; // Alignment switch forward direction low value.
-    int                switch_reverse_on; // Alignment switch reverse direction high value.
-    int                switch_reverse_off; // Alignment switch reverse direction low value.
+    bool               switch_previously_triggered; // Home switch previous value used for debounce.
+    bool               switch_triggered; // Home switch previous value used for debounce.
+    int                switch_forward_on; // Home switch forward direction high value.
+    int                switch_forward_off; // Home switch forward direction low value.
+    int                switch_reverse_on; // Home switch reverse direction high value.
+    int                switch_reverse_off; // Home switch reverse direction low value.
 
     motor_error_flag_t error_flags;  // Once set, error flags must be cleared by user code.
 } motor_state_t;
@@ -92,18 +93,18 @@ bool motor_get_enabled(motor_id_t motor_id);
 int motor_get_enabled_mask(void);
 void motor_set_enabled_mask(int mask);
 
+void motor_set_home_encoder(motor_id_t motor_id, int home_encoder);  // Home_encoder will become 0.
 void motor_set_target_encoder(motor_id_t motor_id, int encoder);
+int motor_get_target_encoder(motor_id_t motor_id);
 int motor_get_encoder(motor_id_t motor_id);
 void motor_print_encoders(void);
 float motor_get_encoder_steps_per_degree(motor_id_t motor_id);
 int motor_angle_to_encoder(motor_id_t motor_id, float angle);
 void motor_set_target_angle(motor_id_t motor_id, float angle);
 float motor_get_angle(motor_id_t motor_id);
-void motor_set_position_to_home(motor_id_t motor_id);
 void motor_set_speed(motor_id_t motor_id, int speed);  // For speed in [motor_min_speed, motor_max_speed]. Sets speed to 0 if motor not enabled/configured.
+void motor_set_max_speed_percent(motor_id_t motor_id, float max_speed_percent);  // Modulates speed between 0% and 100% of full value.
 bool motor_get_switch_triggered(motor_id_t motor_id);
 void motor_test_enabled(void);
-bool motor_calibrate(motor_id_t motor_id);
-bool motor_calibrate_all(void);
 void motor_dump(motor_id_t motor_id);
 void motor_log_errors(motor_id_t motor_id);
