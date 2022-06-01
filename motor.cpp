@@ -130,6 +130,9 @@ static void motor_init(motor_id_t motor_id)
     pinMode(motor_pinout[motor_id].in_quadrature_encoder_a, INPUT_PULLUP);
     pinMode(motor_pinout[motor_id].in_quadrature_encoder_b, INPUT_PULLUP);
 
+    for (int motor_id = 0; motor_id < MOTOR_ID_COUNT; motor_id++) {
+        motor_set_max_speed_percent(motor_id, 100.0f);
+    }
     motor_set_enabled(motor_id, false);
 }
 
@@ -361,7 +364,6 @@ void motor_set_home_encoder(motor_id_t motor_id, int home_encoder)
 void motor_set_target_encoder(motor_id_t motor_id, int encoder)
 {
     assert((motor_id >= MOTOR_ID_FIRST) && (motor_id <= MOTOR_ID_LAST));
-    log_writeln(F("motor_set_target_encoder %d %d"), motor_id, encoder);
 
     // TODO: assert valid encoder?
     if (!motor_get_enabled(motor_id)) {
@@ -371,8 +373,6 @@ void motor_set_target_encoder(motor_id_t motor_id, int encoder)
 
     motor_state[motor_id].target_encoder = encoder * motor_state[motor_id].logic;
     motor_state[motor_id].progress = MOTOR_PROGRESS_ON_WAY_TO_TARGET;
-
-    LOG_DEBUG(F("target_encoder = %d"), motor_state[motor_id].target_encoder);
 }
 
 int motor_get_target_encoder(motor_id_t motor_id)

@@ -10,7 +10,7 @@
 #include "motor.h"
 #include "sm.h"
 
-static sm_state_func exit_to_state = NULL;  // Transition to this state when done running waypoints.
+static sm_state_t exit_to_state = { 0 };  // Transition to this state when done running waypoints.
 static int motor_ids_mask = 0;
 static motor_id_t motor_id = (motor_id_t)-1;
 
@@ -124,7 +124,9 @@ void calibrate_run(int in_motor_ids_mask)
 
     motor_ids_mask = in_motor_ids_mask;
     exit_to_state = sm_get_state();
-    sm_set_next_state(start, break_handler);
+    sm_state_t s = { .run = start, .break_handler = break_handler, .name = F("calibrate start"), .data = NULL };
+
+    sm_set_next_state(s);
 }
 
 void start(void)
@@ -134,7 +136,9 @@ void start(void)
     }
 
     motor_id = MOTOR_ID_A;
-    sm_set_next_state(calibrate_all, break_handler);
+    sm_state_t s = { .run = calibrate_all, .break_handler = break_handler, .name = F("calibrate all"), .data = NULL };
+
+    sm_set_next_state(s);
 }
 
 static void calibrate_all(void)
@@ -146,13 +150,17 @@ static void calibrate_all(void)
 
     log_writeln(F("calibrate_all"));
 
-    if (motor_ids_mask & (1 << motor_id))
-        sm_set_next_state(calibrate_one_enter, break_handler);
-    else
+    if (motor_ids_mask & (1 << motor_id)) {
+        sm_state_t s = { .run = calibrate_one_enter, .break_handler = break_handler, .name = F("calibrate one enter"), .data = NULL };
+        sm_set_next_state(s);
+    } else {
         motor_id = (motor_id_t)((int)motor_id + 1);
+    }
 
-    if (motor_id > MOTOR_ID_LAST)
-        sm_set_next_state(stop, NULL);
+    if (motor_id > MOTOR_ID_LAST) {
+        sm_state_t s = { .run = stop, .break_handler = NULL, .name = F("calibrate stop"), .data = NULL };
+        sm_set_next_state(s);
+    }
 }
 
 static void calibrate_one_enter(void)
@@ -174,7 +182,9 @@ static void calibrate_one_enter(void)
     motor_set_max_speed_percent(motor_id, 50.0f);
     motor_set_target_encoder(motor_id, INT_MAX);
 
-    sm_set_next_state(calibrate_one, break_handler);
+    sm_state_t s = { .run = calibrate_one, .break_handler = break_handler, .name = F("calibrate one"), .data = NULL };
+
+    sm_set_next_state(s);
 }
 
 static void calibrate_one(void)
@@ -224,7 +234,8 @@ static void calibrate_one(void)
 
             stuck_start_ms = millis();
             motor_set_max_speed_percent(motor_id, 100.0f);
-            sm_set_next_state(calibrate_one_go_home, break_handler);
+            sm_state_t s = { .run = calibrate_one_go_home, .break_handler = break_handler, .name = F("calibrate one go home"), .data = NULL };
+            sm_set_next_state(s);
         }
     }
 }
@@ -233,14 +244,16 @@ static void calibrate_one_go_home(void)
 {
     if (is_stuck(motor_id, &stuck_start_encoder, &stuck_start_ms)) {
         log_writeln(F("calibrate_one_go_home stuck at %d. Calibration for motor %d failed."), stuck_start_encoder, motor_id);
-        sm_set_next_state(calibrate_one_done, break_handler);
+        sm_state_t s = { .run = calibrate_one_done, .break_handler = break_handler, .name = F("calibrate one done"), .data = NULL };
+        sm_set_next_state(s);
     }
 
     int encoder = motor_get_encoder(motor_id);
 
     if (abs(motor_get_target_encoder(motor_id) - encoder) < 5) {
         log_writeln(F("Motor %c at %d."), 'A' + motor_id, encoder);
-        sm_set_next_state(calibrate_one_done, break_handler);
+        sm_state_t s = { .run = calibrate_one_done, .break_handler = break_handler, .name = F("calibrate one done"), .data = NULL };
+        sm_set_next_state(s);
     }
 }
 
@@ -255,14 +268,18 @@ static void calibrate_one_done(void)
 
     motor_set_enabled(motor_id, false);
     motor_id = (motor_id_t)((int)motor_id + 1);
-    sm_set_next_state(calibrate_all, break_handler);
+    sm_state_t s = { .run = calibrate_all, .break_handler = break_handler, .name = F("calibrate all"), .data = NULL };
+
+    sm_set_next_state(s);
 }
 
 static void break_handler(void)
 {
     log_writeln(F("Break detected. Stopping calibration."));
     motor_disable_all();
-    sm_set_next_state(stop, NULL);
+    sm_state_t s = { .run = stop, .break_handler = NULL, .name = F("calibrate stop"), .data = NULL };
+
+    sm_set_next_state(s);
 }
 
 static void stop(void)
@@ -271,5 +288,5 @@ static void stop(void)
     log_writeln(F("Calibration complete."));
 
     motor_id = (motor_id_t)-1;
-    sm_set_next_state(exit_to_state, NULL);
+    sm_set_next_state(exit_to_state);
 }

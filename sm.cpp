@@ -13,10 +13,8 @@
 #include "parse.h"
 #include "sm.h"
 
-static sm_state_func current_state;
-static sm_state_func exit_current_state;
-static sm_state_func next_state;
-static sm_state_func break_handler;
+sm_state_t current_state;
+sm_state_t next_state;
 
 static int enabled_motors_mask = 0;
 
@@ -70,8 +68,6 @@ typedef struct {
 typedef struct {
     motor_status_t motor[MOTOR_ID_COUNT];
 } status_t;
-
-const __FlashStringHelper *state_name = NULL;
 
 static void gather_status(status_t *pstatus)
 {
@@ -145,7 +141,10 @@ static void process_serial_input()
         if (strlen(config.robot_name) != 0)
             log_write(F("%s "), config.robot_name);
 
-        log_write(state_name);
+        if (current_state.name != NULL)
+            log_write(current_state.name);
+        else
+            log_write(F("Unknown state"));
         log_write(F("> "));
 
         memcpy(&previous_status, &status, sizeof(status_t));
@@ -158,8 +157,8 @@ static void process_serial_input()
         if (input_char == ASCII_CTRL_C) {
             reset_prompt = true;
             log_writeln(F("<CTRL+C>"));
-            if (break_handler)
-                break_handler();
+            if (current_state.break_handler)
+                current_state.break_handler(&current_state);
         } else if (!have_command) {
             if (input_char == ASCII_RETURN) {
                 log_writeln(F(""));
@@ -227,8 +226,6 @@ static void process_serial_input()
 // Transient state that performs initialization before transferring to the next state.
 void sm_init(void)
 {
-    sm_set_state_name(F("init"));
-
     Serial.begin(38400);
 
     log_writeln(F("\n\rBooting Arduino Mega 2560 MegaMotor6 controller for Rhino Robots arms and accessories."));
@@ -254,66 +251,60 @@ void sm_init(void)
     menu_help();
     log_writeln(F("Ready."));
 
-    if (config_read_success && self_test_success)
-        sm_set_next_state(sm_motors_off_enter, NULL);
-    else
-        sm_set_next_state(sm_error_enter, NULL);
+    if (config_read_success && self_test_success) {
+        sm_state_t s = { .run = sm_motors_off_enter, .break_handler = NULL, .name = F("sm_motors_off_enter"), .data = NULL };
+        sm_set_next_state(s);
+    } else {
+        sm_state_t s = { .run = sm_error_enter, .break_handler = NULL, .name = F("sm_error_enter"), .data = NULL };
+        sm_set_next_state(s);
+    }
 }
 
-sm_state_func sm_get_state()
+sm_state_t sm_get_state()
 {
     return current_state;
 }
 
-void sm_set_next_state(sm_state_func s, sm_state_func in_break_handler)
+void sm_set_next_state(sm_state_t s)
 {
-    assert(s);
-
+    assert(s.run);
     next_state = s;
-    break_handler = in_break_handler;
-}
-
-void sm_set_exit_current_state(sm_state_func s)
-{
-    assert(s);
-
-    exit_current_state = s;
 }
 
 void sm_execute(void)
 {
     process_serial_input();
 
-    if (next_state) {
-        if (exit_current_state) {
-            exit_current_state();
-            exit_current_state = NULL;
+    if (next_state.run) {
+        if (current_state.name) {
+            log_write(F("Leaving state "));
+            log_writeln(current_state.name);
+        }
+        current_state = next_state;
+
+        if (current_state.name) {
+            log_write(F("Entering state "));
+            log_writeln(current_state.name);
         }
 
-        current_state = next_state;
-        next_state = NULL;
+        next_state = { 0 };
     }
 
-    assert(current_state);
-    current_state();
-}
-
-void sm_set_state_name(const __FlashStringHelper *name)
-{
-    assert(name);
-    state_name = name;
+    assert(current_state.run);
+    current_state.run(&current_state);
 }
 
 void sm_motors_off_enter(void)
 {
-    sm_set_state_name(F("motors off"));
     motor_disable_all();
 
     for (int i = 0; i < MOTOR_ID_COUNT; i++) {
         motor_set_enabled(i, false);
     }
 
-    sm_set_next_state(sm_motors_off_execute, NULL);
+    sm_state_t s = { .run = sm_motors_off_execute, .break_handler = NULL, .name = F("motors off"), .data = NULL };
+
+    sm_set_next_state(s);
 }
 
 void sm_motors_off_execute(void)
@@ -323,8 +314,9 @@ void sm_motors_off_execute(void)
 
 void sm_motors_on_enter(void)
 {
-    sm_set_state_name(F("motors on"));
-    sm_set_next_state(sm_motors_on_execute, NULL);
+    sm_state_t s = { .run = sm_motors_on_execute, .break_handler = NULL, .name = F("motors on"), .data = NULL };
+
+    sm_set_next_state(s);
 
     for (int i = 0; i < MOTOR_ID_COUNT; i++) {
         bool enabled = enabled_motors_mask & (1 << i);
@@ -335,7 +327,6 @@ void sm_motors_on_enter(void)
 
 void sm_motors_on_execute(void)
 {
-    sm_set_exit_current_state(sm_motors_on_exit);
     process_serial_input();
 }
 
@@ -348,9 +339,10 @@ void sm_error_enter(void)
 {
     next_state = { 0 };
 
-    sm_set_state_name(F("ERROR"));
     motor_disable_all();
-    sm_set_next_state(sm_error_execute, NULL);
+    sm_state_t s = { .run = sm_error_execute, .break_handler = NULL, .name = F("ERROR"), .data = NULL };
+
+    sm_set_next_state(s);
 }
 
 void sm_error_execute(void)

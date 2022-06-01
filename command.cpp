@@ -17,6 +17,8 @@
 
 static const float software_version = 2.00;
 static const size_t command_args_max_nbytes = 64;
+static sm_state_t poll_pins_exit_to_state = { 0 };
+static bool poll_pins_prev_val[8] = { false };  // TODO: Fix this hard-coded size of 8.
 
 int command_print_config(char *args, size_t args_nbytes)
 {
@@ -249,18 +251,21 @@ int command_set_enabled_motors(char *args, size_t args_nbytes)
     args_nbytes -= nbytes;
     p += nbytes;
 
-    if ((sm_get_state() != sm_motors_off_execute) &&
-        (sm_get_state() != sm_motors_on_execute)) {
+    if ((sm_get_state().run != sm_motors_off_execute) &&
+        (sm_get_state().run != sm_motors_on_execute)) {
         log_writeln(F("ERROR: Motors can not be turned on or off in the current state."));
         goto error;
     }
 
     sm_set_enabled_motors_mask(motor_ids_mask);
 
-    if (motor_ids_mask == 0)
-        sm_set_next_state(sm_motors_off_enter, NULL);
-    else if (motor_ids_mask <= 0x3f)
-        sm_set_next_state(sm_motors_on_enter, NULL);
+    if (motor_ids_mask == 0) {
+        sm_state_t s = { .run = sm_motors_off_enter, .break_handler = NULL, .name = F("sm_motors_off_enter"), .data = NULL };
+        sm_set_next_state(s);
+    } else if (motor_ids_mask <= 0x3f) {
+        sm_state_t s = { .run = sm_motors_on_enter, .break_handler = NULL, .name = F("sm_motors_on_enter"), .data = NULL };
+        sm_set_next_state(s);
+    }
 
 error:
     return nbytes;
@@ -383,13 +388,11 @@ error:
     return -1;
 }
 
-static sm_state_func poll_pins_exit_to_state = NULL;
-static bool poll_pins_prev_val[8] = { false };  // TODO: Fix this hard-coded index.
-
 static void poll_pins_break_handler(void)
 {
     log_writeln(F("Break detected. Stopping polling of header pins."));
-    sm_set_next_state(poll_pins_exit_to_state, NULL);
+
+    sm_set_next_state(poll_pins_exit_to_state);
 
     for (int i = 0; i < 8; i++) {  // TODO: Fix hard-coded 8.
         poll_pins_prev_val[i] = false;
@@ -424,7 +427,10 @@ int command_poll_pins(char *args, size_t args_nbytes)
     log_writeln(F("Attach device(s) to IO pins and test. Output will print here when polarity changes. Press <CTRL+C> when done."));
 
     poll_pins_exit_to_state = sm_get_state();
-    sm_set_next_state(poll_pins, poll_pins_break_handler);
+
+    sm_state_t s = { .run = poll_pins, .break_handler = poll_pins_break_handler, .name = F("poll_pins"), .data = NULL };
+
+    sm_set_next_state(s);
 
     return p - args;
 }
@@ -502,8 +508,8 @@ int command_test_motors(char *args, size_t args_nbytes)
     args_nbytes -= nbytes;
     p += nbytes;
 
-    if ((sm_get_state() != sm_motors_off_execute) &&
-        (sm_get_state() != sm_motors_on_execute)) {
+    if ((sm_get_state().run != sm_motors_off_execute) &&
+        (sm_get_state().run != sm_motors_on_execute)) {
         log_writeln(F("ERROR: Motors can not be turned on or off in the current state."));
         goto error;
     }

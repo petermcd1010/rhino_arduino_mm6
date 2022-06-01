@@ -14,7 +14,7 @@
 #include "sm.h"
 #include "waypoint.h"
 
-static sm_state_func exit_to_state = NULL;  // Transition to this state when done running waypoints.
+static sm_state_t exit_to_state = { 0 };  // Transition to this state when done running waypoints.
 
 static int current_index = 0;
 static waypoint_t current_waypoint = { 0 };
@@ -170,14 +170,18 @@ void waypoint_run(int start_index, int count)
     steps_remaining = count;
 
     exit_to_state = sm_get_state();
-    sm_set_next_state(start, break_handler);
+    sm_state_t s = { .run = start, .break_handler = break_handler, .name = F("waypoint start"), .data = NULL };
+
+    sm_set_next_state(s);
 }
 
 static void break_handler(void)
 {
     log_writeln(F("Break detected. Stopping waypoint sequence."));
     motor_disable_all();
-    sm_set_next_state(stop, NULL);
+    sm_state_t s = { .run = stop, .break_handler = NULL, .name = F("waypoint stop"), .data = NULL };
+
+    sm_set_next_state(s);
 }
 
 void start(void)
@@ -190,7 +194,9 @@ void start(void)
     }
 
     log_writeln(F("Execuing waypoint sequence. Press <CTRL+C> to stop."));
-    sm_set_next_state(run, break_handler);
+    sm_state_t s = { .run = run, .break_handler = break_handler, .name = F("waypoint run"), .data = NULL };
+
+    sm_set_next_state(s);
 }
 
 static bool check_progress(waypoint_t waypoint)
@@ -247,7 +253,8 @@ static void run(void)
     static int prev_waypoint_index = -1;
 
     if ((current_index >= waypoint_get_max_count()) || (steps_remaining == 0)) {
-        sm_set_next_state(stop, NULL);
+        sm_state_t s = { .run = stop, .break_handler = break_handler, .name = F("waypoint run"), .data = NULL };
+        sm_set_next_state(s);
         return;
     }
 
@@ -318,5 +325,5 @@ static void stop(void)
     memset(&current_waypoint, 0, sizeof(waypoint_t));
     log_writeln(F("Done running waypoint sequence."));
 
-    sm_set_next_state(exit_to_state, NULL);
+    sm_set_next_state(exit_to_state);
 }

@@ -6,15 +6,19 @@
 
 #include <Arduino.h>
 
+typedef struct _sm_state_t {
+    void (*run)(struct _sm_state_t *state);
+    void (*break_handler)(struct _sm_state_t *state);  // May be NULL.
+    const __FlashStringHelper *name;
+    void *                     data;
+} sm_state_t;
+
 typedef void (*sm_state_func)(void);
 
 void sm_init(void);
-sm_state_func sm_get_state(void);
-void sm_set_next_state(sm_state_func state_func, sm_state_func break_handler);  // Break handler may be NULL.
-void sm_set_exit_current_state(sm_state_func);
+sm_state_t sm_get_state(void);
+void sm_set_next_state(sm_state_t state);
 void sm_execute(void);
-
-void sm_set_state_name(const __FlashStringHelper *name);  // TODO: Needed?
 
 void sm_motors_off_enter(void);
 void sm_motors_off_execute(void);
