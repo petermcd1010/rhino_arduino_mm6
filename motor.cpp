@@ -296,6 +296,8 @@ void motor_set_enabled(motor_id_t motor_id, bool enabled)
 
     if (enabled) {
         motor_state[motor_id].target_encoder = noinit_data.encoder[motor_id];
+        motor_state[motor_id].switch_triggered = motor_get_switch_triggered(motor_id);
+        motor_state[motor_id].switch_previously_triggered = motor_state[motor_id].switch_triggered;
         set_brake(motor_id, false);
     } else {
         motor_set_speed(motor_id, 0);
@@ -499,18 +501,7 @@ bool motor_get_switch_triggered(motor_id_t motor_id)
     if (!motor_get_enabled(motor_id))
         return false;
 
-    int in_switch = !digitalRead(motor_pinout[motor_id].in_switch);
-
-#if 0
-    // TODO: Add debouncing or other filtering to switch values, due to false triggers
-    // when motor is stuck at max speed.
-    if (in_switch != motor_state[motor_id].switch_triggered) {
-        LOG_ERROR(F("%d %d"), in_switch, motor_state[motor_id].switch_triggered);
-        return false;
-    }
-#endif
-
-    return motor_state[motor_id].switch_triggered;
+    return !digitalRead(motor_pinout[motor_id].in_switch);  // The switches are active LOW, so invert.
 }
 
 static void print_motor_delta(int delta)
@@ -821,33 +812,27 @@ ISR(TIMER1_COMPA_vect){
         }
         noinit_data.previous_quadrature_encoder[qe_motor_id] = qe_state;
 
-#if 1  // Switch logic.
-        /*
-         * See if Limit/Home switch has changed from on to off or off to on.
-         * There are 4 different motor positions stored for the Home Switches.
-         * -The On and Off locations when the motor is moving forward.
-         * -The On and Off locations when the motor is moving reverse.
-         * The average value of these 4 positions is used as the center of "Home".
-         */
-        bool switch_triggered = !digitalRead(motor_pinout[qe_motor_id].in_switch);
-        if (motor_state[qe_motor_id].switch_triggered == switch_triggered) {
-            if (switch_triggered != motor_state[qe_motor_id].switch_previously_triggered) {
-                motor_state[qe_motor_id].switch_previously_triggered = switch_triggered;
-                if (motor_state[qe_motor_id].previous_direction == 1) {
-                    if (!switch_triggered)
-                        motor_state[qe_motor_id].switch_forward_on = noinit_data.encoder[qe_motor_id];
-                    else
-                        motor_state[qe_motor_id].switch_forward_off = noinit_data.encoder[qe_motor_id];
-                } else if (motor_state[qe_motor_id].previous_direction == -1) {
-                    if (!switch_triggered)
-                        motor_state[qe_motor_id].switch_reverse_on = noinit_data.encoder[qe_motor_id];
-                    else
-                        motor_state[qe_motor_id].switch_reverse_off = noinit_data.encoder[qe_motor_id];
-                }
+        // See if the home switch has changed from on to off or off to on.
+        // There are 4 different motor positions stored for the home switches.
+        //  - The On and Off locations when the motor is moving forward.
+        //  - The On and Off locations when the motor is moving reverse.
+        // The average value of these 4 positions is used as the center of "home".
+        bool switch_triggered = motor_get_switch_triggered(qe_motor_id);
+        if (switch_triggered != motor_state[qe_motor_id].switch_previously_triggered) {
+            motor_state[qe_motor_id].switch_previously_triggered = switch_triggered;
+            if (motor_state[qe_motor_id].previous_direction == 1) {
+                if (switch_triggered)
+                    motor_state[qe_motor_id].switch_forward_on = noinit_data.encoder[qe_motor_id];
+                else
+                    motor_state[qe_motor_id].switch_forward_off = noinit_data.encoder[qe_motor_id];
+            } else if (motor_state[qe_motor_id].previous_direction == -1) {
+                if (switch_triggered)
+                    motor_state[qe_motor_id].switch_reverse_on = noinit_data.encoder[qe_motor_id];
+                else
+                    motor_state[qe_motor_id].switch_reverse_off = noinit_data.encoder[qe_motor_id];
             }
         }
         motor_state[qe_motor_id].switch_triggered = switch_triggered;
-#endif
 
         if (get_thermal_overload_active(qe_motor_id))
             motor_state[qe_motor_id].error_flags |= MOTOR_ERROR_FLAG_THERMAL_OVERLOAD_DETECTED;
