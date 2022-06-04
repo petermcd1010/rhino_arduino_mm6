@@ -34,6 +34,11 @@ typedef struct __attribute__((packed)) {
     int angle_offset;
     motor_orientation_t orientation;
     motor_polarity_t polarity;  // Easy to wire motors backwards.
+    bool calibrated;
+    int encoder_min;
+    int encoder_max;
+    int switch_encoder_min;
+    int switch_encoder_max;
 } config_motor_t;
 
 typedef struct __attribute__((packed)) {

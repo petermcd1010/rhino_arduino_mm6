@@ -53,7 +53,7 @@ typedef struct {
     bool               enabled;
     int                speed;
     int                target_speed;
-    int                max_speed_256ths;  // (int)(max_speed_percent * 2.56f).
+    int                max_speed;
     int                pwm;
     int                logic; // -1 or +1.
     int                previous_direction;

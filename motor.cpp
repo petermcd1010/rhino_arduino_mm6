@@ -478,8 +478,11 @@ void motor_set_speed(motor_id_t motor_id, int speed)
     if (speed == 0) {
         motor_state[motor_id].pwm = 0;
     } else {
-        unsigned int pwm = (abs(speed) * motor_state[motor_id].max_speed_256ths) / 256;
-        motor_state[motor_id].pwm = pwm < motor_min_pwm ? motor_min_pwm : pwm;
+        unsigned int pwm = abs(speed);
+        unsigned int max_pwm = abs(motor_state[motor_id].max_speed);
+        pwm = (pwm > max_pwm) ? max_pwm : pwm;
+        pwm = (pwm < motor_min_pwm) ? motor_min_pwm : pwm;
+        motor_state[motor_id].pwm = pwm;
     }
 
     digitalWrite(motor_pinout[motor_id].out_direction, speed >= 0 ? motor_direction_forward : motor_direction_reverse);
@@ -492,7 +495,7 @@ void motor_set_max_speed_percent(motor_id_t motor_id, float max_speed_percent)
     assert((motor_id >= MOTOR_ID_FIRST) && (motor_id <= MOTOR_ID_LAST));
     assert((max_speed_percent >= 0.0f) && (max_speed_percent <= 100.0f));
 
-    motor_state[motor_id].max_speed_256ths = (int)(max_speed_percent * 2.56f);
+    motor_state[motor_id].max_speed = (motor_max_speed * max_speed_percent) / 100.0f;
 }
 
 bool motor_get_switch_triggered(motor_id_t motor_id)

@@ -86,7 +86,7 @@ static void iterate();
 }
 #endif
 
-static bool is_stuck(motor_id_t motor_it, int *stuck_start_encoder, unsigned long *stuck_start_ms)
+static bool is_stuck(motor_id_t motor_it, int *stuck_start_encoder, unsigned long *stuck_start_ms, unsigned long stuck_duration_ms)
 {
     assert((motor_id >= MOTOR_ID_A) && (motor_id <= MOTOR_ID_LAST));
     assert(stuck_start_encoder);
@@ -94,16 +94,15 @@ static bool is_stuck(motor_id_t motor_it, int *stuck_start_encoder, unsigned lon
 
     bool ret = false;
 
-    const int stuck_check_interval_ms = 500;
     const int stuck_check_encoder_count = 5;
 
     int encoder = motor_get_encoder(motor_id);
     unsigned long ms = millis();
 
-    if (((ms - *stuck_start_ms) >= stuck_check_interval_ms)) {
+    if (((ms - *stuck_start_ms) >= stuck_duration_ms)) {
         // log_writeln(F("ms:%lu, encoder:%d, stuck_check_start_encoder:%d"), ms, encoder, stuck_start_encoder);
         if (abs(encoder - *stuck_start_encoder) <= stuck_check_encoder_count) {
-            LOG_DEBUG(F("stuck, encoder=%d, stuck_start_encoder=%d"), encoder, *stuck_start_encoder);
+            log_writeln(F("Calibrating motor %c: Stuck at encoder %d for > %d ms."), 'A' + motor_id, encoder, stuck_duration_ms);
             ret = true;
         }
 
@@ -161,9 +160,36 @@ static void calibrate_all(void)
     }
 }
 
+static void update_status(motor_id_t motor_id)
+{
+    assert((motor_id >= MOTOR_ID_A) && (motor_id <= MOTOR_ID_LAST));
+
+    static unsigned long print_ms = 0;
+    static bool prev_triggered = !motor_state[motor_id].switch_triggered;
+
+    if ((motor_state[motor_id].pid_perror != 0) && (millis() - print_ms > 1000)) {
+        log_write(F("Calibrating motor %c: "), 'A' + motor_id);
+        if (motor_state[motor_id].target_encoder >= INT_MAX - 1)
+            log_write(F("Target: +inf, "));
+        else
+            log_write(F("Target: -inf, "));
+        log_writeln(F("encoder: %d."), motor_get_encoder(motor_id) * motor_state[motor_id].logic);
+        print_ms = millis();
+    }
+
+    if (prev_triggered != motor_state[motor_id].switch_triggered) {
+        // Use !prev_triggered below, so we can better detect transients.
+        log_writeln(F("Calibrating motor %c: Switch: %d (%d)."), 'A' + motor_id, !prev_triggered, motor_state[motor_id].switch_triggered);
+        prev_triggered = !prev_triggered;
+    }
+}
+
 static void calibrate_one_enter(void)
 {
+    assert((motor_id >= MOTOR_ID_A) && (motor_id <= MOTOR_ID_LAST));
+
     log_writeln(F("Calibrating motor %c."), 'A' + motor_id);
+    update_status(motor_id);
 
     calibrate_one_min = -1;
     calibrate_one_max = -1;
@@ -191,22 +217,16 @@ static void calibrate_one_enter(void)
 static void calibrate_one(void)
 {
     assert((motor_id >= MOTOR_ID_A) && (motor_id <= MOTOR_ID_LAST));
+    update_status(motor_id);
 
-    static unsigned long print_ms = 0;
-
-    if ((motor_state[motor_id].pid_perror != 0) && (millis() - print_ms > 1000)) {
-        LOG_DEBUG(F("target_encoder=%d, encoder=%d, pid_error=%d"), motor_state[motor_id].target_encoder, motor_get_encoder(motor_id) * motor_state[motor_id].logic, motor_state[motor_id].pid_perror);
-        print_ms = millis();
-    }
-
-    if (is_stuck(motor_id, &stuck_start_encoder, &stuck_start_ms)) {
+    if (is_stuck(motor_id, &stuck_start_encoder, &stuck_start_ms, 500)) {
         if (motor_get_target_encoder(motor_id) == INT_MAX) {
             log_writeln(F("Calibrating motor %c: Changing directions at %d."), 'A' + motor_id, stuck_start_encoder);
             stuck_start_ms = millis();
             calibrate_one_max = motor_get_encoder(motor_id);
             motor_set_target_encoder(motor_id, INT_MIN);
         } else if (motor_get_target_encoder(motor_id) == INT_MIN) {
-            log_writeln(F("Calibrating motor %c: Changing directions at %d"), 'A' + motor_id, stuck_start_encoder);
+            log_writeln(F("Calibrating motor %c: Changing directions at %d."), 'A' + motor_id, stuck_start_encoder);
             stuck_start_ms = millis();
             calibrate_one_max = motor_get_encoder(motor_id);
             motor_set_target_encoder(motor_id, INT_MAX - 1);
@@ -249,12 +269,17 @@ static void calibrate_one(void)
 
 static void calibrate_one_go_home(void)
 {
-    if (is_stuck(motor_id, &stuck_start_encoder, &stuck_start_ms)) {
-        int encoder = motor_get_encoder(motor_id);
-        if (abs(motor_get_target_encoder(motor_id) - encoder) < 5)
-            log_writeln(F("Calibrating motor %c: Motor is home."), 'A' + motor_id);
-        else
-            log_writeln(F("Calibrating motor %c: Motor is stuck at encoder %d. Calibration for motor %d failed."), 'A' + motor_id, stuck_start_encoder, 'A' + motor_id);
+    assert((motor_id >= MOTOR_ID_A) && (motor_id <= MOTOR_ID_LAST));
+    update_status(motor_id);
+
+    int encoder = motor_get_encoder(motor_id);
+
+    if (motor_get_target_encoder(motor_id) - encoder == 0) {
+        log_writeln(F("Calibrating motor %c: Motor is home."), 'A' + motor_id);
+        sm_state_t s = { .run = calibrate_one_done, .break_handler = break_handler, .name = F("calibrate one done"), .data = NULL };
+        sm_set_next_state(s);
+    } else if (is_stuck(motor_id, &stuck_start_encoder, &stuck_start_ms, 5 * 1000)) {
+        log_writeln(F("Calibrating motor %c: Motor is stuck at encoder %d. Calibration for motor %c failed."), 'A' + motor_id, encoder, 'A' + motor_id);
         sm_state_t s = { .run = calibrate_one_done, .break_handler = break_handler, .name = F("calibrate one done"), .data = NULL };
         sm_set_next_state(s);
     }
@@ -263,6 +288,7 @@ static void calibrate_one_go_home(void)
 static void calibrate_one_done(void)
 {
     assert((motor_id >= MOTOR_ID_A) && (motor_id <= MOTOR_ID_LAST));
+    update_status(motor_id);
 
     // Mark as failed if:
     //  - Switch not detected
