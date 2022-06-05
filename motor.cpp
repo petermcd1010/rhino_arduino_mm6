@@ -12,23 +12,23 @@
 
 // MM6 motor I/O lines.
 typedef struct {
-    unsigned short out_direction;  // Digital. LOW = forward direction. HIGH = reverse direction.
-    unsigned short out_pwm;  // Digital.
-    unsigned short out_brake;  // Digital. LOW = disable brake. HIGH = enable brake.
-    unsigned short in_current_draw;  // Analog. 377uA/A. What's the resistance?
-    unsigned short in_thermal_overload;  // Digital. Becomes active at 145C. Chip shuts off at 170C.
-    unsigned short in_switch;  // Digital. LOW = switch triggered. HIGH = switch not triggered.
+    unsigned short out_direction;      // Digital. LOW = forward direction. HIGH = reverse direction.
+    unsigned short out_pwm;            // Digital.
+    unsigned short out_brake;          // Digital. LOW = disable brake. HIGH = enable brake.
+    unsigned short in_current_draw;    // Analog. 377uA/A. What's the resistance?
+    unsigned short in_thermal_overload;    // Digital. Becomes active at 145C. Chip shuts off at 170C.
+    unsigned short in_switch;          // Digital. LOW = switch triggered. HIGH = switch not triggered.
     unsigned short in_quadrature_encoder_a;  // Digital.
     unsigned short in_quadrature_encoder_b;  // Digital.
 } motor_pinout_t;
 
 static const motor_pinout_t motor_pinout[MOTOR_ID_COUNT] = {
-    { 11, 10, 12, A5,  14,  A8, 47, 46 },      // Motor A.
-    { A9, 7,  39, A0,  A11, 26, 32, 33 },      // Motor B.
-    { 3,  5,  4,  A6,  6,   28, 45, 44 },      // Motor C.
-    { A1, 8,  A2, A4,  A3,  30, 34, 35 },      // Motor D.
-    { 17, 2,  16, A7,  15,  40, 43, 42 },      // Motor E.
-    { 51, 9,  50, A10, 52,  38, 36, 37 },      // Motor F.
+    { 11, 10, 12, A5,  14,  A8, 47, 46 }, // Motor A.
+    { A9, 7,  39, A0,  A11, 26, 32, 33 }, // Motor B.
+    { 3,  5,  4,  A6,  6,   28, 45, 44 }, // Motor C.
+    { A1, 8,  A2, A4,  A3,  30, 34, 35 }, // Motor D.
+    { 17, 2,  16, A7,  15,  40, 43, 42 }, // Motor E.
+    { 51, 9,  50, A10, 52,  38, 36, 37 }, // Motor F.
 };
 
 // For motor direction pin.
@@ -64,7 +64,7 @@ typedef struct {
     int    encoder[MOTOR_ID_COUNT];
 } noinit_data_t;
 
-static noinit_data_t noinit_data __attribute__ ((section(".noinit")));  // NOT reset to 0 when the CPU is reset.
+static noinit_data_t noinit_data __attribute__((section(".noinit")));  // NOT reset to 0 when the CPU is reset.
 
 void motor_clear_ram_data(void)
 {
@@ -76,9 +76,7 @@ static void check_noinit_data(void)
 {
     // Zero out saved variables on power cycle. On reset, these values are NOT erased.
 
-    if ((noinit_data.nbytes != sizeof(noinit_data_t) ||
-         (noinit_data.version != noinit_data_version) ||
-         (noinit_data.magic != noinit_data_magic))) {
+    if ((noinit_data.nbytes != sizeof(noinit_data_t) || (noinit_data.version != noinit_data_version) || (noinit_data.magic != noinit_data_magic))) {
         log_writeln(F("Initializing noinit data."));
         noinit_data.nbytes = sizeof(noinit_data_t);
         noinit_data.version = noinit_data_version;
@@ -152,7 +150,7 @@ void motor_init_all(void)
     TCCR1B |= (1 << WGM12);  // Turn on CTC mode.
     TCCR1B |= (1 << CS11);  // Set CS11 bit for 8 prescaler.
     TIMSK1 |= (1 << OCIE1A);  // Enable timer compare interrupt.
-    sei();  // Enable interrupts.
+    sei();                             // Enable interrupts.
 
     // Get the Angle Offsets and Forward_Logic for ALL motors
     for (int i = MOTOR_ID_FIRST; i <= MOTOR_ID_LAST; i++) {
@@ -298,6 +296,7 @@ void motor_set_enabled(motor_id_t motor_id, bool enabled)
         motor_state[motor_id].target_encoder = noinit_data.encoder[motor_id];
         motor_state[motor_id].switch_triggered = motor_get_switch_triggered(motor_id);
         motor_state[motor_id].switch_previously_triggered = motor_state[motor_id].switch_triggered;
+        motor_set_speed(motor_id, motor_max_speed);
         set_brake(motor_id, false);
     } else {
         motor_set_speed(motor_id, 0);
@@ -557,11 +556,11 @@ static void motor_test(motor_id_t motor_id)
 
     motor_set_speed(motor_id, test_speed);
     log_write(F("on, "));
-    delay(delay_ms);       // Short Delay to allow the motor to move.
+    delay(delay_ms);  // Short Delay to allow the motor to move.
 
     motor_set_speed(motor_id, 0);
     log_write(F("off. "));
-    delay(delay_ms);       // Short Delay to allow the motor to stop.
+    delay(delay_ms);  // Short Delay to allow the motor to stop.
 
     int position3 = motor_get_encoder(motor_id);
     int forward_delta = position3 - position2;
@@ -760,7 +759,7 @@ static void isr_blink_led(bool motor_enabled)
     if (motor_enabled) {
         if (!hardware_get_led_enabled())
             led_counter += 4;          // if the PID is on, then blink faster.
-        led_counter++;  // Count the Interrupts
+        led_counter++;   // Count the Interrupts
     }
 
     if (led_counter > 1000) {
@@ -772,7 +771,7 @@ static void isr_blink_led(bool motor_enabled)
 }
 
 // Interrupt routine that interrupts the main program at freq of 2kHz.
-ISR(TIMER1_COMPA_vect){
+ISR(TIMER1_COMPA_vect) {
     static int tb = 0;
     static int tc = 0;
     static int td = 0;
@@ -820,6 +819,7 @@ ISR(TIMER1_COMPA_vect){
         //  - The On and Off locations when the motor is moving forward.
         //  - The On and Off locations when the motor is moving reverse.
         // The average value of these 4 positions is used as the center of "home".
+
         bool switch_triggered = motor_get_switch_triggered(qe_motor_id);
         if (switch_triggered != motor_state[qe_motor_id].switch_previously_triggered) {
             motor_state[qe_motor_id].switch_previously_triggered = switch_triggered;
@@ -835,7 +835,7 @@ ISR(TIMER1_COMPA_vect){
                     motor_state[qe_motor_id].switch_reverse_off = noinit_data.encoder[qe_motor_id];
             }
         }
-        motor_state[qe_motor_id].switch_triggered = switch_triggered;
+        motor_state[qe_motor_id].switch_triggered = switch_triggered;  // When filter says it was triggered.
 
         if (get_thermal_overload_active(qe_motor_id))
             motor_state[qe_motor_id].error_flags |= MOTOR_ERROR_FLAG_THERMAL_OVERLOAD_DETECTED;

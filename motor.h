@@ -51,9 +51,9 @@ typedef enum {
 
 typedef struct {
     bool               enabled;
-    int                speed;
-    int                target_speed;
     int                max_speed;
+    int                target_speed;
+    int                speed;
     int                pwm;
     int                logic; // -1 or +1.
     int                previous_direction;
