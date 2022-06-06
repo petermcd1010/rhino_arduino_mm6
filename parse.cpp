@@ -264,7 +264,7 @@ size_t parse_motor_ids(char *buf, size_t buf_nbytes, int *out_mask)
         p += n;
 
         if (isspace(c))
-            continue;
+            break;
 
         c = toupper(c);
         if ((c < 'A') || (c > 'F'))

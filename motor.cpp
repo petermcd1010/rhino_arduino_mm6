@@ -105,7 +105,7 @@ static void track_report(motor_id_t motor_id)
                 Serial.print(motor_get_angle(motor_id));
             }
             Serial.print(":HS");
-            Serial.print(motor_state[motor_id].switch_previously_triggered);
+            Serial.print(motor_state[motor_id].switch_triggered_debounced);
             Serial.println(":");
             tracked[motor_id] = Position;
         }
@@ -129,7 +129,11 @@ static void motor_init(motor_id_t motor_id)
     pinMode(motor_pinout[motor_id].in_quadrature_encoder_b, INPUT_PULLUP);
 
     for (int motor_id = 0; motor_id < MOTOR_ID_COUNT; motor_id++) {
-        motor_set_max_speed_percent(motor_id, 100.0f);
+        motor_set_max_speed_percent((motor_id_t)motor_id, 100);
+        motor_state[motor_id].prev_switch_triggered = motor_get_switch_triggered(motor_id);
+        motor_state[motor_id].prev_switch_triggered_millis = millis();
+        motor_state[motor_id].prev_switch_triggered_encoder = INT_MAX;
+        motor_state[motor_id].switch_triggered_debounced = motor_state[motor_id].prev_switch_triggered;
     }
     motor_set_enabled(motor_id, false);
 }
@@ -294,8 +298,7 @@ void motor_set_enabled(motor_id_t motor_id, bool enabled)
 
     if (enabled) {
         motor_state[motor_id].target_encoder = noinit_data.encoder[motor_id];
-        motor_state[motor_id].switch_triggered = motor_get_switch_triggered(motor_id);
-        motor_state[motor_id].switch_previously_triggered = motor_state[motor_id].switch_triggered;
+        motor_state[motor_id].switch_triggered_debounced = motor_get_switch_triggered(motor_id);
         motor_set_speed(motor_id, motor_max_speed);
         set_brake(motor_id, false);
     } else {
@@ -489,21 +492,31 @@ void motor_set_speed(motor_id_t motor_id, int speed)
     motor_state[motor_id].speed = speed;
 }
 
-void motor_set_max_speed_percent(motor_id_t motor_id, float max_speed_percent)
+void motor_set_max_speed_percent(motor_id_t motor_id, int max_speed_percent)
 {
     assert((motor_id >= MOTOR_ID_FIRST) && (motor_id <= MOTOR_ID_LAST));
     assert((max_speed_percent >= 0.0f) && (max_speed_percent <= 100.0f));
 
-    motor_state[motor_id].max_speed = (motor_max_speed * max_speed_percent) / 100.0f;
+    motor_state[motor_id].max_speed = (motor_max_speed * max_speed_percent) / 100;
+}
+
+int motor_get_max_speed_percent(motor_id_t motor_id)
+{
+    assert((motor_id >= MOTOR_ID_FIRST) && (motor_id <= MOTOR_ID_LAST));
+
+    return motor_state[motor_id].max_speed * 100 / motor_max_speed;
 }
 
 bool motor_get_switch_triggered(motor_id_t motor_id)
 {
     assert((motor_id >= MOTOR_ID_FIRST) && (motor_id <= MOTOR_ID_LAST));
-    if (!motor_get_enabled(motor_id))
-        return false;
-
     return !digitalRead(motor_pinout[motor_id].in_switch);  // The switches are active LOW, so invert.
+}
+
+bool motor_get_switch_triggered_debounced(motor_id_t motor_id)
+{
+    assert((motor_id >= MOTOR_ID_FIRST) && (motor_id <= MOTOR_ID_LAST));
+    return motor_state[motor_id].switch_triggered_debounced;
 }
 
 static void print_motor_delta(int delta)
@@ -699,7 +712,7 @@ static void motor_track_report(motor_id_t motor_id)
                 log_write(F("%c:%d"), 'A' + motor_id, motor_get_encoder(motor_id));
             else if (tracking == 2)
                 log_write(F("%c:%d"), 'A' + motor_id, motor_get_angle(motor_id));
-            log_write(F(":HS%d:"), motor_state[motor_id].switch_previously_triggered);
+            log_write(F(":HS%d:"), motor_state[motor_id].switch_triggered_debounced);
             tracked[motor_id] = position;
         }
     }
@@ -770,6 +783,51 @@ static void isr_blink_led(bool motor_enabled)
     }
 }
 
+static void check_switch(motor_id_t motor_id)
+{
+    assert((motor_id >= MOTOR_ID_FIRST) && (motor_id <= MOTOR_ID_LAST));
+
+    motor_state_t *motor = &motor_state[motor_id];
+
+    bool switch_triggered_debounced = motor_state[motor_id].switch_triggered_debounced;
+    bool switch_triggered = motor_get_switch_triggered(motor_id);
+
+    unsigned const debounce_delay_millis = 50;
+
+    if (switch_triggered != motor->prev_switch_triggered) {
+        motor->prev_switch_triggered = switch_triggered;
+        motor->prev_switch_triggered_millis = millis();
+        motor->prev_switch_triggered_encoder = noinit_data.encoder[motor_id];
+    }
+
+    // TODO: Tighten debounce timing. Example:
+    // https://stackoverflow.com/questions/48434575/switch-debouncing-logic-in-c
+    if ((millis() - motor->prev_switch_triggered_millis) > debounce_delay_millis)
+        switch_triggered_debounced = switch_triggered;
+
+    // See if the home switch has changed from on to off or off to on.
+    // There are 4 different motor positions stored for the home switches.
+    //  - The On and Off locations when the motor is moving forward.
+    //  - The On and Off locations when the motor is moving reverse.
+    // The average value of these 4 positions is used as the center of "home".
+
+    if (switch_triggered_debounced != motor->switch_triggered_debounced) {
+        int encoder = motor->prev_switch_triggered_encoder;
+        if (motor->previous_direction == 1) {
+            if (switch_triggered_debounced)
+                motor->switch_forward_on = encoder;
+            else
+                motor->switch_forward_off = encoder;
+        } else if (motor->previous_direction == -1) {
+            if (switch_triggered_debounced)
+                motor->switch_reverse_on = encoder;
+            else
+                motor->switch_reverse_off = encoder;
+        }
+        motor->switch_triggered_debounced = switch_triggered_debounced;
+    }
+}
+
 // Interrupt routine that interrupts the main program at freq of 2kHz.
 ISR(TIMER1_COMPA_vect) {
     static int tb = 0;
@@ -814,28 +872,7 @@ ISR(TIMER1_COMPA_vect) {
         }
         noinit_data.previous_quadrature_encoder[qe_motor_id] = qe_state;
 
-        // See if the home switch has changed from on to off or off to on.
-        // There are 4 different motor positions stored for the home switches.
-        //  - The On and Off locations when the motor is moving forward.
-        //  - The On and Off locations when the motor is moving reverse.
-        // The average value of these 4 positions is used as the center of "home".
-
-        bool switch_triggered = motor_get_switch_triggered(qe_motor_id);
-        if (switch_triggered != motor_state[qe_motor_id].switch_previously_triggered) {
-            motor_state[qe_motor_id].switch_previously_triggered = switch_triggered;
-            if (motor_state[qe_motor_id].previous_direction == 1) {
-                if (switch_triggered)
-                    motor_state[qe_motor_id].switch_forward_on = noinit_data.encoder[qe_motor_id];
-                else
-                    motor_state[qe_motor_id].switch_forward_off = noinit_data.encoder[qe_motor_id];
-            } else if (motor_state[qe_motor_id].previous_direction == -1) {
-                if (switch_triggered)
-                    motor_state[qe_motor_id].switch_reverse_on = noinit_data.encoder[qe_motor_id];
-                else
-                    motor_state[qe_motor_id].switch_reverse_off = noinit_data.encoder[qe_motor_id];
-            }
-        }
-        motor_state[qe_motor_id].switch_triggered = switch_triggered;  // When filter says it was triggered.
+        check_switch(qe_motor_id);
 
         if (get_thermal_overload_active(qe_motor_id))
             motor_state[qe_motor_id].error_flags |= MOTOR_ERROR_FLAG_THERMAL_OVERLOAD_DETECTED;

@@ -192,7 +192,7 @@ int command_reboot(char *args, size_t args_nbytes)
     args += nbytes;
     args_nbytes -= nbytes;
 
-    if (nbytes != args_nbytes)
+    if (args_nbytes > 0)
         return -1;
 
     motor_disable_all();
@@ -210,23 +210,45 @@ int command_calibrate_motors(char *args, size_t args_nbytes)
     char *p = args;
     size_t nbytes = parse_motor_ids(p, args_nbytes, &motor_ids_mask);  // parse_motor_ids will emit message if error.
 
-    if ((motor_ids_mask == -1) || (args_nbytes != nbytes))
+    args_nbytes -= nbytes;
+    p += nbytes;
+
+    if (motor_ids_mask == -1)
         return nbytes;
+
+    int max_speed_percent = 75;
+
+    if (motor_ids_mask != 0) {
+        nbytes = parse_int(p, args_nbytes, &max_speed_percent);
+        args_nbytes -= nbytes;
+        p += nbytes;
+    }
+
+    nbytes = parse_whitespace(p, args_nbytes);
+    args += nbytes;
+    args_nbytes -= nbytes;
+
+    if (args_nbytes > 0)
+        return -1;
 
     if (motor_ids_mask == 0)
         motor_ids_mask = motor_get_enabled_mask();
 
     if (motor_ids_mask == 0) {
         log_writeln(F("No motors enabled and no motors specified. Skipping calibration."));
-        goto error;
+        return args - p;
+    }
+
+    if ((max_speed_percent < 0) || (max_speed_percent > 100)) {
+        log_writeln(F("Max speed percent must be between 0 and 100. Skipping calibration."));
+        return args - p;
     }
 
     log_writeln(F("Calibrating motors %d"), motor_ids_mask);
 
-    calibrate_run(motor_ids_mask);
+    calibrate_run(motor_ids_mask, max_speed_percent);
 
-error:
-    return nbytes;
+    return p - args;
 }
 
 int command_pid_mode(char *args, size_t args_nbytes)
@@ -317,7 +339,7 @@ int command_print_motor_status(char *args, size_t args_nbytes)
         log_writeln(F("%c%s: home:%d sta:%d enc:%d tar:%d err:%d spd:%d PWM:%d cur:%d hs:%d,%d,%d,%d->%d angle:%s"),
                     'A' + i,
                     ((motor_get_enabled_mask() & (1 << i)) == 0) ? " [not enabled]" : "",
-                    motor_state[i].switch_previously_triggered,  // home.
+                    motor_state[i].switch_triggered_debounced,  // home switch.
                     motor_state[i].progress,  // sta. Report whether or not the Motor has reached the target location.
                     /* motor_get_encoder(iMotor), */  // pos.
                     motor_get_encoder(i) * motor_state[i].logic,  // enc.
@@ -335,7 +357,14 @@ int command_print_motor_status(char *args, size_t args_nbytes)
                     angle_str);
     }
 
-    return nbytes;
+    nbytes = parse_whitespace(p, args_nbytes);
+    args_nbytes -= nbytes;
+    p += nbytes;
+
+    if (args_nbytes > 0)
+        return -1;
+
+    return p - args;
 }
 
 int command_set_motor_angle(char *args, size_t args_nbytes)
@@ -347,7 +376,7 @@ int command_set_motor_angle(char *args, size_t args_nbytes)
     size_t nbytes = parse_motor_id(p, args_nbytes, &motor_id);
 
     if (nbytes == 0)
-        goto error;                    // parse_motor_id will emit message if error.
+        return -1;                     // parse_motor_id will emit message if error.
     args_nbytes -= nbytes;
     p += nbytes;
 
@@ -359,7 +388,7 @@ int command_set_motor_angle(char *args, size_t args_nbytes)
 
     nbytes = parse_motor_angle_or_encoder(p, args_nbytes, &angle);
     if (nbytes == 0)
-        goto error;                    // parse_motor_angle_or_encoder will emit message if error.
+        return -1;                     // parse_motor_angle_or_encoder will emit message if error.
     args_nbytes -= nbytes;
     p += nbytes;
 
@@ -368,7 +397,7 @@ int command_set_motor_angle(char *args, size_t args_nbytes)
     p += nbytes;
 
     if (args_nbytes > 0)
-        goto error;
+        return -1;
 
     char angle_str[15] = {};
 
@@ -384,7 +413,6 @@ int command_set_motor_angle(char *args, size_t args_nbytes)
     return p - args;
 
 error:
-    LOG_ERROR(F(""));
     return -1;
 }
 
@@ -419,9 +447,7 @@ int command_poll_pins(char *args, size_t args_nbytes)
     char *p = args;
     size_t nbytes = parse_whitespace(p, args_nbytes);
 
-    args_nbytes -= nbytes;
-    p += nbytes;
-    if (nbytes != 0)
+    if (nbytes != args_nbytes)
         return -1;
 
     log_writeln(F("Attach device(s) to IO pins and test. Output will print here when polarity changes. Press <CTRL+C> when done."));
@@ -444,7 +470,7 @@ int command_set_motor_encoder(char *args, size_t args_nbytes)
     size_t nbytes = parse_motor_id(p, args_nbytes, &motor_id);
 
     if (nbytes == 0)
-        goto error;                    // parse_motor_id will emit message if error.
+        return -1;                     // parse_motor_id will emit message if error.
     args_nbytes -= nbytes;
     p += nbytes;
 
@@ -465,7 +491,7 @@ int command_set_motor_encoder(char *args, size_t args_nbytes)
     p += nbytes;
 
     if (args_nbytes > 0)
-        goto error;
+        return -1;
 
     char encoder_str[15] = {};
 
@@ -480,10 +506,6 @@ int command_set_motor_encoder(char *args, size_t args_nbytes)
     }
 
     return p - args;
-
-error:
-    LOG_ERROR(F(""));
-    return -1;
 }
 
 int command_run_test_sequence(char *args, size_t args_nbytes)
@@ -507,6 +529,9 @@ int command_test_motors(char *args, size_t args_nbytes)
 
     args_nbytes -= nbytes;
     p += nbytes;
+
+    if (args_nbytes > 0)
+        goto error;
 
     if ((sm_get_state().run != sm_motors_off_execute) &&
         (sm_get_state().run != sm_motors_on_execute)) {
@@ -588,17 +613,14 @@ int command_waypoint_run(char *args, size_t args_nbytes)
             nbytes = parse_int(p, args_nbytes, &count);
             args_nbytes -= nbytes;
             p += nbytes;
-
-            nbytes = parse_whitespace(p, args_nbytes);
-            args_nbytes -= nbytes;
-            p += nbytes;
-
-            if (args_nbytes > 0)
-                return -1;
         }
     }
 
-    if ((start_step < 0) || (count < -1))
+    nbytes = parse_whitespace(p, args_nbytes);
+    args_nbytes -= nbytes;
+    p += nbytes;
+
+    if ((start_step < 0) || (count < -1) || (args_nbytes > 0))
         return -1;
 
     waypoint_run(start_step, count);
@@ -621,9 +643,9 @@ int command_waypoint_set(char *args, size_t args_nbytes)
 
     nbytes = parse_int(p, args_nbytes, &step);
     if (nbytes == 0)
-        goto error;
+        return -1;
     if ((step < 0) || (step >= waypoint_get_max_count()))
-        goto error;
+        return -1;
     args_nbytes -= nbytes;
     p += nbytes;
 
@@ -635,15 +657,12 @@ int command_waypoint_set(char *args, size_t args_nbytes)
     args_nbytes -= nbytes;
     p += nbytes;
     if (args_nbytes > 0)
-        goto error;
+        return -1;
 
     log_writeln(F("Setting waypoint %d."), step);
     waypoint_set(step, waypoint);
 
     return p - args;
-
-error:
-    return -1;
 }
 
 int command_waypoint_insert_before(char *args, size_t args_nbytes)
@@ -704,8 +723,8 @@ int command_waypoint_print(char *args, size_t args_nbytes)
     char *p = args;
     size_t nbytes = parse_whitespace(p, args_nbytes);
 
-    args_nbytes -= nbytes;
-    p += nbytes;
+    if (args_nbytes != nbytes)
+        return -1;
 
     for (int i = 0; i < waypoint_get_max_count(); i++) {
         waypoint_t waypoint = waypoint_get(i);
@@ -748,17 +767,13 @@ int command_factory_reset(char *args, size_t args_nbytes)
     p += nbytes;
 
     if (args_nbytes > 0)
-        goto error;
+        return -1;
 
     assert(entry_num == 0);
     hardware_factory_reset();
     hardware_reboot();
 
     return 0;
-
-error:
-
-    return -1;
 }
 
 int command_emergency_stop(char *args, size_t args_nbytes)

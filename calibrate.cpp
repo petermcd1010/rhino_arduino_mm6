@@ -14,6 +14,8 @@ static sm_state_t exit_to_state = { 0 };  // Transition to this state when done 
 static int motor_ids_mask = 0;
 static motor_id_t motor_id = (motor_id_t)-1;
 
+static int prev_max_speed_percent = 0;
+static int max_speed_percent = 0;
 static int calibrate_one_min = 0;
 static int calibrate_one_max = 0;
 static int calibrate_one_center = 0;
@@ -113,13 +115,14 @@ static bool is_stuck(motor_id_t motor_it, int *stuck_start_encoder, unsigned lon
     return ret;
 }
 
-void calibrate_run(int in_motor_ids_mask)
+void calibrate_run(int in_motor_ids_mask, int max_speed_pct)
 {
     assert(in_motor_ids_mask >= 0);
 
     log_writeln(F("calibrate_run"));
 
     motor_ids_mask = in_motor_ids_mask;
+    max_speed_percent = max_speed_pct;
     exit_to_state = sm_get_state();
     sm_state_t s = { .run = start, .break_handler = break_handler, .name = F("calibrate start"), .data = NULL };
 
@@ -167,7 +170,7 @@ static void update_status(motor_id_t motor_id)
     assert((motor_id >= MOTOR_ID_A) && (motor_id <= MOTOR_ID_LAST));
 
     static unsigned long print_ms = 0;
-    static bool prev_triggered = !motor_state[motor_id].switch_triggered;
+    static bool prev_triggered = motor_get_switch_triggered_debounced(motor_id);
 
     if ((motor_state[motor_id].pid_perror != 0) && (millis() - print_ms > 1000)) {
         log_write(F("Calibrating motor %c: "), 'A' + motor_id);
@@ -179,10 +182,11 @@ static void update_status(motor_id_t motor_id)
         print_ms = millis();
     }
 
-    if (prev_triggered != motor_state[motor_id].switch_triggered) {
-        // Use !prev_triggered below, so we can better detect transients.
-        log_writeln(F("Calibrating motor %c: Switch: %d (%d)."), 'A' + motor_id, !prev_triggered, motor_state[motor_id].switch_triggered);
-        prev_triggered = !prev_triggered;
+    bool triggered = motor_get_switch_triggered_debounced(motor_id);
+
+    if (prev_triggered != triggered) {
+        log_writeln(F("Calibrating motor %c: Switch: %d (%d)."), 'A' + motor_id, !prev_triggered, triggered);
+        prev_triggered = triggered;
     }
 }
 
@@ -211,20 +215,21 @@ static void calibrate_one_enter(sm_state_t *state)
     // When the motor max speed is ~85% and it's blocked, the switch mistriggers. Reducing
     // max speed to 80% eliminates mistriggers when blocked. It's set to 75% here to provide
     // some margin.
-    motor_set_max_speed_percent(motor_id, 50.0f);
+    prev_max_speed_percent = motor_get_max_speed_percent(motor_id);
+    motor_set_max_speed_percent(motor_id, max_speed_percent);
     motor_set_target_encoder(motor_id, INT_MAX);
 
     prev_switch_triggered = motor_get_switch_triggered(motor_id);
     num_switch_falling_edges_detected = 0;
 
-    first_switch_forward_on = INT_MIN;
+    first_switch_forward_on = INT_MIN;  // TODO: Should probably be INT_MAX.
     first_switch_forward_off = INT_MIN;
     first_switch_reverse_on = INT_MIN;
     first_switch_reverse_off = INT_MIN;
 
     motor_state[motor_id].switch_forward_on = INT_MAX;
     motor_state[motor_id].switch_forward_off = INT_MAX;
-    motor_state[motor_id].switch_reverse_on = INT_MAX;
+    motor_state[motor_id].switch_reverse_on = INT_MAX;  // TODO: these should probably be INT_MIN.
     motor_state[motor_id].switch_reverse_off = INT_MAX;
 
     sm_state_t s = { .run = calibrate_one, .break_handler = break_handler, .name = F("calibrate one"), .data = NULL };
@@ -240,17 +245,25 @@ static void calibrate_one(sm_state_t *state)
 
     bool calibration_failed = false;
 
-    if ((first_switch_forward_on == INT_MIN) && (motor_state[motor_id].switch_forward_on != INT_MAX))
+    if ((first_switch_forward_on == INT_MIN) && (motor_state[motor_id].switch_forward_on != INT_MAX)) {
         first_switch_forward_on = motor_state[motor_id].switch_forward_on;
+        log_writeln(F("first_switch_forward_on=%d"), first_switch_forward_on);
+    }
 
-    if ((first_switch_forward_off == INT_MIN) && (motor_state[motor_id].switch_forward_off != INT_MAX))
+    if ((first_switch_forward_off == INT_MIN) && (motor_state[motor_id].switch_forward_off != INT_MAX)) {
         first_switch_forward_off = motor_state[motor_id].switch_forward_off;
+        log_writeln(F("first_switch_forward_off=%d"), first_switch_forward_off);
+    }
 
-    if ((first_switch_reverse_on == INT_MIN) && (motor_state[motor_id].switch_reverse_on != INT_MAX))
+    if ((first_switch_reverse_on == INT_MIN) && (motor_state[motor_id].switch_reverse_on != INT_MAX)) {
         first_switch_reverse_on = motor_state[motor_id].switch_reverse_on;
+        log_writeln(F("first_switch_reverse_on=%d"), first_switch_reverse_on);
+    }
 
-    if ((first_switch_reverse_off == INT_MIN) && (motor_state[motor_id].switch_reverse_off != INT_MAX))
+    if ((first_switch_reverse_off == INT_MIN) && (motor_state[motor_id].switch_reverse_off != INT_MAX)) {
         first_switch_reverse_off = motor_state[motor_id].switch_reverse_off;
+        log_writeln(F("first_switch_reverse_off=%d"), first_switch_reverse_off);
+    }
 
     if ((first_switch_forward_on != INT_MIN) && (first_switch_forward_off != INT_MIN) && (first_switch_reverse_on != INT_MIN) && (first_switch_reverse_off != INT_MIN) && (calibrate_one_min != INT_MIN) && (calibrate_one_max != INT_MAX)) {
         // Divide by 4 before adding, to avoid integer rollover.
@@ -266,16 +279,19 @@ static void calibrate_one(sm_state_t *state)
         num_switch_falling_edges_detected = 0;
         motor_set_home_encoder(motor_id, midpoint);
         motor_set_target_encoder(motor_id, 0);
-        stuck_start_ms = millis();
         motor_set_max_speed_percent(motor_id, 100.0f);
 
         log_writeln(F("Calibrating motor %c: Set home position to midpoint at %d. Min encoder at %d, max encoder at %d"), 'A' + motor_id, midpoint, calibrate_one_min, calibrate_one_max);
 
+        stuck_start_ms = millis();
         sm_state_t s = { .run = calibrate_one_go_home, .break_handler = break_handler, .name = F("calibrate one go home"), .data = NULL };
         sm_set_next_state(s);
     }
 
+#if 1
     bool switch_triggered = motor_get_switch_triggered(motor_id);
+    if (prev_switch_triggered != switch_triggered)
+        LOG_DEBUG(F("**** SWITCH %d"), switch_triggered);
 
     if (prev_switch_triggered && !switch_triggered) {
         num_switch_falling_edges_detected++;
@@ -302,6 +318,7 @@ static void calibrate_one(sm_state_t *state)
         LOG_DEBUG(F("**** FALLING EDGE 2: Reset 2 to %d ****"), num_switch_falling_edges_detected);
     }
     prev_switch_triggered = switch_triggered;
+#endif
 
     if (is_stuck(motor_id, &stuck_start_encoder, &stuck_start_ms, 500)) {
         log_writeln(F("Calibrating motor %c: Motor stuck, reversing directions at encoder %d."), 'A' + motor_id, stuck_start_encoder);
@@ -324,10 +341,10 @@ static void calibrate_one(sm_state_t *state)
         motor_set_max_speed_percent(motor_id, 100.0f);
         LOG_ERROR(F("Failed to calibrate motor %c. Could not find switch position: forward_on=%d, forward_off=%d, reverse_on=%d, reverse_off=%d)."),
                   'A' + motor_id,
-                  motor_state[motor_id].switch_forward_on,
-                  motor_state[motor_id].switch_forward_off,
-                  motor_state[motor_id].switch_reverse_on,
-                  motor_state[motor_id].switch_reverse_off);
+                  first_switch_forward_on,
+                  first_switch_forward_off,
+                  first_switch_reverse_on,
+                  first_switch_reverse_off);
         sm_state_t s = { .run = calibrate_one_done, .break_handler = break_handler, .name = F("calibrate one go home"), .data = NULL };
         sm_set_next_state(s);
     }
@@ -342,9 +359,15 @@ static void calibrate_one_go_home(sm_state_t *state)
     int encoder = motor_get_encoder(motor_id);
 
     if (motor_get_target_encoder(motor_id) - encoder == 0) {
-        log_writeln(F("Calibrating motor %c: Motor arrived at home position (encoder 0)."), 'A' + motor_id);
-        sm_state_t s = { .run = calibrate_one_done, .break_handler = break_handler, .name = F("calibrate one done"), .data = NULL };
-        sm_set_next_state(s);
+        if (!motor_get_switch_triggered(motor_id)) {
+            log_writeln(F("Calibrating motor %c: Switch did not trigger at home position (encoder 0). Calibration for motor %c failed."), 'A' + motor_id, 'A' + motor_id);
+            sm_state_t s = { .run = calibrate_one_done, .break_handler = break_handler, .name = F("calibrate one done"), .data = NULL };
+            sm_set_next_state(s);
+        } else {
+            log_writeln(F("Calibrating motor %c: Motor arrived at home position (encoder 0). Calibration for motor %c passed."), 'A' + motor_id, 'A' + motor_id);
+            sm_state_t s = { .run = calibrate_one_done, .break_handler = break_handler, .name = F("calibrate one done"), .data = NULL };
+            sm_set_next_state(s);
+        }
     } else if (is_stuck(motor_id, &stuck_start_encoder, &stuck_start_ms, 5 * 1000)) {
         log_writeln(F("Calibrating motor %c: Motor is stuck at encoder %d. Calibration for motor %c failed."), 'A' + motor_id, encoder, 'A' + motor_id);
         sm_state_t s = { .run = calibrate_one_done, .break_handler = break_handler, .name = F("calibrate one done"), .data = NULL };
@@ -363,6 +386,7 @@ static void calibrate_one_done(sm_state_t *state)
     //  - Switch unreliable (more than 4 triggers?).
     //  - Thermal overload detected.
 
+    motor_set_max_speed_percent(motor_id, prev_max_speed_percent);
     motor_set_enabled(motor_id, false);
     motor_id = (motor_id_t)((int)motor_id + 1);
     sm_state_t s = { .run = calibrate_all, .break_handler = break_handler, .name = F("calibrate all"), .data = NULL };

@@ -62,9 +62,10 @@ typedef struct {
     int                target_encoder;
     int                current_draw; // TODO: units? counts?
     motor_progress_t   progress;
-
-    bool               switch_previously_triggered; // Home switch previous value used for debounce.
-    bool               switch_triggered; // Home switch previous value used for debounce.
+    bool               prev_switch_triggered;  // Switch value last time transition detected.
+    unsigned long      prev_switch_triggered_millis;  // Time last transition detected.
+    int                prev_switch_triggered_encoder;  // Encoder value last time transition detected.
+    bool               switch_triggered_debounced; // Debounced switch value.
     int                switch_forward_on; // Home switch forward direction high value.
     int                switch_forward_off; // Home switch forward direction low value.
     int                switch_reverse_on; // Home switch reverse direction high value.
@@ -103,8 +104,10 @@ int motor_angle_to_encoder(motor_id_t motor_id, float angle);
 void motor_set_target_angle(motor_id_t motor_id, float angle);
 float motor_get_angle(motor_id_t motor_id);
 void motor_set_speed(motor_id_t motor_id, int speed);  // For speed in [motor_min_speed, motor_max_speed]. Sets speed to 0 if motor not enabled/configured.
-void motor_set_max_speed_percent(motor_id_t motor_id, float max_speed_percent);  // Modulates speed between 0% and 100% of full value.
+void motor_set_max_speed_percent(motor_id_t motor_id, int max_speed_percent);
+int motor_get_max_speed_percent(motor_id_t motor_id);
 bool motor_get_switch_triggered(motor_id_t motor_id);
+bool motor_get_switch_triggered_debounced(motor_id_t motor_id);
 void motor_test_enabled(void);
 void motor_dump(motor_id_t motor_id);
 void motor_log_errors(motor_id_t motor_id);
