@@ -6,15 +6,6 @@
 
 #include "config.h"
 
-/*
- * void waypoint_run_sm_enter(void);
- * void waypoint_init(void);
- * void waypoint_set(void);
- * void waypoint_reset(void);
- * void waypoint_goto_next(void);
- * void waypoint_get_arrived(void);
- */
-
 typedef enum {
     WAYPOINT_COMMAND_MOVE_AT              = 'A',
     WAYPOINT_COMMAND_MOVE_BESIDE          = 'B',
@@ -26,7 +17,6 @@ typedef enum {
     WAYPOINT_COMMAND_INTERROGATE_SWITCHES = 'I',
     WAYPOINT_COMMAND_WAIT_MILLIS          = 'W',
 } waypoint_command_t;
-
 
 typedef struct __attribute__((packed)) {
     uint32_t crc;
