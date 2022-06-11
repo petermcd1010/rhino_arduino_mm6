@@ -296,8 +296,13 @@ void motor_set_enabled(motor_id_t motor_id, bool enabled)
 {
     assert((motor_id >= MOTOR_ID_FIRST) && (motor_id <= MOTOR_ID_LAST));
 
+    if (enabled && motor_state[motor_id].enabled)
+        return;
+
     if (enabled) {
         motor_state[motor_id].target_encoder = noinit_data.encoder[motor_id];
+        motor_state[motor_id].pid_perror = 0;
+        motor_state[motor_id].pid_dvalue = 0;
         motor_state[motor_id].switch_triggered_debounced = motor_get_switch_triggered(motor_id);
         motor_set_speed(motor_id, motor_max_speed);
         set_brake(motor_id, false);
@@ -635,6 +640,7 @@ void motor_test_enabled(void)
     log_writeln(F("Done testing motors."));
 }
 
+#if 0
 static bool motor_interrogate_limit_switch_a(void)
 {
     if (!config.motor[MOTOR_ID_A].configured)
@@ -701,6 +707,7 @@ static bool motor_interrogate_limit_switch_a(void)
     }
     return true;
 }
+#endif
 
 static void motor_track_report(motor_id_t motor_id)
 {

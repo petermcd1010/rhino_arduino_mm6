@@ -105,8 +105,8 @@ static const char MM_0[] PROGMEM = "write configuration";
 static const char MH_0[] PROGMEM = "-- Write configuration data to EEPROM.";
 static const char MM_B[] PROGMEM = "reboot";
 static const char MH_B[] PROGMEM = "REBOOT -- Reboot system. Requires typing 'REBOOT'.";
-static const char MM_C[] PROGMEM = "calibrate motors";
-static const char MH_C[] PROGMEM = "[motorids [max-speed-percent]] -- Calibrate motor and home position; calibrates all motors if none given.";
+static const char MM_C[] PROGMEM = "calibration menu";
+static const char MH_C[] PROGMEM = "-- Print, run, and save home switch and motor calibration.";
 static const char MM_D[] PROGMEM = "PID mode";
 static const char MH_D[] PROGMEM = "-- Enable/disable motors.";
 static const char MM_E[] PROGMEM = "set enabled motors";
@@ -138,31 +138,32 @@ static const char MH_BANG[] PROGMEM = "-- Execute hardware emergency stop (E-Sto
 static const char MM_HELP[] PROGMEM = "print help";
 static const char MH_HELP[] PROGMEM = "-- Print this help message.";
 
-extern const menu_item_t waypoint_menu[];  // TODO: Find a better way to predeclare an array and make it static.
+extern const menu_item_t waypoint_menu[];
+extern const menu_item_t calibration_menu[];
 
 static const menu_item_t main_menu[] = {
-    { '1', MM_1,    NULL,                        NULL,          true,  command_print_config,           MH_1    },
-    { '2', MM_2,    extended_menu_robot_id,      NULL,          true,  command_config_robot_id,        MH_2    },
-    { '3', MM_3,    extended_menu_robot_serial,  NULL,          true,  command_config_robot_serial,    MH_3    },
-    { '4', MM_4,    extended_menu_robot_name,    NULL,          true,  command_config_robot_name,      MH_4    },
-    { '0', MM_0,    NULL,                        NULL,          true,  command_config_write,           MH_0    },
-    { 'B', MM_B,    extended_menu_reboot,        NULL,          true,  command_reboot,                 MH_B    },
-    { 'C', MM_C,    NULL,                        NULL,          true,  command_calibrate_motors,       MH_C    },
-    { 'D', MM_D,    NULL,                        NULL,          false, command_pid_mode,               MH_D    },
-    { 'E', MM_E,    NULL,                        NULL,          true,  command_set_enabled_motors,     MH_E    },
-    { 'G', MM_G,    NULL,                        NULL,          true,  command_set_gripper_position,   MH_G    },
-    { 'H', MM_H,    NULL,                        NULL,          false, command_set_home_position,      MH_H    },
-    { 'M', MM_M,    NULL,                        NULL,          true,  command_print_motor_status,     MH_M    },
-    { 'N', MM_N,    NULL,                        NULL,          true,  command_set_motor_angle,        MH_N    }, // TODO.
-    { 'O', MM_O,    NULL,                        NULL,          true,  command_poll_pins,              MH_O    },
-    { 'P', MM_P,    NULL,                        NULL,          true,  command_set_motor_encoder,      MH_P    },
-    { 'Q', MM_Q,    NULL,                        NULL,          false, command_run_test_sequence,      MH_Q    },
-    { 'T', MM_T,    NULL,                        NULL,          true,  command_test_motors,            MH_T    },
-    { 'V', MM_V,    NULL,                        NULL,          false, command_print_software_version, MH_V    },
-    { 'W', MM_W,    NULL,                        waypoint_menu, true,  NULL,                           MH_W    },
-    { '*', MM_STAR, extended_menu_factory_reset, NULL,          false, command_factory_reset,          MH_STAR },
-    { '!', MM_BANG, NULL,                        NULL,          false, command_emergency_stop,         MH_BANG },
-    { '?', MM_HELP, NULL,                        NULL,          false, command_print_help,             MH_HELP },
+    { '1', MM_1,    NULL,                        NULL,             true,  command_print_config,           MH_1    },
+    { '2', MM_2,    extended_menu_robot_id,      NULL,             true,  command_config_robot_id,        MH_2    },
+    { '3', MM_3,    extended_menu_robot_serial,  NULL,             true,  command_config_robot_serial,    MH_3    },
+    { '4', MM_4,    extended_menu_robot_name,    NULL,             true,  command_config_robot_name,      MH_4    },
+    { '0', MM_0,    NULL,                        NULL,             true,  command_config_write,           MH_0    },
+    { 'B', MM_B,    extended_menu_reboot,        NULL,             true,  command_reboot,                 MH_B    },
+    { 'C', MM_C,    NULL,                        calibration_menu, true,  NULL,                           MH_C    },
+    { 'D', MM_D,    NULL,                        NULL,             false, command_pid_mode,               MH_D    },
+    { 'E', MM_E,    NULL,                        NULL,             true,  command_set_enabled_motors,     MH_E    },
+    { 'G', MM_G,    NULL,                        NULL,             true,  command_set_gripper_position,   MH_G    },
+    { 'H', MM_H,    NULL,                        NULL,             false, command_set_home_position,      MH_H    },
+    { 'M', MM_M,    NULL,                        NULL,             true,  command_print_motor_status,     MH_M    },
+    { 'N', MM_N,    NULL,                        NULL,             true,  command_set_motor_angle,        MH_N    }, // TODO.
+    { 'O', MM_O,    NULL,                        NULL,             true,  command_poll_pins,              MH_O    },
+    { 'P', MM_P,    NULL,                        NULL,             true,  command_set_motor_encoder,      MH_P    },
+    { 'Q', MM_Q,    NULL,                        NULL,             false, command_run_test_sequence,      MH_Q    },
+    { 'T', MM_T,    NULL,                        NULL,             true,  command_test_motors,            MH_T    },
+    { 'V', MM_V,    NULL,                        NULL,             false, command_print_software_version, MH_V    },
+    { 'W', MM_W,    NULL,                        waypoint_menu,    true,  NULL,                           MH_W    },
+    { '*', MM_STAR, extended_menu_factory_reset, NULL,             false, command_factory_reset,          MH_STAR },
+    { '!', MM_BANG, NULL,                        NULL,             false, command_emergency_stop,         MH_BANG },
+    { '?', MM_HELP, NULL,                        NULL,             false, command_print_help,             MH_HELP },
     { 0 }  // Terminate menus with an entry filled with zeros.
 };
 
@@ -195,6 +196,31 @@ static const menu_item_t waypoint_menu[] = {
     { 'X', WM_X,    NULL,                          main_menu, true,  NULL,                           WH_X    },
     { '!', MM_BANG, NULL,                          NULL,      false, command_emergency_stop,         MH_BANG },
     { '?', MM_HELP, NULL,                          NULL,      false, command_print_help,             MH_HELP },
+    { 0 }  // Terminate menus with an entry filled with zeros.
+};
+
+static const char CM_1[] PROGMEM = "print calibration data";
+static const char CH_1[] PROGMEM = "-- Print calibration data.";
+static const char CM_0[] PROGMEM = "write calibration data";
+static const char CH_0[] PROGMEM = "-- Write calibration data.";
+static const char CM_C[] PROGMEM = "calibrate home switches and motor limits";
+static const char CH_C[] PROGMEM = "[motorids [max-speed-percent]] -- Calibrate home switches and motor limits; calibrates enabled motors if none given.";
+static const char CM_H[] PROGMEM = "calibrate home switches";
+static const char CH_H[] PROGMEM = "[motorids [max-speed-percent]] -- Calibrate home switches; calibrates enabled motors if none given.";
+static const char CH_X[] PROGMEM = "-- Exit calibration menu.";
+
+static const menu_item_t calibration_menu[] = {
+    { '1', CM_1,    NULL, NULL,      true,  command_calibrate_print,           CH_1    },
+    { '0', CM_0,    NULL, NULL,      true,  command_calibrate_write,           CH_0    },
+    { 'C', CM_C,    NULL, NULL,      true,  command_calibrate_home_and_limits, CH_C    },
+    { 'E', MM_E,    NULL, NULL,      true,  command_set_enabled_motors,        MH_E    },
+    { 'H', CM_H,    NULL, NULL,      true,  command_calibrate_home,            CH_H    },
+    { 'N', MM_N,    NULL, NULL,      true,  command_set_motor_angle,           MH_N    },   // TODO.
+    { 'P', MM_P,    NULL, NULL,      true,  command_set_motor_encoder,         MH_P    },
+    { 'T', MM_T,    NULL, NULL,      true,  command_test_motors,               MH_T    },
+    { 'X', WM_X,    NULL, main_menu, true,  NULL,                              CH_X    },
+    { '!', MM_BANG, NULL, NULL,      false, command_emergency_stop,            MH_BANG },
+    { '?', MM_HELP, NULL, NULL,      false, command_print_help,                MH_HELP },
     { 0 }  // Terminate menus with an entry filled with zeros.
 };
 

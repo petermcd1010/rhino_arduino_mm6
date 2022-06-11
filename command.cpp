@@ -202,7 +202,19 @@ int command_reboot(char *args, size_t args_nbytes)
     return 0;
 }
 
-int command_calibrate_motors(char *args, size_t args_nbytes)
+int command_calibrate_print(char *args, size_t args_nbytes)
+{
+    assert(args);
+    return -1;
+}
+
+int command_calibrate_write(char *args, size_t args_nbytes)
+{
+    assert(args);
+    return -1;
+}
+
+int command_calibrate_home_and_limits(char *args, size_t args_nbytes)
 {
     assert(args);
 
@@ -246,7 +258,56 @@ int command_calibrate_motors(char *args, size_t args_nbytes)
 
     log_writeln(F("Calibrating motors %d"), motor_ids_mask);
 
-    calibrate_run(motor_ids_mask, max_speed_percent);
+    calibrate_home_switch_and_limits(motor_ids_mask, max_speed_percent);
+
+    return p - args;
+}
+
+int command_calibrate_home(char *args, size_t args_nbytes)
+{
+    assert(args);
+
+    int motor_ids_mask = 0;
+    char *p = args;
+    size_t nbytes = parse_motor_ids(p, args_nbytes, &motor_ids_mask);  // parse_motor_ids will emit message if error.
+
+    args_nbytes -= nbytes;
+    p += nbytes;
+
+    if (motor_ids_mask == -1)
+        return nbytes;
+
+    int max_speed_percent = 75;
+
+    if (motor_ids_mask != 0) {
+        nbytes = parse_int(p, args_nbytes, &max_speed_percent);
+        args_nbytes -= nbytes;
+        p += nbytes;
+    }
+
+    nbytes = parse_whitespace(p, args_nbytes);
+    args += nbytes;
+    args_nbytes -= nbytes;
+
+    if (args_nbytes > 0)
+        return -1;
+
+    if (motor_ids_mask == 0)
+        motor_ids_mask = motor_get_enabled_mask();
+
+    if (motor_ids_mask == 0) {
+        log_writeln(F("No motors enabled and no motors specified. Skipping calibration."));
+        return args - p;
+    }
+
+    if ((max_speed_percent < 0) || (max_speed_percent > 100)) {
+        log_writeln(F("Max speed percent must be between 0 and 100. Skipping calibration."));
+        return args - p;
+    }
+
+    log_writeln(F("Calibrating motors %d"), motor_ids_mask);
+
+    calibrate_home_switch(motor_ids_mask, max_speed_percent);
 
     return p - args;
 }
