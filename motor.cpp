@@ -42,6 +42,7 @@ static const int motor_min_speed = -255;
 static const int motor_max_speed = 255;
 
 static const int motor_min_pwm = 55;
+static int enabled_motors_mask = 0;
 static int tracking = 0;
 static int tracked[] = { 0, 0, 0, 0, 0, 0 };  // Last value while tracking.
 static int Motor_PID[MOTOR_ID_COUNT] = { 0, 0, 0, 0, 0, 0 };  // PID on or off.
@@ -306,9 +307,11 @@ void motor_set_enabled(motor_id_t motor_id, bool enabled)
         motor_state[motor_id].switch_triggered_debounced = motor_get_switch_triggered(motor_id);
         motor_set_speed(motor_id, motor_max_speed);
         set_brake(motor_id, false);
+        enabled_motors_mask |= 1 << (int)motor_id;
     } else {
         motor_set_speed(motor_id, 0);
         set_brake(motor_id, true);
+        enabled_motors_mask &= ~(1 << (int)motor_id);
     }
 
     motor_state[motor_id].enabled = enabled;
@@ -323,14 +326,7 @@ bool motor_get_enabled(motor_id_t motor_id)
 
 int motor_get_enabled_mask(void)
 {
-    int mask = 0;
-
-    for (int i = MOTOR_ID_A; i <= MOTOR_ID_LAST; i++) {
-        if (motor_get_enabled((motor_id_t)i))
-            mask |= 1 << i;
-    }
-
-    return mask;
+    return enabled_motors_mask;
 }
 
 void motor_set_enabled_mask(int mask)
@@ -770,23 +766,21 @@ void motor_log_errors(motor_id_t motor_id)
         log_writeln(F("Motor %c encoder underflow."), 'A' + motor_id);
 }
 
-static void isr_blink_led(bool motor_enabled)
+static void isr_maybe_blink_led(void)
 {
     static int led_counter = 0;
 
-    led_counter++;
-
-    if (motor_enabled) {
-        if (!hardware_get_led_enabled())
-            led_counter += 4;          // if the PID is on, then blink faster.
-        led_counter++;   // Count the Interrupts
-    }
-
-    if (led_counter > 1000) {
-        bool led_state = !hardware_get_led_enabled();
-        hardware_set_led_enabled(led_state);
-        hardware_set_speaker_enabled(led_state);
-        led_counter = 0;
+    if (motor_get_enabled_mask() == 0) {
+        hardware_set_led_enabled(false);
+        hardware_set_speaker_enabled(false);
+    } else {
+        led_counter++;
+        if (led_counter > 500) {
+            bool led_state = !hardware_get_led_enabled();
+            hardware_set_led_enabled(led_state);
+            hardware_set_speaker_enabled(led_state);
+            led_counter = 0;
+        }
     }
 }
 
@@ -888,7 +882,7 @@ ISR(TIMER1_COMPA_vect) {
             motor_state[qe_motor_id].error_flags |= MOTOR_ERROR_FLAG_OVERCURRENT_DETECTED;
     }
 
-    isr_blink_led(motor_get_enabled(MOTOR_ID_A));
+    isr_maybe_blink_led();
 
     //==========================================================
     // Calculate Motor status values.

@@ -63,22 +63,22 @@ void hardware_reboot(void)
 
 bool hardware_get_led_enabled(void)
 {
-    return digitalRead(OPRLED) != 0;
+    return digitalRead(OPRLED) == 0;  // LED is active low.
 }
 
 void hardware_set_led_enabled(bool enabled)
 {
-    digitalWrite(OPRLED, enabled);
+    digitalWrite(OPRLED, !enabled);  // LED is active low.
 }
 
 bool hardware_get_speaker_enabled(void)
 {
-    return digitalRead(SPEAKER) != 0;
+    return digitalRead(SPEAKER) == 0;
 }
 
 void hardware_set_speaker_enabled(bool enabled)
 {
-    digitalWrite(SPEAKER, enabled);
+    digitalWrite(SPEAKER, !enabled);
 }
 
 int hardware_get_num_header_pins()
