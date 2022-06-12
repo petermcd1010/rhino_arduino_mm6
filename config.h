@@ -34,11 +34,12 @@ typedef struct __attribute__((packed)) {
     int angle_offset;
     motor_orientation_t orientation;
     motor_polarity_t polarity;  // Easy to wire motors backwards.
-    bool calibrated;
-    int encoder_min;
-    int encoder_max;
-    int switch_encoder_min;
-    int switch_encoder_max;
+    int min_encoder;  // Minimum encoder limit found during calibration.
+    int max_encoder;  // Maximum encoder limit found during calibration.
+    int home_forward_on_encoder;  // Home switch forward direction triggered value.
+    int home_forward_off_encoder;  // Home switch forward direction not triggered value.
+    int home_reverse_on_encoder;  // Home switch reverse direction triggered value.
+    int home_reverse_off_encoder;  // Home switch reverse direction not triggered value.
 } config_motor_t;
 
 typedef struct __attribute__((packed)) {
@@ -72,5 +73,7 @@ void config_set_motor_polarity(motor_id_t motor_id, motor_polarity_t motor_polar
 void config_set_gripper_open_encoder(int encoder);
 void config_set_gripper_close_encoder(int encoder);
 void config_set_angle_offsets(int B, int C, int D, int E, int F);
+void config_set_min_max_encoders(motor_id_t motor_id, int min_encoder, int max_encoder);
+void config_set_home_encoders(motor_id_t motor_id, int home_forward_on_encoder, int home_forward_off_encoder, int home_reverse_on_encoder, int home_reverse_off_encoder);
 void config_print(void);
 bool config_test(void);

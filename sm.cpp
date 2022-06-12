@@ -76,7 +76,7 @@ static void gather_status(status_t *pstatus)
     for (int i = 0; i < MOTOR_ID_COUNT; i++) {
         if (config.motor[i].configured) {
             pstatus->motor[i].angle = motor_get_angle(i);
-            pstatus->motor[i].switch_triggered = motor_get_switch_triggered(i);
+            pstatus->motor[i].switch_triggered = motor_get_home_triggered(i);
             pstatus->motor[i].thermal_overload_detected = motor_get_thermal_overload_detected(i);
             pstatus->motor[i].overcurrent_detected = motor_get_overcurrent_detected(i);
             motor_clear_thermal_overload(i);
@@ -242,11 +242,14 @@ void sm_init(void)
         log_writeln(F("Configured for '%s'."), config_robot_name_by_id[config.robot_id]);
     }
 
-    config_print();
     hardware_init();
-    motor_init_all();
-
     bool self_test_success = run_self_test();
+
+    if (self_test_success) {
+        config_print();
+        log_writeln();
+        motor_init_all();
+    }
 
     menu_help();
     log_writeln(F("Ready."));

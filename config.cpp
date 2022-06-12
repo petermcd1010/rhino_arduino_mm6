@@ -4,6 +4,7 @@
  */
 
 #include <EEPROM.h>
+#include <limits.h>
 
 #include "config.h"
 #include "crc32c.h"
@@ -164,6 +165,12 @@ void config_clear()
     for (int i = MOTOR_ID_FIRST; i <= MOTOR_ID_LAST; i++) {
         config.motor[i].orientation = MOTOR_ORIENTATION_NOT_INVERTED;
         config.motor[i].polarity = MOTOR_POLARITY_NOT_REVERSED;
+        config.motor[i].min_encoder = INT_MIN;
+        config.motor[i].max_encoder = INT_MAX;
+        config.motor[i].home_forward_on_encoder = INT_MAX;
+        config.motor[i].home_forward_off_encoder = INT_MAX;
+        config.motor[i].home_reverse_on_encoder = INT_MIN;
+        config.motor[i].home_reverse_off_encoder = INT_MIN;
     }
     config.gripper_open_encoder = -130;
     config.gripper_close_encoder = -310;
@@ -261,6 +268,24 @@ void config_set_angle_offsets(int B, int C, int D, int E, int F)
               config.motor[MOTOR_ID_B].angle_offset);
 }
 
+void config_set_min_max_encoders(motor_id_t motor_id, int min_encoder, int max_encoder)
+{
+    assert(motor_id >= MOTOR_ID_FIRST && motor_id <= MOTOR_ID_LAST);
+    config.motor[motor_id].min_encoder = min_encoder;
+    config.motor[motor_id].max_encoder = max_encoder;
+    config_sign();
+}
+
+void config_set_home_encoders(motor_id_t motor_id, int home_forward_on_encoder, int home_forward_off_encoder, int home_reverse_on_encoder, int home_reverse_off_encoder)
+{
+    assert(motor_id >= MOTOR_ID_FIRST && motor_id <= MOTOR_ID_LAST);
+    config.motor[motor_id].home_forward_on_encoder = home_forward_on_encoder;
+    config.motor[motor_id].home_forward_off_encoder = home_forward_off_encoder;
+    config.motor[motor_id].home_reverse_on_encoder = home_reverse_on_encoder;
+    config.motor[motor_id].home_reverse_off_encoder = home_reverse_off_encoder;
+    config_sign();
+}
+
 void config_print()
 {
     if (!config_check())
@@ -274,29 +299,27 @@ void config_print()
     char str[15] = {};
 
     for (int i = 0; i < MOTOR_ID_COUNT; i++) {
+        config_motor_t *motor = &config.motor[i];
+
         log_write(F("  Motor %c: "), 'A' + i);
-        if (!config.motor[i].configured) {
+        if (!motor->configured) {
             log_writeln(F("Not configured"));
         } else {
-            dtostrf(config.motor[i].angle_offset, 3, 2, str);
+            dtostrf(motor->angle_offset, 3, 2, str);
             log_writeln(F("angle_offset:%s motor_orientation:%s, direction_logic:%s"),
                         str,
-                        config.motor[i].orientation == MOTOR_ORIENTATION_NOT_INVERTED ? "not inverted" : "inverted",
-                        config.motor[i].polarity == MOTOR_POLARITY_NOT_REVERSED ? "not reversed" : "reversed");
+                        motor->orientation == MOTOR_ORIENTATION_NOT_INVERTED ? "not inverted" : "inverted",
+                        motor->polarity == MOTOR_POLARITY_NOT_REVERSED ? "not reversed" : "reversed");
         }
+        log_writeln(F("  Min encoder: %d, max encoder: %d"), motor->min_encoder, motor->max_encoder);
+        log_writeln(F("  Home switch forward on encoder: %d, forward off encoder: %d"), motor->home_forward_on_encoder, motor->home_forward_off_encoder);
+        log_writeln(F("  Home switch reverse on encoder: %d, reverse off encoder: %d"), motor->home_reverse_on_encoder, motor->home_reverse_off_encoder);
     }
 
     log_writeln(F("  Gripper open encoder: %d"), config.gripper_open_encoder);
     log_writeln(F("  Gripper close encoder: %d"), config.gripper_close_encoder);
 
-    log_writeln();
-    log_writeln(F("Reading %d waypoints."), waypoint_get_max_count());
-
-    for (int i = 0; i < waypoint_get_max_count(); i++) {
-        waypoint_t waypoint = waypoint_get(i);
-        if (waypoint.command != -1)
-            waypoint_print(i);
-    }
+    log_writeln(F("  Validated %d stored waypoints."), waypoint_get_used_count());
 }
 
 bool config_test()

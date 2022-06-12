@@ -37,6 +37,19 @@ int waypoint_get_max_count(void)
     return max_num_waypoints;
 }
 
+int waypoint_get_used_count(void)
+{
+    int max = waypoint_get_max_count();
+    int count = 0;
+
+    for (int i = 0; i < max; i++) {
+        if (waypoint_get(i).command != -1)
+            count++;
+    }
+
+    return count;
+}
+
 static int get_eeprom_address(int index)
 {
     assert(index >= 0);
@@ -143,8 +156,8 @@ void waypoint_print(int index)
                     index,
                     waypoint.io_goto.pin);
         break;
-    case WAYPOINT_COMMAND_INTERROGATE_SWITCHES:
-        log_writeln(F("%d: Interrogate switches."), index);
+    case WAYPOINT_COMMAND_INTERROGATE_HOME_SWITCHES:
+        log_writeln(F("%d: Interrogate home switches."), index);
         // TODO.
         break;
     case WAYPOINT_COMMAND_WAIT_MILLIS:
@@ -156,6 +169,15 @@ void waypoint_print(int index)
         log_writeln(F("waypoint.command == %d"), waypoint.command);
         assert(false);
         break;
+    }
+}
+
+void waypoint_print_all_used(void)
+{
+    for (int i = 0; i < waypoint_get_max_count(); i++) {
+        waypoint_t waypoint = waypoint_get(i);
+        if (waypoint.command != -1)
+            waypoint_print(i);
     }
 }
 
@@ -295,7 +317,7 @@ static void run(void)
             current_index = waypoint.io_goto.step;
         }
         break;
-    case WAYPOINT_COMMAND_INTERROGATE_SWITCHES:
+    case WAYPOINT_COMMAND_INTERROGATE_HOME_SWITCHES:
         // TODO.
         current_index++;
         break;

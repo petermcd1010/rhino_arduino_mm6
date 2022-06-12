@@ -61,7 +61,7 @@ static void extended_menu_append_waypoint(void)
     log_writeln(F("J pin step <ENTER> -- Append waypoint so if IO pin triggered, goto step."));
     log_writeln(F("K pin <ENTER> -- Append waypoint to wait for IO pin triggered."));
     log_writeln(F("W milliseconds <ENTER> -- Append waypoint to wait milliseconds."));
-    log_writeln(F("I <ENTER> -- Append waypoint to interrogate switches."));
+    log_writeln(F("I <ENTER> -- Append waypoint to interrogate home switches."));
     log_write(F(">"));
 }
 
@@ -73,7 +73,7 @@ static void extended_menu_insert_waypoint(void)
     log_writeln(F("step J pin step <ENTER> -- Insert waypoint before step so if IO pin triggered, goto step."));
     log_writeln(F("step K pin <ENTER> -- Insert waypoint before step to wait for IO pin triggered."));
     log_writeln(F("step W milliseconds <ENTER> -- Insert waypoint before step to wait milliseconds."));
-    log_writeln(F("step I <ENTER> -- Insert waypoint before step to interrogate switches."));
+    log_writeln(F("step I <ENTER> -- Insert waypoint before step to interrogate home switches."));
     log_write(F(">"));
 }
 
@@ -88,7 +88,7 @@ static void extended_menu_set_waypoint(void)
     log_writeln(F("step J pin step <ENTER> -- Set waypoint step so if IO pin triggered, goto step."));
     log_writeln(F("step K pin <ENTER> -- Set waypoint step to wait for IO pin triggered."));
     log_writeln(F("step W milliseconds <ENTER> -- Set waypoint step to wait milliseconds."));
-    log_writeln(F("step I <ENTER> -- Set waypoint step to interrogate switches."));
+    log_writeln(F("step I <ENTER> -- Set waypoint step to interrogate home switches."));
     log_write(F(">"));
 }
 
@@ -199,10 +199,6 @@ static const menu_item_t waypoint_menu[] = {
     { 0 }  // Terminate menus with an entry filled with zeros.
 };
 
-static const char CM_1[] PROGMEM = "print calibration data";
-static const char CH_1[] PROGMEM = "-- Print calibration data.";
-static const char CM_0[] PROGMEM = "write calibration data";
-static const char CH_0[] PROGMEM = "-- Write calibration data.";
 static const char CM_C[] PROGMEM = "calibrate home switches and motor limits";
 static const char CH_C[] PROGMEM = "[motorids [max-speed-percent]] -- Calibrate home switches and motor limits; calibrates enabled motors if none given.";
 static const char CM_H[] PROGMEM = "calibrate home switches";
@@ -210,11 +206,12 @@ static const char CH_H[] PROGMEM = "[motorids [max-speed-percent]] -- Calibrate 
 static const char CH_X[] PROGMEM = "-- Exit calibration menu.";
 
 static const menu_item_t calibration_menu[] = {
-    { '1', CM_1,    NULL, NULL,      true,  command_calibrate_print,           CH_1    },
-    { '0', CM_0,    NULL, NULL,      true,  command_calibrate_write,           CH_0    },
+    { '1', MM_1,    NULL, NULL,      true,  command_print_config,              MH_1    },
+    { '0', MM_0,    NULL, NULL,      true,  command_config_write,              MH_0    },
     { 'C', CM_C,    NULL, NULL,      true,  command_calibrate_home_and_limits, CH_C    },
     { 'E', MM_E,    NULL, NULL,      true,  command_set_enabled_motors,        MH_E    },
     { 'H', CM_H,    NULL, NULL,      true,  command_calibrate_home,            CH_H    },
+    { 'M', MM_M,    NULL, NULL,      true,  command_print_motor_status,        MH_M    },
     { 'N', MM_N,    NULL, NULL,      true,  command_set_motor_angle,           MH_N    },   // TODO.
     { 'P', MM_P,    NULL, NULL,      true,  command_set_motor_encoder,         MH_P    },
     { 'T', MM_T,    NULL, NULL,      true,  command_test_motors,               MH_T    },

@@ -486,10 +486,10 @@ size_t parse_waypoint(char *args, size_t args_nbytes, waypoint_t *out_waypoint)
         out_waypoint->command = WAYPOINT_COMMAND_WAIT_MILLIS;
         out_waypoint->wait_millis = millis;
         break;
-    case 8:  // I: Set waypoint step to interrogate switches.
+    case 8:  // I: Set waypoint step to interrogate home switches.
         if (args_nbytes != 0)
             goto error;
-        out_waypoint->command = WAYPOINT_COMMAND_INTERROGATE_SWITCHES;
+        out_waypoint->command = WAYPOINT_COMMAND_INTERROGATE_HOME_SWITCHES;
         break;
     default:
         assert(false);

@@ -202,12 +202,6 @@ int command_reboot(char *args, size_t args_nbytes)
     return 0;
 }
 
-int command_calibrate_print(char *args, size_t args_nbytes)
-{
-    assert(args);
-    return -1;
-}
-
 int command_calibrate_write(char *args, size_t args_nbytes)
 {
     assert(args);
@@ -400,7 +394,7 @@ int command_print_motor_status(char *args, size_t args_nbytes)
         log_writeln(F("%c%s: home:%d sta:%d enc:%d tar:%d err:%d spd:%d PWM:%d cur:%d hs:%d,%d,%d,%d->%d angle:%s"),
                     'A' + i,
                     ((motor_get_enabled_mask() & (1 << i)) == 0) ? " [not enabled]" : "",
-                    motor_state[i].switch_triggered_debounced,  // home switch.
+                    motor_state[i].home_triggered_debounced,  // home switch.
                     motor_state[i].progress,  // sta. Report whether or not the Motor has reached the target location.
                     /* motor_get_encoder(iMotor), */  // pos.
                     motor_get_encoder(i) * motor_state[i].logic,  // enc.
@@ -410,11 +404,11 @@ int command_print_motor_status(char *args, size_t args_nbytes)
                     /* motor_state[i].target_speed, */  // tspd.
                     motor_state[i].pwm,
                     motor_state[i].current_draw,  // cur.
-                    motor_state[i].switch_reverse_off,  // hs.
-                    motor_state[i].switch_forward_on,  // hs.
-                    motor_state[i].switch_reverse_on,  // hs.
-                    motor_state[i].switch_forward_off,  // hs.
-                    (motor_state[i].switch_forward_off + motor_state[i].switch_reverse_on + motor_state[i].switch_forward_on + motor_state[i].switch_reverse_off) / 4,  // hs.
+                    motor_state[i].home_reverse_off_encoder,  // hs.
+                    motor_state[i].home_forward_on_encoder,  // hs.
+                    motor_state[i].home_reverse_on_encoder,  // hs.
+                    motor_state[i].home_forward_off_encoder,  // hs.
+                    (motor_state[i].home_forward_off_encoder + motor_state[i].home_reverse_on_encoder + motor_state[i].home_forward_on_encoder + motor_state[i].home_reverse_off_encoder) / 4,  // hs.
                     angle_str);
     }
 
@@ -787,11 +781,7 @@ int command_waypoint_print(char *args, size_t args_nbytes)
     if (args_nbytes != nbytes)
         return -1;
 
-    for (int i = 0; i < waypoint_get_max_count(); i++) {
-        waypoint_t waypoint = waypoint_get(i);
-        if (waypoint.command != -1)
-            waypoint_print(i);
-    }
+    waypoint_print_all_used();
 
     return p - args;
 }

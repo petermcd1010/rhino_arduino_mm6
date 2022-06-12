@@ -9,10 +9,10 @@
 typedef struct {
     int min_encoder;
     int max_encoder;
-    int switch_forward_on;  // Home switch forward direction high value.
-    int switch_forward_off;  // Home switch forward direction low value.
-    int switch_reverse_on;  // Home switch reverse direction high value.
-    int switch_reverse_off;  // Home switch reverse direction low value.
+    int home_forward_on_encoder;  // Home switch forward direction high value.
+    int home_forward_off_encoder;  // Home switch forward direction low value.
+    int home_reverse_on_encoder;  // Home switch reverse direction high value.
+    int home_reverse_off_encoder;  // Home switch reverse direction low value.
 } calibrate_data_t;
 
 void calibrate_home_switch_and_limits(int motor_ids_mask, int max_speed_percent);

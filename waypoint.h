@@ -7,15 +7,15 @@
 #include "config.h"
 
 typedef enum {
-    WAYPOINT_COMMAND_MOVE_AT              = 'A',
-    WAYPOINT_COMMAND_MOVE_BESIDE          = 'B',
-    WAYPOINT_COMMAND_MOVE_CLOSE           = 'C',
-    WAYPOINT_COMMAND_MOVE_APPROACHING     = 'D',
-    WAYPOINT_COMMAND_GOTO_STEP            = 'G',
-    WAYPOINT_COMMAND_IF_IO_PIN_GOTO_STEP  = 'J',
-    WAYPOINT_COMMAND_WAIT_IO_PIN          = 'K',
-    WAYPOINT_COMMAND_INTERROGATE_SWITCHES = 'I',
-    WAYPOINT_COMMAND_WAIT_MILLIS          = 'W',
+    WAYPOINT_COMMAND_MOVE_AT                   = 'A',
+    WAYPOINT_COMMAND_MOVE_BESIDE               = 'B',
+    WAYPOINT_COMMAND_MOVE_CLOSE                = 'C',
+    WAYPOINT_COMMAND_MOVE_APPROACHING          = 'D',
+    WAYPOINT_COMMAND_GOTO_STEP                 = 'G',
+    WAYPOINT_COMMAND_IF_IO_PIN_GOTO_STEP       = 'J',
+    WAYPOINT_COMMAND_WAIT_IO_PIN               = 'K',
+    WAYPOINT_COMMAND_INTERROGATE_HOME_SWITCHES = 'I',
+    WAYPOINT_COMMAND_WAIT_MILLIS               = 'W',
 } waypoint_command_t;
 
 typedef struct __attribute__((packed)) {
@@ -32,8 +32,10 @@ typedef struct __attribute__((packed)) {
 } waypoint_t;
 
 int waypoint_get_max_count(void);  // Returns max number of waypoints that can be stored.
+int waypoint_get_used_count(void);
 waypoint_t waypoint_get(int index);
 void waypoint_set(int index, waypoint_t waypoint);
 void waypoint_delete(int index);
 void waypoint_print(int index);
+void waypoint_print_all_used(void);
 void waypoint_run(int start_index, int count);  // If count == -1, then run until done.

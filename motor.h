@@ -28,13 +28,13 @@ typedef enum {
 } motor_progress_t;
 
 typedef enum {
-    MOTOR_ERROR_FLAG_THERMAL_OVERLOAD_DETECTED  = 1 << 0,
-    MOTOR_ERROR_FLAG_OVERCURRENT_DETECTED       = 1 << 1,
-    MOTOR_ERROR_FLAG_INVALID_ENCODER_TRANSITION = 1 << 2,  // only 0->1->3->2 and 0->2->3->1 are valid.
-    MOTOR_ERROR_FLAG_OPPOSITE_DIRECTION         = 1 << 3,
-    MOTOR_ERROR_FLAG_UNEXPECTED_SWITCH_ENCODER  = 1 << 4,
-    MOTOR_ERROR_FLAG_ENCODER_OVERFLOW           = 1 << 5,
-    MOTOR_ERROR_FLAG_ENCODER_UNDERFLOW          = 1 << 6,
+    MOTOR_ERROR_FLAG_THERMAL_OVERLOAD_DETECTED      = 1 << 0,
+    MOTOR_ERROR_FLAG_OVERCURRENT_DETECTED           = 1 << 1,
+    MOTOR_ERROR_FLAG_INVALID_ENCODER_TRANSITION     = 1 << 2, // only 0->1->3->2 and 0->2->3->1 are valid.
+    MOTOR_ERROR_FLAG_OPPOSITE_DIRECTION             = 1 << 3,
+    MOTOR_ERROR_FLAG_UNEXPECTED_HOME_SWITCH_ENCODER = 1 << 4,
+    MOTOR_ERROR_FLAG_ENCODER_OVERFLOW               = 1 << 5,
+    MOTOR_ERROR_FLAG_ENCODER_UNDERFLOW              = 1 << 6,
 } motor_error_flag_t;
 
 // Mechanical orientation based on motor installation side.
@@ -62,14 +62,14 @@ typedef struct {
     int                target_encoder;
     int                current_draw; // TODO: units? counts?
     motor_progress_t   progress;
-    bool               prev_switch_triggered;  // Switch value last time transition detected.
-    unsigned long      prev_switch_triggered_millis;  // Time last transition detected.
-    int                prev_switch_triggered_encoder;  // Encoder value last time transition detected.
-    bool               switch_triggered_debounced; // Debounced switch value.
-    int                switch_forward_on; // Home switch forward direction high value.
-    int                switch_forward_off; // Home switch forward direction low value.
-    int                switch_reverse_on; // Home switch reverse direction high value.
-    int                switch_reverse_off; // Home switch reverse direction low value.
+    bool               prev_home_triggered;  // Switch value last time transition detected.
+    unsigned long      prev_home_triggered_millis;  // Time last transition detected.
+    int                prev_home_triggered_encoder;  // Encoder value last time transition detected.
+    bool               home_triggered_debounced; // Debounced switch value.
+    int                home_forward_on_encoder; // Home switch forward direction high value.
+    int                home_forward_off_encoder; // Home switch forward direction low value.
+    int                home_reverse_on_encoder; // Home switch reverse direction high value.
+    int                home_reverse_off_encoder; // Home switch reverse direction low value.
 
     motor_error_flag_t error_flags;  // Once set, error flags must be cleared by user code.
 } motor_state_t;
@@ -106,8 +106,8 @@ float motor_get_angle(motor_id_t motor_id);
 void motor_set_speed(motor_id_t motor_id, int speed);  // For speed in [motor_min_speed, motor_max_speed]. Sets speed to 0 if motor not enabled/configured.
 void motor_set_max_speed_percent(motor_id_t motor_id, int max_speed_percent);
 int motor_get_max_speed_percent(motor_id_t motor_id);
-bool motor_get_switch_triggered(motor_id_t motor_id);
-bool motor_get_switch_triggered_debounced(motor_id_t motor_id);
+bool motor_get_home_triggered(motor_id_t motor_id);
+bool motor_get_home_triggered_debounced(motor_id_t motor_id);
 void motor_test_enabled(void);
 void motor_dump(motor_id_t motor_id);
 void motor_log_errors(motor_id_t motor_id);

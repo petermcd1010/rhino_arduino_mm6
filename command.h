@@ -13,7 +13,6 @@ int command_config_robot_serial(char *args, size_t args_nbytes);
 int command_config_robot_name(char *args, size_t args_nbytes);
 int command_config_write(char *args, size_t args_nbytes);
 int command_reboot(char *args, size_t args_nbytes);
-int command_calibrate_print(char *args, size_t args_nbytes);
 int command_calibrate_write(char *args, size_t args_nbytes);
 int command_calibrate_home_and_limits(char *args, size_t args_nbytes);
 int command_calibrate_home(char *args, size_t args_nbytes);

@@ -21,7 +21,9 @@ static const int header_pins[] = { A15, A14, A13, A12, 53, 49, 48, 41 };
 void hardware_init(void)
 {
     pinMode(OPRLED, OUTPUT);
+    hardware_set_led_enabled(false);
     pinMode(SPEAKER, OUTPUT);  // Speaker wired to mm6 expansion header '01'
+    hardware_set_speaker_enabled(false);
     pinMode(BUTTON, INPUT);  // External button wired to mm6 expansion header '02'
 }
 

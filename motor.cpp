@@ -17,7 +17,7 @@ typedef struct {
     unsigned short out_brake;          // Digital. LOW = disable brake. HIGH = enable brake.
     unsigned short in_current_draw;    // Analog. 377uA/A. What's the resistance?
     unsigned short in_thermal_overload;    // Digital. Becomes active at 145C. Chip shuts off at 170C.
-    unsigned short in_switch;          // Digital. LOW = switch triggered. HIGH = switch not triggered.
+    unsigned short in_home_switch;     // Digital. LOW = home switch triggered. HIGH = home switch not triggered.
     unsigned short in_quadrature_encoder_a;  // Digital.
     unsigned short in_quadrature_encoder_b;  // Digital.
 } motor_pinout_t;
@@ -106,7 +106,7 @@ static void track_report(motor_id_t motor_id)
                 Serial.print(motor_get_angle(motor_id));
             }
             Serial.print(":HS");
-            Serial.print(motor_state[motor_id].switch_triggered_debounced);
+            Serial.print(motor_state[motor_id].home_triggered_debounced);
             Serial.println(":");
             tracked[motor_id] = Position;
         }
@@ -124,17 +124,17 @@ static void motor_init(motor_id_t motor_id)
     digitalWrite(motor_pinout[motor_id].out_direction, motor_direction_forward);
 
     // Configure inputs.
-    pinMode(motor_pinout[motor_id].in_switch, INPUT_PULLUP);
+    pinMode(motor_pinout[motor_id].in_home_switch, INPUT_PULLUP);
     pinMode(motor_pinout[motor_id].in_thermal_overload, INPUT_PULLUP);
     pinMode(motor_pinout[motor_id].in_quadrature_encoder_a, INPUT_PULLUP);
     pinMode(motor_pinout[motor_id].in_quadrature_encoder_b, INPUT_PULLUP);
 
     for (int motor_id = 0; motor_id < MOTOR_ID_COUNT; motor_id++) {
         motor_set_max_speed_percent((motor_id_t)motor_id, 100);
-        motor_state[motor_id].prev_switch_triggered = motor_get_switch_triggered(motor_id);
-        motor_state[motor_id].prev_switch_triggered_millis = millis();
-        motor_state[motor_id].prev_switch_triggered_encoder = INT_MAX;
-        motor_state[motor_id].switch_triggered_debounced = motor_state[motor_id].prev_switch_triggered;
+        motor_state[motor_id].prev_home_triggered = motor_get_home_triggered(motor_id);
+        motor_state[motor_id].prev_home_triggered_millis = millis();
+        motor_state[motor_id].prev_home_triggered_encoder = INT_MAX;
+        motor_state[motor_id].home_triggered_debounced = motor_state[motor_id].prev_home_triggered;
     }
     motor_set_enabled(motor_id, false);
 }
@@ -304,7 +304,7 @@ void motor_set_enabled(motor_id_t motor_id, bool enabled)
         motor_state[motor_id].target_encoder = noinit_data.encoder[motor_id];
         motor_state[motor_id].pid_perror = 0;
         motor_state[motor_id].pid_dvalue = 0;
-        motor_state[motor_id].switch_triggered_debounced = motor_get_switch_triggered(motor_id);
+        motor_state[motor_id].home_triggered_debounced = motor_get_home_triggered(motor_id);
         motor_set_speed(motor_id, motor_max_speed);
         set_brake(motor_id, false);
         enabled_motors_mask |= 1 << (int)motor_id;
@@ -508,16 +508,16 @@ int motor_get_max_speed_percent(motor_id_t motor_id)
     return motor_state[motor_id].max_speed * 100 / motor_max_speed;
 }
 
-bool motor_get_switch_triggered(motor_id_t motor_id)
+bool motor_get_home_triggered(motor_id_t motor_id)
 {
     assert((motor_id >= MOTOR_ID_FIRST) && (motor_id <= MOTOR_ID_LAST));
-    return !digitalRead(motor_pinout[motor_id].in_switch);  // The switches are active LOW, so invert.
+    return !digitalRead(motor_pinout[motor_id].in_home_switch);  // The switches are active LOW, so invert.
 }
 
-bool motor_get_switch_triggered_debounced(motor_id_t motor_id)
+bool motor_get_home_triggered_debounced(motor_id_t motor_id)
 {
     assert((motor_id >= MOTOR_ID_FIRST) && (motor_id <= MOTOR_ID_LAST));
-    return motor_state[motor_id].switch_triggered_debounced;
+    return motor_state[motor_id].home_triggered_debounced;
 }
 
 static void print_motor_delta(int delta)
@@ -646,13 +646,13 @@ static bool motor_interrogate_limit_switch_a(void)
     delay(2000);
     int CurF = analogRead(motor_pinout[MOTOR_ID_A].in_current_draw);
     int EncF = noinit_data.encoder[MOTOR_ID_A];
-    int SwcF = digitalRead(motor_pinout[MOTOR_ID_A].in_switch);
+    int SwcF = digitalRead(motor_pinout[MOTOR_ID_A].in_home_switch);
 
     motor_set_target_encoder(MOTOR_ID_A, -9999);
     delay(1500);
     int CurR = analogRead(motor_pinout[MOTOR_ID_A].in_current_draw);
     int EncR = noinit_data.encoder[MOTOR_ID_A];
-    int SwcR = digitalRead(motor_pinout[MOTOR_ID_A].in_switch);
+    int SwcR = digitalRead(motor_pinout[MOTOR_ID_A].in_home_switch);
 
     motor_set_target_encoder(MOTOR_ID_A, 9999);
     delay(1500);
@@ -670,11 +670,11 @@ static bool motor_interrogate_limit_switch_a(void)
     //Serial.println(EncR);
     //Serial.print("  Rev Swt=");
     //Serial.println(SwcR);
-    //Serial.print("  motor_state[MOTOR_ID_A].switch_forward_on=");
-    //Serial.println(motor_state[MOTOR_ID_A].switch_forward_on);
+    //Serial.print("  motor_state[MOTOR_ID_A].home_forward_on_encoder=");
+    //Serial.println(motor_state[MOTOR_ID_A].home_forward_on_encoder);
     if (SwcF == 0) {
         // Encoder goes Positive towards switch.
-        int OverSwitch = ((motor_state[MOTOR_ID_A].switch_forward_on + EncF) / 2);
+        int OverSwitch = ((motor_state[MOTOR_ID_A].home_forward_on_encoder + EncF) / 2);
         motor_set_target_encoder(MOTOR_ID_A, OverSwitch);
         do {
             track_report(MOTOR_ID_A);
@@ -688,7 +688,7 @@ static bool motor_interrogate_limit_switch_a(void)
         Serial.println("Done");
     } else {
         // Encoder goes Negative towards switch.
-        int OverSwitch = ((motor_state[MOTOR_ID_A].switch_reverse_on + EncR) / 2);
+        int OverSwitch = ((motor_state[MOTOR_ID_A].home_reverse_on_encoder + EncR) / 2);
         motor_set_target_encoder(MOTOR_ID_A, OverSwitch);
         do {
             track_report(MOTOR_ID_A);
@@ -715,7 +715,7 @@ static void motor_track_report(motor_id_t motor_id)
                 log_write(F("%c:%d"), 'A' + motor_id, motor_get_encoder(motor_id));
             else if (tracking == 2)
                 log_write(F("%c:%d"), 'A' + motor_id, motor_get_angle(motor_id));
-            log_write(F(":HS%d:"), motor_state[motor_id].switch_triggered_debounced);
+            log_write(F(":HS%d:"), motor_state[motor_id].home_triggered_debounced);
             tracked[motor_id] = position;
         }
     }
@@ -758,8 +758,8 @@ void motor_log_errors(motor_id_t motor_id)
         log_writeln(F("Motor %c invalid quadrature encoder transition."), 'A' + motor_id);
     if (ef & MOTOR_ERROR_FLAG_OPPOSITE_DIRECTION)
         log_writeln(F("Motor %c direction opposite of expectation."), 'A' + motor_id);
-    if (ef & MOTOR_ERROR_FLAG_UNEXPECTED_SWITCH_ENCODER)
-        log_writeln(F("Motor %c unexpected switch encoder."), 'A' + motor_id);
+    if (ef & MOTOR_ERROR_FLAG_UNEXPECTED_HOME_SWITCH_ENCODER)
+        log_writeln(F("Motor %c unexpected home switch encoder."), 'A' + motor_id);
     if (ef & MOTOR_ERROR_FLAG_ENCODER_OVERFLOW)
         log_writeln(F("Motor %c encoder overflow."), 'A' + motor_id);
     if (ef & MOTOR_ERROR_FLAG_ENCODER_UNDERFLOW)
@@ -784,27 +784,27 @@ static void isr_maybe_blink_led(void)
     }
 }
 
-static void check_switch(motor_id_t motor_id)
+static void check_home_switch(motor_id_t motor_id)
 {
     assert((motor_id >= MOTOR_ID_FIRST) && (motor_id <= MOTOR_ID_LAST));
 
     motor_state_t *motor = &motor_state[motor_id];
 
-    bool switch_triggered_debounced = motor_state[motor_id].switch_triggered_debounced;
-    bool switch_triggered = motor_get_switch_triggered(motor_id);
+    bool home_triggered_debounced = motor_get_home_triggered_debounced(motor_id);
+    bool home_triggered = motor_get_home_triggered(motor_id);
 
     unsigned const debounce_delay_millis = 50;
 
-    if (switch_triggered != motor->prev_switch_triggered) {
-        motor->prev_switch_triggered = switch_triggered;
-        motor->prev_switch_triggered_millis = millis();
-        motor->prev_switch_triggered_encoder = noinit_data.encoder[motor_id];
+    if (home_triggered != motor->prev_home_triggered) {
+        motor->prev_home_triggered = home_triggered;
+        motor->prev_home_triggered_millis = millis();
+        motor->prev_home_triggered_encoder = noinit_data.encoder[motor_id];
     }
 
     // TODO: Tighten debounce timing. Example:
     // https://stackoverflow.com/questions/48434575/switch-debouncing-logic-in-c
-    if ((millis() - motor->prev_switch_triggered_millis) > debounce_delay_millis)
-        switch_triggered_debounced = switch_triggered;
+    if ((millis() - motor->prev_home_triggered_millis) > debounce_delay_millis)
+        home_triggered_debounced = home_triggered;
 
     // See if the home switch has changed from on to off or off to on.
     // There are 4 different motor positions stored for the home switches.
@@ -812,20 +812,20 @@ static void check_switch(motor_id_t motor_id)
     //  - The On and Off locations when the motor is moving reverse.
     // The average value of these 4 positions is used as the center of "home".
 
-    if (switch_triggered_debounced != motor->switch_triggered_debounced) {
-        int encoder = motor->prev_switch_triggered_encoder;
+    if (home_triggered_debounced != motor->home_triggered_debounced) {
+        int encoder = motor->prev_home_triggered_encoder;
         if (motor->previous_direction == 1) {
-            if (switch_triggered_debounced)
-                motor->switch_forward_on = encoder;
+            if (home_triggered_debounced)
+                motor->home_forward_on_encoder = encoder;
             else
-                motor->switch_forward_off = encoder;
+                motor->home_forward_off_encoder = encoder;
         } else if (motor->previous_direction == -1) {
-            if (switch_triggered_debounced)
-                motor->switch_reverse_on = encoder;
+            if (home_triggered_debounced)
+                motor->home_reverse_on_encoder = encoder;
             else
-                motor->switch_reverse_off = encoder;
+                motor->home_reverse_off_encoder = encoder;
         }
-        motor->switch_triggered_debounced = switch_triggered_debounced;
+        motor->home_triggered_debounced = home_triggered_debounced;
     }
 }
 
@@ -873,7 +873,7 @@ ISR(TIMER1_COMPA_vect) {
         }
         noinit_data.previous_quadrature_encoder[qe_motor_id] = qe_state;
 
-        check_switch(qe_motor_id);
+        check_home_switch(qe_motor_id);
 
         if (get_thermal_overload_active(qe_motor_id))
             motor_state[qe_motor_id].error_flags |= MOTOR_ERROR_FLAG_THERMAL_OVERLOAD_DETECTED;
