@@ -9,7 +9,7 @@
 #include "menu.h"
 
 static const int menu_item_max_count = 40;
-static const int menu_item_max_name_nbytes = 25;
+static const int menu_item_max_name_nbytes = 40;
 
 static void extended_menu_robot_id(void)
 {
@@ -199,7 +199,7 @@ static const menu_item_t waypoint_menu[] = {
     { 0 }  // Terminate menus with an entry filled with zeros.
 };
 
-static const char CM_C[] PROGMEM = "calibrate home switches and motor limits";
+static const char CM_C[] PROGMEM = "calibrate home switches and limits";
 static const char CH_C[] PROGMEM = "[motorids [max-speed-percent]] -- Calibrate home switches and motor limits; calibrates enabled motors if none given.";
 static const char CM_H[] PROGMEM = "calibrate home switches";
 static const char CH_H[] PROGMEM = "[motorids [max-speed-percent]] -- Calibrate home switches; calibrates enabled motors if none given.";
