@@ -299,8 +299,6 @@ int command_calibrate_home(char *args, size_t args_nbytes)
         return args - p;
     }
 
-    log_writeln(F("Calibrating motors %d"), motor_ids_mask);
-
     calibrate_home_switch(motor_ids_mask, max_speed_percent);
 
     return p - args;
