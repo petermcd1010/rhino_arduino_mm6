@@ -29,7 +29,7 @@ void hardware_init(void)
 
 void hardware_erase_eeprom(void)
 {
-    log_write(F("Erasing Arduino EEPROM... "));
+    log_write(F("Erasing configuration data in Arduino EEPROM... "));
     for (int i = 0; i < EEPROM.length(); i++) {
         EEPROM.write(i, 0);
     }

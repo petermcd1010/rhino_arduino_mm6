@@ -742,6 +742,14 @@ void motor_dump(motor_id_t motor_id)
                 motor_state[motor_id].progress);
 }
 
+void motor_set_user_error(bool enable)
+{
+    if (enable)
+        motor_state[0].error_flags |= MOTOR_ERROR_FLAG_USER_FLAG;
+    else
+        motor_state[0].error_flags &= ~MOTOR_ERROR_FLAG_USER_FLAG;
+}
+
 void motor_log_errors(motor_id_t motor_id)
 {
     assert((motor_id >= MOTOR_ID_FIRST) && (motor_id <= MOTOR_ID_LAST));
@@ -769,6 +777,24 @@ void motor_log_errors(motor_id_t motor_id)
 static void isr_maybe_blink_led(void)
 {
     static int led_counter = 0;
+
+    bool motor_error = false;
+
+    for (int i = 0; i < MOTOR_ID_COUNT; i++) {
+        if (motor_state[i].error_flags != 0)
+            motor_error = true;
+    }
+
+    if (motor_error) {
+        led_counter++;
+        if (led_counter > 200) {
+            bool led_state = !hardware_get_led_enabled();
+            hardware_set_led_enabled(led_state);
+            hardware_set_speaker_enabled(led_state);
+            led_counter = 0;
+        }
+        return;
+    }
 
     if (motor_get_enabled_mask() == 0) {
         hardware_set_led_enabled(false);

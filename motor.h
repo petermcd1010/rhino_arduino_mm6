@@ -28,13 +28,14 @@ typedef enum {
 } motor_progress_t;
 
 typedef enum {
-    MOTOR_ERROR_FLAG_THERMAL_OVERLOAD_DETECTED      = 1 << 0,
-    MOTOR_ERROR_FLAG_OVERCURRENT_DETECTED           = 1 << 1,
-    MOTOR_ERROR_FLAG_INVALID_ENCODER_TRANSITION     = 1 << 2, // only 0->1->3->2 and 0->2->3->1 are valid.
-    MOTOR_ERROR_FLAG_OPPOSITE_DIRECTION             = 1 << 3,
-    MOTOR_ERROR_FLAG_UNEXPECTED_HOME_SWITCH_ENCODER = 1 << 4,
-    MOTOR_ERROR_FLAG_ENCODER_OVERFLOW               = 1 << 5,
-    MOTOR_ERROR_FLAG_ENCODER_UNDERFLOW              = 1 << 6,
+    MOTOR_ERROR_FLAG_USER_FLAG                      = 1 << 0,
+    MOTOR_ERROR_FLAG_THERMAL_OVERLOAD_DETECTED      = 1 << 1,
+    MOTOR_ERROR_FLAG_OVERCURRENT_DETECTED           = 1 << 2,
+    MOTOR_ERROR_FLAG_INVALID_ENCODER_TRANSITION     = 1 << 3, // only 0->1->3->2 and 0->2->3->1 are valid.
+    MOTOR_ERROR_FLAG_OPPOSITE_DIRECTION             = 1 << 4,
+    MOTOR_ERROR_FLAG_UNEXPECTED_HOME_SWITCH_ENCODER = 1 << 5,
+    MOTOR_ERROR_FLAG_ENCODER_OVERFLOW               = 1 << 6,
+    MOTOR_ERROR_FLAG_ENCODER_UNDERFLOW              = 1 << 7,
 } motor_error_flag_t;
 
 // Mechanical orientation based on motor installation side.
@@ -110,4 +111,5 @@ bool motor_get_home_triggered(motor_id_t motor_id);
 bool motor_get_home_triggered_debounced(motor_id_t motor_id);
 void motor_test_enabled(void);
 void motor_dump(motor_id_t motor_id);
+void motor_set_user_error(bool enable);  // Will blink LED quickly to notify user of issue.
 void motor_log_errors(motor_id_t motor_id);

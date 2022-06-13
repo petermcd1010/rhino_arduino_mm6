@@ -17,7 +17,7 @@
 
 static const float software_version = 2.00;
 static const size_t command_args_max_nbytes = 64;
-static sm_state_t poll_pins_exit_to_state = { 0 };
+static sm_state_t exit_to_state = { 0 };  // Used by go_home and poll_pins.
 static bool poll_pins_prev_val[8] = { false };  // TODO: Fix this hard-coded size of 8.
 
 int command_print_config(char *args, size_t args_nbytes)
@@ -57,13 +57,9 @@ int command_config_robot_id(char *args, size_t args_nbytes)
     args_nbytes -= nbytes;
     p += nbytes;
 
-    nbytes = parse_whitespace(p, args_nbytes);
-    args_nbytes -= nbytes;
-    p += nbytes;
-
     if ((robot_id < CONFIG_ROBOT_ID_FIRST) || (robot_id > CONFIG_ROBOT_ID_LAST)) {
         log_writeln(F("ERROR: Invalid robot ID."));
-        goto error;
+        return 0;
     }
 
     if (args_nbytes > 0)
@@ -172,27 +168,14 @@ int command_reboot(char *args, size_t args_nbytes)
 {
     assert(args);
 
-    size_t nbytes = parse_whitespace(args, args_nbytes);
-
-    args += nbytes;
-    args_nbytes -= nbytes;
-    if (args_nbytes == 0)
-        return -1;
-
     int entry_num = -1;
     char *reboot_table[] = { "REBOOT" };
 
-    nbytes = parse_string_in_table(args, args_nbytes, reboot_table, 1, &entry_num);
-    if (entry_num != 0)
-        return -1;
+    size_t nbytes = parse_string_in_table(args, args_nbytes, reboot_table, 1, &entry_num);
+
     args += nbytes;
     args_nbytes -= nbytes;
-
-    nbytes = parse_whitespace(args, args_nbytes);
-    args += nbytes;
-    args_nbytes -= nbytes;
-
-    if (args_nbytes > 0)
+    if ((args_nbytes > 0) || (entry_num != 0))
         return -1;
 
     motor_disable_all();
@@ -200,12 +183,6 @@ int command_reboot(char *args, size_t args_nbytes)
     hardware_reboot();  // TODO: Test that this works with and without whitespace after REBOOT.
 
     return 0;
-}
-
-int command_calibrate_write(char *args, size_t args_nbytes)
-{
-    assert(args);
-    return -1;
 }
 
 int command_calibrate_home_and_limits(char *args, size_t args_nbytes)
@@ -230,12 +207,6 @@ int command_calibrate_home_and_limits(char *args, size_t args_nbytes)
         p += nbytes;
     }
 
-    nbytes = parse_whitespace(p, args_nbytes);
-    args += nbytes;
-    args_nbytes -= nbytes;
-
-    if (args_nbytes > 0)
-        return -1;
 
     if (motor_ids_mask == 0)
         motor_ids_mask = motor_get_enabled_mask();
@@ -279,10 +250,6 @@ int command_calibrate_home(char *args, size_t args_nbytes)
         p += nbytes;
     }
 
-    nbytes = parse_whitespace(p, args_nbytes);
-    args += nbytes;
-    args_nbytes -= nbytes;
-
     if (args_nbytes > 0)
         return -1;
 
@@ -302,14 +269,6 @@ int command_calibrate_home(char *args, size_t args_nbytes)
     calibrate_home_switch(motor_ids_mask, max_speed_percent);
 
     return p - args;
-}
-
-int command_pid_mode(char *args, size_t args_nbytes)
-{
-    // TODO: Implement command_pid_mode().
-    assert(false);
-
-    return -1;
 }
 
 int command_set_enabled_motors(char *args, size_t args_nbytes)
@@ -354,21 +313,70 @@ int command_set_gripper_position(char *args, size_t args_nbytes)
     return -1;
 }
 
-int command_set_home_position(char *args, size_t args_nbytes)
+static void go_home_break_handler(void)
+{
+    log_writeln(F("Break detected. Stopping motors."));
+
+    motor_disable_all();
+    sm_set_next_state(exit_to_state);
+}
+
+static void go_home(void)
+{
+    bool all_home = true;
+
+    // TODO: Signal failure if motors get stuck.
+
+    int enabled_motors = motor_get_enabled_mask();
+
+    for (int i = 0; i < MOTOR_ID_COUNT; i++) {
+        bool enabled = ((enabled_motors & (1 << i)) != 0);
+        if (enabled) {
+            if (motor_get_target_encoder(i) != 0)
+                motor_set_target_encoder(i, 0);
+            if ((motor_get_encoder(i) != 0) || (!motor_get_home_triggered_debounced(i)))
+                all_home = false;
+        }
+    }
+
+    if (all_home) {
+        log_writeln(F("Motors at home position."));
+        sm_set_next_state(exit_to_state);
+    }
+}
+
+int command_go_home(char *args, size_t args_nbytes)
 {
     assert(args);
-    size_t nbytes = parse_whitespace(args, args_nbytes);
 
-    if (nbytes != args_nbytes)
-        return -1;
+    int motor_ids_mask = 0;
+    char *p = args;
+    size_t nbytes = parse_motor_ids(p, args_nbytes, &motor_ids_mask);  // parse_motor_ids will emit message if error.
 
-    LOG_ERROR(F("TODO"));
+    args_nbytes -= nbytes;
+    p += nbytes;
 
-    return nbytes;
+    if (motor_ids_mask == -1)
+        return nbytes;
+
+    if (motor_ids_mask == 0)
+        motor_ids_mask = motor_get_enabled_mask();
+
+    if (motor_ids_mask == 0) {
+        log_writeln(F("No motors enabled and no motors specified. Skipping."));
+        return args - p;
+    }
+
+    exit_to_state = sm_get_state();
+    sm_state_t s = { .run = go_home, .break_handler = go_home_break_handler, .name = F("go_home"), .data = NULL };
+
+    sm_set_next_state(s);
 }
 
 int command_print_motor_status(char *args, size_t args_nbytes)
 {
+    assert(args);
+
     int old_motor_ids_mask = 0;
     int motor_ids_mask = 0;
     char *p = args;
@@ -410,10 +418,6 @@ int command_print_motor_status(char *args, size_t args_nbytes)
                     angle_str);
     }
 
-    nbytes = parse_whitespace(p, args_nbytes);
-    args_nbytes -= nbytes;
-    p += nbytes;
-
     if (args_nbytes > 0)
         return -1;
 
@@ -433,19 +437,11 @@ int command_set_motor_angle(char *args, size_t args_nbytes)
     args_nbytes -= nbytes;
     p += nbytes;
 
-    nbytes = parse_whitespace(p, args_nbytes);
-    args_nbytes -= nbytes;
-    p += nbytes;
-
     float angle = motor_get_angle(motor_id);
 
     nbytes = parse_motor_angle_or_encoder(p, args_nbytes, &angle);
     if (nbytes == 0)
         return -1;                     // parse_motor_angle_or_encoder will emit message if error.
-    args_nbytes -= nbytes;
-    p += nbytes;
-
-    nbytes = parse_whitespace(p, args_nbytes);
     args_nbytes -= nbytes;
     p += nbytes;
 
@@ -473,15 +469,17 @@ static void poll_pins_break_handler(void)
 {
     log_writeln(F("Break detected. Stopping polling of header pins."));
 
-    sm_set_next_state(poll_pins_exit_to_state);
+    sm_set_next_state(exit_to_state);
 
     for (int i = 0; i < 8; i++) {  // TODO: Fix hard-coded 8.
         poll_pins_prev_val[i] = false;
     }
 }
 
-static void poll_pins(void)
+static void poll_pins(sm_state_t *state)
 {
+    assert(state);
+
     int npins = hardware_get_num_header_pins();
 
     for (int i = 0; i < npins; i++) {
@@ -505,7 +503,7 @@ int command_poll_pins(char *args, size_t args_nbytes)
 
     log_writeln(F("Attach device(s) to IO pins and test. Output will print here when polarity changes. Press <CTRL+C> when done."));
 
-    poll_pins_exit_to_state = sm_get_state();
+    exit_to_state = sm_get_state();
 
     sm_state_t s = { .run = poll_pins, .break_handler = poll_pins_break_handler, .name = F("poll_pins"), .data = NULL };
 
@@ -527,19 +525,11 @@ int command_set_motor_encoder(char *args, size_t args_nbytes)
     args_nbytes -= nbytes;
     p += nbytes;
 
-    nbytes = parse_whitespace(p, args_nbytes);
-    args_nbytes -= nbytes;
-    p += nbytes;
-
     float encoder = motor_get_encoder(motor_id);
 
     nbytes = parse_motor_angle_or_encoder(p, args_nbytes, &encoder);
     if (nbytes == 0)
         return -1;
-    args_nbytes -= nbytes;
-    p += nbytes;
-
-    nbytes = parse_whitespace(p, args_nbytes);
     args_nbytes -= nbytes;
     p += nbytes;
 
@@ -563,6 +553,8 @@ int command_set_motor_encoder(char *args, size_t args_nbytes)
 
 int command_run_test_sequence(char *args, size_t args_nbytes)
 {
+    assert(args);
+
     // TODO: Implement command_run_test_sequence().
     assert(false);
 
@@ -616,16 +608,14 @@ error:
 int command_print_software_version(char *args, size_t args_nbytes)
 {
     assert(args);
+    char *p = args;
+
     if (args_nbytes >= command_args_max_nbytes)
         return -1;
 
-    char *p = args;
     size_t nbytes = parse_whitespace(p, args_nbytes);
 
-    args_nbytes -= nbytes;
-    p += nbytes;
-
-    if (args_nbytes > 0)
+    if (nbytes != args_nbytes)
         return -1;
 
     char version_number_string[10] = {};
@@ -633,7 +623,7 @@ int command_print_software_version(char *args, size_t args_nbytes)
     dtostrf(software_version, 3, 2, version_number_string);
     log_writeln(F("Version: %s (%s %s)."), version_number_string, __DATE__, __TIME__);
 
-    return 0;
+    return nbytes;
 }
 
 int command_waypoint_run(char *args, size_t args_nbytes)
@@ -644,18 +634,11 @@ int command_waypoint_run(char *args, size_t args_nbytes)
     int count = -1;
 
     log_writeln(F("0: '%s'"), args);
-    size_t nbytes = parse_whitespace(p, args_nbytes);
-
-    args_nbytes -= nbytes;
-    p += nbytes;
+    size_t nbytes = 0;
 
     if (args_nbytes > 0) {
         // Parse optional start-step integer parameter.
         nbytes = parse_int(p, args_nbytes, &start_step);
-        args_nbytes -= nbytes;
-        p += nbytes;
-
-        nbytes = parse_whitespace(p, args_nbytes);
         args_nbytes -= nbytes;
         p += nbytes;
 
@@ -668,10 +651,6 @@ int command_waypoint_run(char *args, size_t args_nbytes)
             p += nbytes;
         }
     }
-
-    nbytes = parse_whitespace(p, args_nbytes);
-    args_nbytes -= nbytes;
-    p += nbytes;
 
     if ((start_step < 0) || (count < -1) || (args_nbytes > 0))
         return -1;
@@ -689,20 +668,12 @@ int command_waypoint_set(char *args, size_t args_nbytes)
     int step = -1;
     waypoint_t waypoint = { 0 };
 
-    size_t nbytes = parse_whitespace(p, args_nbytes);
+    size_t nbytes = parse_int(p, args_nbytes, &step);
 
-    args_nbytes -= nbytes;
-    p += nbytes;
-
-    nbytes = parse_int(p, args_nbytes, &step);
     if (nbytes == 0)
         return -1;
     if ((step < 0) || (step >= waypoint_get_max_count()))
         return -1;
-    args_nbytes -= nbytes;
-    p += nbytes;
-
-    nbytes = parse_whitespace(p, args_nbytes);
     args_nbytes -= nbytes;
     p += nbytes;
 
@@ -720,6 +691,8 @@ int command_waypoint_set(char *args, size_t args_nbytes)
 
 int command_waypoint_insert_before(char *args, size_t args_nbytes)
 {
+    assert(args);
+
     // w i step command [args].
     assert(false);
     return -1;
@@ -727,26 +700,17 @@ int command_waypoint_insert_before(char *args, size_t args_nbytes)
 
 int command_waypoint_delete(char *args, size_t args_nbytes)
 {
+    assert(args);
+
     // w d step.
     static int step = 0;
 
     char *p = args;
 
-    size_t nbytes = parse_whitespace(p, args_nbytes);
+    size_t nbytes = parse_int(p, args_nbytes, &step);
 
     args_nbytes -= nbytes;
     p += nbytes;
-
-    if (args_nbytes > 0) {
-        nbytes = parse_int(p, args_nbytes, &step);
-        args_nbytes -= nbytes;
-        p += nbytes;
-    }
-
-    nbytes = parse_whitespace(p, args_nbytes);
-    args_nbytes -= nbytes;
-    p += nbytes;
-
     if (args_nbytes > 0)
         goto error;
 
@@ -764,6 +728,8 @@ error:
 
 int command_waypoint_append(char *args, size_t args_nbytes)
 {
+    assert(args);
+
     // w a command [args].
     assert(false);
     return -1;
@@ -771,6 +737,8 @@ int command_waypoint_append(char *args, size_t args_nbytes)
 
 int command_waypoint_print(char *args, size_t args_nbytes)
 {
+    assert(args);
+
     // w p [step [count]]
 
     char *p = args;
@@ -786,6 +754,8 @@ int command_waypoint_print(char *args, size_t args_nbytes)
 
 int command_waypoint_execute_single(char *args, size_t args_nbytes)
 {
+    assert(args);
+
     // w x step.
     assert(false);
     return -1;
@@ -797,28 +767,16 @@ int command_factory_reset(char *args, size_t args_nbytes)
 
     char *p = args;
 
-    size_t nbytes = parse_whitespace(args, args_nbytes);
-
-    args_nbytes -= nbytes;
-    p += nbytes;
-    if (args_nbytes == 0)
-        return -1;
-
     int entry_num = -1;
     char *reset_table[] = { "RESET" };
 
-    nbytes = parse_string_in_table(args, args_nbytes, reset_table, 1, &entry_num);
+    size_t nbytes = parse_string_in_table(args, args_nbytes, reset_table, 1, &entry_num);
+
     args_nbytes -= nbytes;
     p += nbytes;
-
-    nbytes = parse_whitespace(p, args_nbytes);
-    args_nbytes -= nbytes;
-    p += nbytes;
-
-    if (args_nbytes > 0)
+    if ((args_nbytes > 0) || (entry_num != 0))
         return -1;
 
-    assert(entry_num == 0);
     hardware_factory_reset();
     hardware_reboot();
 
@@ -827,6 +785,8 @@ int command_factory_reset(char *args, size_t args_nbytes)
 
 int command_emergency_stop(char *args, size_t args_nbytes)
 {
+    assert(args);
+
     // Confirm arguments are empty.
     size_t nbytes = parse_whitespace(args, args_nbytes);
 

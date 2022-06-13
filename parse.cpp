@@ -68,6 +68,9 @@ size_t parse_char(char *buf, size_t buf_nbytes, char *out_char)
 
 size_t parse_int(char *buf, size_t buf_nbytes, int *out_int)
 {
+    assert(buf);
+    assert(out_int);
+
     long int li = -1;
     size_t nbytes = parse_long_int(buf, buf_nbytes, &li);
 
@@ -92,6 +95,11 @@ size_t parse_long_int(char *buf, size_t buf_nbytes, long int *out_int)
     char *p = buf;
     long int i = 0;
 
+    size_t nbytes = parse_whitespace(p, buf_nbytes);
+
+    buf_nbytes -= nbytes;
+    p += nbytes;
+
     while (*p && (p - buf < buf_nbytes)) {
         if (isspace(*p))
             break;
@@ -112,6 +120,10 @@ size_t parse_long_int(char *buf, size_t buf_nbytes, long int *out_int)
         p++;
     }
 
+    nbytes = parse_whitespace(p, buf_nbytes);
+    buf_nbytes -= nbytes;
+    p += nbytes;
+
     if (!is_valid)
         return 0;
 
@@ -131,6 +143,11 @@ size_t parse_float(char *buf, size_t buf_nbytes, float *out_float)
     float f = 0;
     float fraction_div = 10.0f;
     char *p = buf;
+
+    size_t nbytes = parse_whitespace(p, buf_nbytes);
+
+    buf_nbytes -= nbytes;
+    p += nbytes;
 
     while (*p && (p - buf < buf_nbytes)) {
         if (isspace(*p)) {
@@ -160,6 +177,10 @@ size_t parse_float(char *buf, size_t buf_nbytes, float *out_float)
 
         p++;
     }
+
+    nbytes = parse_whitespace(p, buf_nbytes);
+    buf_nbytes -= nbytes;
+    p += nbytes;
 
     if (!is_valid)
         return 0;
@@ -217,11 +238,17 @@ size_t parse_string(char *buf, size_t buf_nbytes, char *out_string, size_t out_s
     bool is_valid = false;
     char *p = buf;
 
-    size_t nbytes = strlen(buf);
+    size_t nbytes = parse_whitespace(p, buf_nbytes);
+
+    buf_nbytes -= nbytes;
+    p += nbytes;
+
+    // This copies trailing whitespace.
+    nbytes = strlen(p);
 
     if (nbytes >= out_string_nbytes) {
         log_writeln(F("ERROR: string too long."));
-        return 0;
+        return -1;
     }
 
     memcpy(out_string, buf, nbytes + 1);
@@ -235,7 +262,14 @@ size_t parse_string_in_table(char *buf, size_t buf_nbytes, char *table[], int nt
     assert(table);
     assert(out_entry_num);
 
-    char *end = buf + buf_nbytes;
+    char *p = buf;
+
+    size_t nbytes = parse_whitespace(p, buf_nbytes);
+
+    buf_nbytes -= nbytes;
+    p += nbytes;
+
+    char *end = p + buf_nbytes;
 
     for (int i = 0; i < ntable_entries; i++) {
         size_t nbytes = strlen(table[i]);
@@ -256,6 +290,11 @@ size_t parse_motor_ids(char *buf, size_t buf_nbytes, int *out_mask)
     char *p = buf;
     char c = 0;
 
+    size_t nbytes = parse_whitespace(p, buf_nbytes);
+
+    buf_nbytes -= nbytes;
+    p += nbytes;
+
     do {
         size_t n = parse_char(p, buf_nbytes - (p - buf), &c);
         if (n == 0)
@@ -273,34 +312,50 @@ size_t parse_motor_ids(char *buf, size_t buf_nbytes, int *out_mask)
         *out_mask |= 1 << (c - 'A');
     } while (1);
 
+    nbytes = parse_whitespace(p, buf_nbytes);
+    buf_nbytes -= nbytes;
+    p += nbytes;
+
     return p - buf;
 
 error:
     *out_mask = -1;
     log_writeln(F("ERROR: Invalid motor ID %c. Expected A-%c."), c, 'A' + MOTOR_ID_LAST);
-    return 0;
+    return -1;
 }
 
 size_t parse_motor_id(char *buf, size_t buf_nbytes, motor_id_t *out_motor_id)
 {
     assert(buf);
     assert(out_motor_id);
+    char *p = buf;
+
+    size_t nbytes = parse_whitespace(p, buf_nbytes);
+
+    buf_nbytes -= nbytes;
+    p += nbytes;
 
     char id;
 
-    if (parse_char(buf, buf_nbytes, &id) == 0)
+    if (parse_char(p, buf_nbytes, &id) == 0)
         goto error;
+    p++;
+    buf_nbytes--;
+
+    nbytes = parse_whitespace(p, buf_nbytes);
+    buf_nbytes -= nbytes;
+    p += nbytes;
 
     id = toupper(id);
     if ((id < 'A') || (id > 'F'))
         goto error;
 
     *out_motor_id = (motor_id_t)(id - 'A');
-    return 1;
+    return p - buf;
 
 error:
     log_writeln(F("ERROR: Invalid motor ID. Expected 'A'-'%c'."), 'A' + MOTOR_ID_LAST);
-    return 0;
+    return -1;
 }
 
 size_t parse_motor_angle_or_encoder(char *buf, size_t buf_nbytes, float *out_value)
@@ -309,21 +364,28 @@ size_t parse_motor_angle_or_encoder(char *buf, size_t buf_nbytes, float *out_val
     assert(out_value);
     char *p = buf;
 
+    size_t nbytes = parse_whitespace(p, buf_nbytes);
+
+    buf_nbytes -= nbytes;
+    p += nbytes;
+
     float new_value = 0.0f;
-    size_t nbytes = parse_float(p, buf_nbytes, &new_value);
+
+    nbytes = parse_float(p, buf_nbytes, &new_value);
+    LOG_DEBUG(F("%d %d"), nbytes, (int)new_value);
 
     if (nbytes > 0) {
         *out_value = new_value;
         buf_nbytes -= nbytes;
         p += nbytes;
-    } else if (nbytes == 0) {
+    } else if (nbytes <= 0) {
         new_value = *out_value;
         // Not a float, check for +/++/-/--.
         char first_plus_or_minus = '\0';
         nbytes = parse_char(p, buf_nbytes, &first_plus_or_minus);
         buf_nbytes -= nbytes;
         p += nbytes;
-        if ((nbytes == 0) || ((first_plus_or_minus != '+') && (first_plus_or_minus != '-')))
+        if ((nbytes <= 0) || ((first_plus_or_minus != '+') && (first_plus_or_minus != '-')))
             goto error;                // Something other than a + or -
 
         char second_plus_or_minus = '\0';
@@ -352,11 +414,15 @@ size_t parse_motor_angle_or_encoder(char *buf, size_t buf_nbytes, float *out_val
 
     *out_value = new_value;
 
+    nbytes = parse_whitespace(p, buf_nbytes);
+    buf_nbytes -= nbytes;
+    p += nbytes;
+
     return p - buf;
 
 error:
     log_writeln(F("ERROR: Invalid floating point number. Expected [+/-]digits.digits."));
-    return 0;
+    return -1;
 }
 
 bool parse_test()
@@ -374,13 +440,16 @@ bool parse_test()
     return ret;
 }
 
-size_t parse_waypoint(char *args, size_t args_nbytes, waypoint_t *out_waypoint)
+size_t parse_waypoint(char *buf, size_t buf_nbytes, waypoint_t *out_waypoint)
 {
-    assert(args);
+    assert(buf);
     assert(out_waypoint);
+    char *p = buf;
 
-    char *p = args;
-    size_t nbytes = parse_whitespace(p, args_nbytes);
+    size_t nbytes = parse_whitespace(p, buf_nbytes);
+
+    buf_nbytes -= nbytes;
+    p += nbytes;
 
     int entry_num = -1;
     char *command_table[] = { "A", "B", "C", "D", "G", "J", "K", "W", "I" };
@@ -388,20 +457,20 @@ size_t parse_waypoint(char *args, size_t args_nbytes, waypoint_t *out_waypoint)
     int io_pin = -1;
     long int millis = -1;
 
-    nbytes = parse_string_in_table(args, 1, command_table, 6, &entry_num);
-    args_nbytes -= nbytes;
+    nbytes = parse_string_in_table(p, 1, command_table, 9, &entry_num);
+    buf_nbytes -= nbytes;
     p += nbytes;
 
-    if ((entry_num < 0) || (entry_num > 5))
+    if ((entry_num < 0) || (entry_num > 9))
         goto error;
 
-    nbytes = parse_whitespace(p, args_nbytes);
-    args_nbytes -= nbytes;
+    nbytes = parse_whitespace(p, buf_nbytes);
+    buf_nbytes -= nbytes;
     p += nbytes;
 
     switch (entry_num) {
     case 0:  // A: Set waypoint step to move motors to exactly current positions.
-        if (args_nbytes != 0)
+        if (buf_nbytes != 0)
             goto error;
         out_waypoint->command = WAYPOINT_COMMAND_MOVE_AT;
         for (int i = 0; i < MOTOR_ID_COUNT; i++) {
@@ -409,7 +478,7 @@ size_t parse_waypoint(char *args, size_t args_nbytes, waypoint_t *out_waypoint)
         }
         break;
     case 1:  // B: Set waypoint step to move motors to within 1 encoder value of current positions.
-        if (args_nbytes != 0)
+        if (buf_nbytes != 0)
             goto error;
         out_waypoint->command = WAYPOINT_COMMAND_MOVE_BESIDE;
         for (int i = 0; i < MOTOR_ID_COUNT; i++) {
@@ -417,7 +486,7 @@ size_t parse_waypoint(char *args, size_t args_nbytes, waypoint_t *out_waypoint)
         }
         break;
     case 2:  // C: Set waypoint step to move motors to within 30 encoder values of current positions.
-        if (args_nbytes != 0)
+        if (buf_nbytes != 0)
             goto error;
         out_waypoint->command = WAYPOINT_COMMAND_MOVE_CLOSE;
         for (int i = 0; i < MOTOR_ID_COUNT; i++) {
@@ -425,7 +494,7 @@ size_t parse_waypoint(char *args, size_t args_nbytes, waypoint_t *out_waypoint)
         }
         break;
     case 3:  // D: Set waypoint step to move motors to within 200 encoder values current positions.
-        if (args_nbytes != 0)
+        if (buf_nbytes != 0)
             goto error;
         out_waypoint->command = WAYPOINT_COMMAND_MOVE_APPROACHING;
         for (int i = 0; i < MOTOR_ID_COUNT; i++) {
@@ -433,29 +502,29 @@ size_t parse_waypoint(char *args, size_t args_nbytes, waypoint_t *out_waypoint)
         }
         break;
     case 4:  // G: Set waypoint step to goto step.
-        nbytes = parse_int(p, args_nbytes, &goto_step);
+        nbytes = parse_int(p, buf_nbytes, &goto_step);
         if (nbytes == 0)
             goto error;
-        args_nbytes -= nbytes;
+        buf_nbytes -= nbytes;
         p += nbytes;
         out_waypoint->command = WAYPOINT_COMMAND_GOTO_STEP;
         out_waypoint->io_goto.step = goto_step;
         break;
     case 5:  // J: Set waypoint step so if IO pin triggered, goto step.
-        nbytes = parse_int(p, args_nbytes, &io_pin);
+        nbytes = parse_int(p, buf_nbytes, &io_pin);
         if (nbytes == 0)
             goto error;
-        args_nbytes -= nbytes;
+        buf_nbytes -= nbytes;
         p += nbytes;
 
-        nbytes = parse_whitespace(p, args_nbytes);
-        args_nbytes -= nbytes;
+        nbytes = parse_whitespace(p, buf_nbytes);
+        buf_nbytes -= nbytes;
         p += nbytes;
 
-        nbytes = parse_int(p, args_nbytes, &goto_step);
+        nbytes = parse_int(p, buf_nbytes, &goto_step);
         if (nbytes == 0)
             goto error;
-        args_nbytes -= nbytes;
+        buf_nbytes -= nbytes;
         p += nbytes;
 
         out_waypoint->command = WAYPOINT_COMMAND_IF_IO_PIN_GOTO_STEP;
@@ -463,19 +532,19 @@ size_t parse_waypoint(char *args, size_t args_nbytes, waypoint_t *out_waypoint)
         out_waypoint->io_goto.step = goto_step;
         break;
     case 6:  // K: Set waypoint step to wait for IO pin triggered.
-        nbytes = parse_int(p, args_nbytes, &io_pin);
+        nbytes = parse_int(p, buf_nbytes, &io_pin);
         if (nbytes == 0)
             goto error;
-        args_nbytes -= nbytes;
+        buf_nbytes -= nbytes;
         p += nbytes;
         out_waypoint->command = WAYPOINT_COMMAND_WAIT_IO_PIN;
         out_waypoint->io_goto.pin = io_pin;
         break;
     case 7:  // W: Set waypoint step to wait milliseconds.
-        nbytes = parse_long_int(p, args_nbytes, &millis);
+        nbytes = parse_long_int(p, buf_nbytes, &millis);
         if (nbytes == 0)
             goto error;
-        args_nbytes -= nbytes;
+        buf_nbytes -= nbytes;
         p += nbytes;
 
         long int max_wait_millis = 86400000;  // 24 * 60 * 60 * 1000.
@@ -487,7 +556,7 @@ size_t parse_waypoint(char *args, size_t args_nbytes, waypoint_t *out_waypoint)
         out_waypoint->wait_millis = millis;
         break;
     case 8:  // I: Set waypoint step to interrogate home switches.
-        if (args_nbytes != 0)
+        if (buf_nbytes != 0)
             goto error;
         out_waypoint->command = WAYPOINT_COMMAND_INTERROGATE_HOME_SWITCHES;
         break;
@@ -495,11 +564,11 @@ size_t parse_waypoint(char *args, size_t args_nbytes, waypoint_t *out_waypoint)
         assert(false);
     }
 
-    nbytes = parse_whitespace(p, args_nbytes);
-    args_nbytes -= nbytes;
+    nbytes = parse_whitespace(p, buf_nbytes);
+    buf_nbytes -= nbytes;
     p += nbytes;
 
-    return p - args;
+    return p - buf;
 
 error:
     return -1;

@@ -128,6 +128,9 @@ static void process_serial_input()
         have_command = false;
         reset_prompt = false;
 
+        if (strlen(config.robot_name) != 0)
+            log_write(F("%s: "), config.robot_name);
+
         for (int i = MOTOR_ID_FIRST; i <= MOTOR_ID_LAST; i++) {
             if (motor_get_enabled(i)) {
                 char angle_str[15];
@@ -137,9 +140,6 @@ static void process_serial_input()
                 log_write(F("%c:%s,%d,%d "), motor_name, angle_str, motor_get_current_draw((motor_id_t)i), motor_state[i].pid_perror);
             }
         }
-
-        if (strlen(config.robot_name) != 0)
-            log_write(F("%s "), config.robot_name);
 
         if (current_state.name != NULL)
             log_write(current_state.name);
@@ -343,6 +343,7 @@ void sm_error_enter(void)
     next_state = { 0 };
 
     motor_disable_all();
+    motor_set_user_error(true);
     sm_state_t s = { .run = sm_error_execute, .break_handler = NULL, .name = F("ERROR"), .data = NULL };
 
     sm_set_next_state(s);
