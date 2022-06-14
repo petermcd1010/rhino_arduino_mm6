@@ -35,7 +35,7 @@ static const motor_pinout_t motor_pinout[MOTOR_ID_COUNT] = {
 static const int motor_direction_forward = LOW;
 static const int motor_direction_reverse = HIGH;
 
-static motor_state_t motor_state[MOTOR_ID_COUNT] = {};
+static motor_state_t motor_state[MOTOR_ID_COUNT] = { 0 };
 
 // The speed sign bit is used to set the LMD18200 direction pin. So the PWM register accepts 0-255 for + and -.
 static const int motor_min_speed = -255;
@@ -130,6 +130,7 @@ static void motor_init(motor_id_t motor_id)
     pinMode(motor_pinout[motor_id].in_quadrature_encoder_b, INPUT_PULLUP);
 
     for (int motor_id = 0; motor_id < MOTOR_ID_COUNT; motor_id++) {
+        memset(&motor_state[motor_id], 0, sizeof(motor_state_t));
         motor_set_max_speed_percent((motor_id_t)motor_id, 100);
         motor_state[motor_id].prev_home_triggered = motor_get_home_triggered(motor_id);
         motor_state[motor_id].prev_home_triggered_millis = millis();
