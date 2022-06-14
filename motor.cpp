@@ -35,7 +35,7 @@ static const motor_pinout_t motor_pinout[MOTOR_ID_COUNT] = {
 static const int motor_direction_forward = LOW;
 static const int motor_direction_reverse = HIGH;
 
-static motor_state_t motor_state[MOTOR_ID_COUNT] = { 0 };
+motor_state_t motor_state[MOTOR_ID_COUNT] = { 0 };  // Intentionally not static.
 
 // The speed sign bit is used to set the LMD18200 direction pin. So the PWM register accepts 0-255 for + and -.
 static const int motor_min_speed = -255;
@@ -131,6 +131,12 @@ static void motor_init(motor_id_t motor_id)
 
     for (int motor_id = 0; motor_id < MOTOR_ID_COUNT; motor_id++) {
         memset(&motor_state[motor_id], 0, sizeof(motor_state_t));
+        // Motor logic is used to contol which way the motors turn in responce to the Positions.
+        //   Each Rhino Robot may have the motor assembled on either side - which winds up reversing the motors direction mechanically.
+        //   So the motor locic is used to correct that.
+        //     The values for the Motor Logic are set by the setup.
+        //       Since the Forward and Reverse Locic are used to invert the position the values are 1 or -1
+        motor_state[motor_id].logic = config.motor[motor_id].orientation;
         motor_set_max_speed_percent((motor_id_t)motor_id, 100);
         motor_state[motor_id].prev_home_triggered = motor_get_home_triggered(motor_id);
         motor_state[motor_id].prev_home_triggered_millis = millis();
@@ -142,6 +148,11 @@ static void motor_init(motor_id_t motor_id)
 
 void motor_init_all(void)
 {
+    check_noinit_data();
+    for (int i = MOTOR_ID_FIRST; i <= MOTOR_ID_LAST; i++) {
+        motor_init((motor_id_t)i);
+    }
+
     // Timer setup: Allows preceise timed measurements of the quadrature encoder.
     cli();  // Disable interrupts.
 
@@ -158,6 +169,7 @@ void motor_init_all(void)
     TIMSK1 |= (1 << OCIE1A);  // Enable timer compare interrupt.
     sei();                             // Enable interrupts.
 
+#if 0
     // Get the Angle Offsets and Forward_Logic for ALL motors
     for (int i = MOTOR_ID_FIRST; i <= MOTOR_ID_LAST; i++) {
         int logic = 0;
@@ -183,19 +195,8 @@ void motor_init_all(void)
         Reverse_Logic[i] = logic;  // Reverse Logic - The value for the Direction IO Line when the motor needs to move Reverse. Defaults to 1.
         Forward_Logic[i] = !logic;  // Forward Logic - The value for the Direction IO Line when the motor needs to move forward. Defaults to 0.
 #endif
-
-        // The Motor Locic is used to contol which way the motors turn in responce to the Positions.
-        //   Each Rhino Robot may have the motor assembled on either side - which winds up reversing the motors direction mechanically.
-        //   So the motor locic is used to correct that.
-        //     The values for the Motor Logic are set by the setup.
-        //       Since the Forward and Reverse Locic are used to invert the position the values are 1 or -1
-        motor_state[i].logic = config.motor[i].orientation;
     }
-
-    check_noinit_data();
-    for (int i = MOTOR_ID_FIRST; i <= MOTOR_ID_LAST; i++) {
-        motor_init((motor_id_t)i);
-    }
+#endif
 }
 
 static bool get_thermal_overload_active(motor_id_t motor_id)
