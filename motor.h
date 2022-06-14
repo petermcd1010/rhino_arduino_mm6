@@ -8,15 +8,13 @@
 #include <Arduino.h>
 
 typedef enum {
-    MOTOR_ID_FIRST = 0,
-    MOTOR_ID_A     = MOTOR_ID_FIRST,
+    MOTOR_ID_A = 0,
     MOTOR_ID_B,
     MOTOR_ID_C,
     MOTOR_ID_D,
     MOTOR_ID_E,
     MOTOR_ID_F,
     MOTOR_ID_COUNT,
-    MOTOR_ID_LAST = MOTOR_ID_COUNT - 1
 } motor_id_t;
 
 typedef enum {

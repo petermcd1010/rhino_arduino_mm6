@@ -126,7 +126,7 @@ bool config_check()
     const int min_count = -9999;  // TODO: Determine min_count.
     const int max_count = 9999;  // TODO: Determine max_count..
 
-    for (int i = MOTOR_ID_FIRST; i <= MOTOR_ID_LAST; i++) {
+    for (int i = 0; i < MOTOR_ID_COUNT; i++) {
         if ((config.motor[i].angle_offset < min_count) || (config.motor[i].angle_offset > max_count)) {
             log_writeln(F("ERROR: config_check: Invalid angle offset."));
             ret = false;
@@ -162,7 +162,7 @@ void config_clear()
 {
     memset(&config, 0, sizeof(config_t));
     config.robot_id = CONFIG_ROBOT_ID_DEFAULT;
-    for (int i = MOTOR_ID_FIRST; i <= MOTOR_ID_LAST; i++) {
+    for (int i = 0; i < MOTOR_ID_COUNT; i++) {
         config.motor[i].orientation = MOTOR_ORIENTATION_NOT_INVERTED;
         config.motor[i].polarity = MOTOR_POLARITY_NOT_REVERSED;
         config.motor[i].min_encoder = INT_MIN;
@@ -207,7 +207,7 @@ void config_set_robot_name(char robot_name[CONFIG_ROBOT_NAME_NBYTES])
 
 void config_set_motor_configured(motor_id_t motor_id, bool configured)
 {
-    assert(motor_id >= MOTOR_ID_FIRST && motor_id <= MOTOR_ID_LAST);
+    assert(motor_id >= 0 && motor_id < MOTOR_ID_COUNT);
 
     assert(config_check());
     config.motor[motor_id].configured = configured;
@@ -216,7 +216,7 @@ void config_set_motor_configured(motor_id_t motor_id, bool configured)
 
 void config_set_motor_orientation(motor_id_t motor_id, motor_orientation_t motor_orientation)
 {
-    assert(motor_id >= MOTOR_ID_FIRST && motor_id <= MOTOR_ID_LAST);
+    assert(motor_id >= 0 && motor_id < MOTOR_ID_COUNT);
     assert((motor_orientation == MOTOR_ORIENTATION_NOT_INVERTED) ||
            (motor_orientation == MOTOR_ORIENTATION_INVERTED));
 
@@ -227,7 +227,7 @@ void config_set_motor_orientation(motor_id_t motor_id, motor_orientation_t motor
 
 void config_set_motor_polarity(motor_id_t motor_id, motor_polarity_t motor_polarity)
 {
-    assert(motor_id >= MOTOR_ID_FIRST && motor_id <= MOTOR_ID_LAST);
+    assert(motor_id >= 0 && motor_id < MOTOR_ID_COUNT);
     assert((motor_polarity == MOTOR_POLARITY_NOT_REVERSED) ||
            (motor_polarity == MOTOR_POLARITY_REVERSED));
     assert(config_check());
@@ -270,7 +270,7 @@ void config_set_angle_offsets(int B, int C, int D, int E, int F)
 
 void config_set_min_max_encoders(motor_id_t motor_id, int min_encoder, int max_encoder)
 {
-    assert(motor_id >= MOTOR_ID_FIRST && motor_id <= MOTOR_ID_LAST);
+    assert(motor_id >= 0 && motor_id < MOTOR_ID_COUNT);
     config.motor[motor_id].min_encoder = min_encoder;
     config.motor[motor_id].max_encoder = max_encoder;
     config_sign();
@@ -278,7 +278,7 @@ void config_set_min_max_encoders(motor_id_t motor_id, int min_encoder, int max_e
 
 void config_set_home_encoders(motor_id_t motor_id, int home_forward_on_encoder, int home_forward_off_encoder, int home_reverse_on_encoder, int home_reverse_off_encoder)
 {
-    assert(motor_id >= MOTOR_ID_FIRST && motor_id <= MOTOR_ID_LAST);
+    assert(motor_id >= 0 && motor_id < MOTOR_ID_COUNT);
     config.motor[motor_id].home_forward_on_encoder = home_forward_on_encoder;
     config.motor[motor_id].home_forward_off_encoder = home_forward_off_encoder;
     config.motor[motor_id].home_reverse_on_encoder = home_reverse_on_encoder;

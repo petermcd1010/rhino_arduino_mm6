@@ -320,7 +320,7 @@ size_t parse_motor_ids(char *buf, size_t buf_nbytes, int *out_mask)
 
 error:
     *out_mask = -1;
-    log_writeln(F("ERROR: Invalid motor ID %c. Expected A-%c."), c, 'A' + MOTOR_ID_LAST);
+    log_writeln(F("ERROR: Invalid motor ID %c. Expected A-%c."), c, 'A' + MOTOR_ID_COUNT - 1);
     return -1;
 }
 
@@ -354,7 +354,7 @@ size_t parse_motor_id(char *buf, size_t buf_nbytes, motor_id_t *out_motor_id)
     return p - buf;
 
 error:
-    log_writeln(F("ERROR: Invalid motor ID. Expected 'A'-'%c'."), 'A' + MOTOR_ID_LAST);
+    log_writeln(F("ERROR: Invalid motor ID. Expected 'A'-'%c'."), 'A' + MOTOR_ID_COUNT - 1);
     return -1;
 }
 

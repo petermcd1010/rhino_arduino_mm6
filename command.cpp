@@ -391,7 +391,7 @@ int command_print_motor_status(char *args, size_t args_nbytes)
     if (motor_ids_mask == 0)
         motor_ids_mask = 0x3f;
 
-    for (int i = MOTOR_ID_FIRST; i <= MOTOR_ID_LAST; i++) {
+    for (int i = 0; i < MOTOR_ID_COUNT; i++) {
         if ((motor_ids_mask & (1 << i)) == 0)
             continue;
 

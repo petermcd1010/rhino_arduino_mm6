@@ -115,7 +115,7 @@ static void track_report(motor_id_t motor_id)
 
 static void motor_init(motor_id_t motor_id)
 {
-    assert((motor_id >= MOTOR_ID_FIRST) && (motor_id <= MOTOR_ID_LAST));
+    assert((motor_id >= 0) && (motor_id < MOTOR_ID_COUNT));
 
     // Configure and initialize outputs.
     pinMode(motor_pinout[motor_id].out_brake, OUTPUT);
@@ -149,7 +149,7 @@ static void motor_init(motor_id_t motor_id)
 void motor_init_all(void)
 {
     check_noinit_data();
-    for (int i = MOTOR_ID_FIRST; i <= MOTOR_ID_LAST; i++) {
+    for (int i = 0; i < MOTOR_ID_COUNT; i++) {
         motor_init((motor_id_t)i);
     }
 
@@ -171,7 +171,7 @@ void motor_init_all(void)
 
 #if 0
     // Get the Angle Offsets and Forward_Logic for ALL motors
-    for (int i = MOTOR_ID_FIRST; i <= MOTOR_ID_LAST; i++) {
+    for (int i = 0; i < MOTOR_ID_COUNT; i++) {
         int logic = 0;
 
         // The Angle Offset is used in the Position-to-Angle and Angle-to-Position calculations
@@ -201,7 +201,7 @@ void motor_init_all(void)
 
 static bool get_thermal_overload_active(motor_id_t motor_id)
 {
-    assert((motor_id >= MOTOR_ID_FIRST) && (motor_id <= MOTOR_ID_LAST));
+    assert((motor_id >= 0) && (motor_id < MOTOR_ID_COUNT));
 
     /*
      * From the LMD18200 datasheet:
@@ -214,7 +214,7 @@ static bool get_thermal_overload_active(motor_id_t motor_id)
 
 bool motor_get_thermal_overload_detected(motor_id_t motor_id)
 {
-    assert((motor_id >= MOTOR_ID_FIRST) && (motor_id <= MOTOR_ID_LAST));
+    assert((motor_id >= 0) && (motor_id < MOTOR_ID_COUNT));
 
     if (motor_state[motor_id].error_flags & MOTOR_ERROR_FLAG_THERMAL_OVERLOAD_DETECTED)
         return true;
@@ -222,7 +222,7 @@ bool motor_get_thermal_overload_detected(motor_id_t motor_id)
 
 bool motor_get_thermal_overload_detected(void)
 {
-    for (int i = MOTOR_ID_FIRST; i <= MOTOR_ID_LAST; i++) {
+    for (int i = 0; i < MOTOR_ID_COUNT; i++) {
         if (motor_get_thermal_overload_detected((motor_id_t)i))
             return true;
     }
@@ -232,21 +232,21 @@ bool motor_get_thermal_overload_detected(void)
 
 void motor_clear_thermal_overload(motor_id_t motor_id)
 {
-    assert((motor_id >= MOTOR_ID_FIRST) && (motor_id <= MOTOR_ID_LAST));
+    assert((motor_id >= 0) && (motor_id < MOTOR_ID_COUNT));
 
     motor_state[motor_id].error_flags &= ~MOTOR_ERROR_FLAG_THERMAL_OVERLOAD_DETECTED;
 }
 
 static bool get_overcurrent_active(motor_id_t motor_id)
 {
-    assert((motor_id >= MOTOR_ID_FIRST) && (motor_id <= MOTOR_ID_LAST));
+    assert((motor_id >= 0) && (motor_id < MOTOR_ID_COUNT));
     // TODO: Implement get_ovecurrent_active().
     return false;
 }
 
 bool motor_get_overcurrent_detected(motor_id_t motor_id)
 {
-    assert((motor_id >= MOTOR_ID_FIRST) && (motor_id <= MOTOR_ID_LAST));
+    assert((motor_id >= 0) && (motor_id < MOTOR_ID_COUNT));
 
     if (motor_state[motor_id].error_flags & MOTOR_ERROR_FLAG_OVERCURRENT_DETECTED)
         return true;
@@ -256,7 +256,7 @@ bool motor_get_overcurrent_detected(motor_id_t motor_id)
 
 bool motor_get_overcurrent_detected(void)
 {
-    for (int i = MOTOR_ID_FIRST; i <= MOTOR_ID_LAST; i++) {
+    for (int i = 0; i < MOTOR_ID_COUNT; i++) {
         if (motor_get_overcurrent_detected((motor_id_t)i))
             return true;
     }
@@ -266,14 +266,14 @@ bool motor_get_overcurrent_detected(void)
 
 void motor_clear_overcurrent(motor_id_t motor_id)
 {
-    assert((motor_id >= MOTOR_ID_FIRST) && (motor_id <= MOTOR_ID_LAST));
+    assert((motor_id >= 0) && (motor_id < MOTOR_ID_COUNT));
 
     motor_state[motor_id].error_flags &= ~MOTOR_ERROR_FLAG_OVERCURRENT_DETECTED;
 }
 
 int motor_get_current_draw(motor_id_t motor_id)
 {
-    assert((motor_id >= MOTOR_ID_FIRST) && (motor_id <= MOTOR_ID_LAST));
+    assert((motor_id >= 0) && (motor_id < MOTOR_ID_COUNT));
     // Ignores motor_configured(motor_id).
 
     // LMD18200 datasheet says 377uA/A. What's the resistance?
@@ -282,14 +282,14 @@ int motor_get_current_draw(motor_id_t motor_id)
 
 static void set_brake(motor_id_t motor_id, bool enabled)
 {
-    assert((motor_id >= MOTOR_ID_FIRST) && (motor_id <= MOTOR_ID_LAST));
+    assert((motor_id >= 0) && (motor_id < MOTOR_ID_COUNT));
 
     digitalWrite(motor_pinout[motor_id].out_brake, enabled ? HIGH : LOW);
 }
 
 void motor_disable_all(void)
 {
-    for (int i = MOTOR_ID_A; i <= MOTOR_ID_LAST; i++) {
+    for (int i = MOTOR_ID_A; i < MOTOR_ID_COUNT; i++) {
         motor_set_enabled((motor_id_t)i, false);
     }
     log_writeln(F("All motors disabled."));
@@ -297,7 +297,7 @@ void motor_disable_all(void)
 
 void motor_set_enabled(motor_id_t motor_id, bool enabled)
 {
-    assert((motor_id >= MOTOR_ID_FIRST) && (motor_id <= MOTOR_ID_LAST));
+    assert((motor_id >= 0) && (motor_id < MOTOR_ID_COUNT));
 
     if (enabled && motor_state[motor_id].enabled)
         return;
@@ -321,7 +321,7 @@ void motor_set_enabled(motor_id_t motor_id, bool enabled)
 
 bool motor_get_enabled(motor_id_t motor_id)
 {
-    assert((motor_id >= MOTOR_ID_FIRST) && (motor_id <= MOTOR_ID_LAST));
+    assert((motor_id >= 0) && (motor_id < MOTOR_ID_COUNT));
 
     return motor_state[motor_id].enabled;
 }
@@ -333,7 +333,7 @@ int motor_get_enabled_mask(void)
 
 void motor_set_enabled_mask(int mask)
 {
-    for (int i = MOTOR_ID_A; i <= MOTOR_ID_LAST; i++) {
+    for (int i = MOTOR_ID_A; i < MOTOR_ID_COUNT; i++) {
         if (mask & 1 << i)
             motor_set_enabled((motor_id_t)i, true);
         else
@@ -345,7 +345,7 @@ static int get_num_enabled(void)
 {
     int num_enabled = 0;
 
-    for (int i = MOTOR_ID_FIRST; i <= MOTOR_ID_LAST; i++) {
+    for (int i = 0; i < MOTOR_ID_COUNT; i++) {
         if (motor_get_enabled((motor_id_t)i))
             num_enabled++;
     }
@@ -355,14 +355,14 @@ static int get_num_enabled(void)
 
 bool motor_configured(motor_id_t motor_id)
 {
-    assert((motor_id >= MOTOR_ID_FIRST) && (motor_id <= MOTOR_ID_LAST));
+    assert((motor_id >= 0) && (motor_id < MOTOR_ID_COUNT));
 
     return config.motor[motor_id].configured;
 }
 
 void motor_set_home_encoder(motor_id_t motor_id, int home_encoder)
 {
-    assert((motor_id >= MOTOR_ID_FIRST) && (motor_id <= MOTOR_ID_LAST));
+    assert((motor_id >= 0) && (motor_id < MOTOR_ID_COUNT));
 
     noinit_data.encoder[motor_id] -= home_encoder;
     motor_state[motor_id].target_encoder -= home_encoder;
@@ -370,7 +370,7 @@ void motor_set_home_encoder(motor_id_t motor_id, int home_encoder)
 
 void motor_set_target_encoder(motor_id_t motor_id, int encoder)
 {
-    assert((motor_id >= MOTOR_ID_FIRST) && (motor_id <= MOTOR_ID_LAST));
+    assert((motor_id >= 0) && (motor_id < MOTOR_ID_COUNT));
 
     // TODO: assert valid encoder?
     if (!motor_get_enabled(motor_id)) {
@@ -384,14 +384,14 @@ void motor_set_target_encoder(motor_id_t motor_id, int encoder)
 
 int motor_get_target_encoder(motor_id_t motor_id)
 {
-    assert((motor_id >= MOTOR_ID_FIRST) && (motor_id <= MOTOR_ID_LAST));
+    assert((motor_id >= 0) && (motor_id < MOTOR_ID_COUNT));
 
     return motor_state[motor_id].target_encoder * motor_state[motor_id].logic;
 }
 
 int motor_get_encoder(motor_id_t motor_id)
 {
-    assert((motor_id >= MOTOR_ID_FIRST) && (motor_id <= MOTOR_ID_LAST));
+    assert((motor_id >= 0) && (motor_id < MOTOR_ID_COUNT));
     if (!motor_get_enabled(motor_id))
         return 0;
 
@@ -401,15 +401,15 @@ int motor_get_encoder(motor_id_t motor_id)
 void motor_print_encoders(void)
 {
     log_writeln(F("Current Positions: "));
-    for (int i = MOTOR_ID_FIRST; i <= MOTOR_ID_LAST; i++) {
-        log_write(F("%c=%d%c"), 'A' + i, motor_get_encoder((motor_id_t)i), (i < MOTOR_ID_LAST) ? ',' : ' ');
+    for (int i = 0; i < MOTOR_ID_COUNT; i++) {
+        log_write(F("%c=%d%c"), 'A' + i, motor_get_encoder((motor_id_t)i), (i < MOTOR_ID_COUNT - 1) ? ',' : ' ');
     }
     log_writeln();
 }
 
 float motor_get_encoder_steps_per_degree(motor_id_t motor_id)
 {
-    assert((motor_id >= MOTOR_ID_FIRST) && (motor_id <= MOTOR_ID_LAST));
+    assert((motor_id >= 0) && (motor_id < MOTOR_ID_COUNT));
     if (!motor_configured(motor_id))
         return 0.0f;
 
@@ -440,7 +440,7 @@ float motor_get_encoder_steps_per_degree(motor_id_t motor_id)
 
 int motor_angle_to_encoder(motor_id_t motor_id, float angle)
 {
-    assert((motor_id >= MOTOR_ID_FIRST) && (motor_id <= MOTOR_ID_LAST));
+    assert((motor_id >= 0) && (motor_id < MOTOR_ID_COUNT));
     if (!motor_configured(motor_id))
         return 0;
 
@@ -449,7 +449,7 @@ int motor_angle_to_encoder(motor_id_t motor_id, float angle)
 
 void motor_set_target_angle(motor_id_t motor_id, float angle)
 {
-    assert((motor_id >= MOTOR_ID_FIRST) && (motor_id <= MOTOR_ID_LAST));
+    assert((motor_id >= 0) && (motor_id < MOTOR_ID_COUNT));
     if (!motor_configured(motor_id))
         return;
 
@@ -461,7 +461,7 @@ void motor_set_target_angle(motor_id_t motor_id, float angle)
 
 float motor_get_angle(motor_id_t motor_id)
 {
-    assert((motor_id >= MOTOR_ID_FIRST) && (motor_id <= MOTOR_ID_LAST));
+    assert((motor_id >= 0) && (motor_id < MOTOR_ID_COUNT));
     if (!motor_configured(motor_id))
         return 0.0f;
 
@@ -470,7 +470,7 @@ float motor_get_angle(motor_id_t motor_id)
 
 void motor_set_speed(motor_id_t motor_id, int speed)
 {
-    assert((motor_id >= MOTOR_ID_FIRST) && (motor_id <= MOTOR_ID_LAST));
+    assert((motor_id >= 0) && (motor_id < MOTOR_ID_COUNT));
     assert((speed >= motor_min_speed) && (speed <= motor_max_speed));
 
     if (!motor_state[motor_id].enabled) {
@@ -497,7 +497,7 @@ void motor_set_speed(motor_id_t motor_id, int speed)
 
 void motor_set_max_speed_percent(motor_id_t motor_id, int max_speed_percent)
 {
-    assert((motor_id >= MOTOR_ID_FIRST) && (motor_id <= MOTOR_ID_LAST));
+    assert((motor_id >= 0) && (motor_id < MOTOR_ID_COUNT));
     assert((max_speed_percent >= 0.0f) && (max_speed_percent <= 100.0f));
 
     motor_state[motor_id].max_speed = (motor_max_speed * max_speed_percent) / 100;
@@ -505,20 +505,20 @@ void motor_set_max_speed_percent(motor_id_t motor_id, int max_speed_percent)
 
 int motor_get_max_speed_percent(motor_id_t motor_id)
 {
-    assert((motor_id >= MOTOR_ID_FIRST) && (motor_id <= MOTOR_ID_LAST));
+    assert((motor_id >= 0) && (motor_id < MOTOR_ID_COUNT));
 
     return motor_state[motor_id].max_speed * 100 / motor_max_speed;
 }
 
 bool motor_get_home_triggered(motor_id_t motor_id)
 {
-    assert((motor_id >= MOTOR_ID_FIRST) && (motor_id <= MOTOR_ID_LAST));
+    assert((motor_id >= 0) && (motor_id < MOTOR_ID_COUNT));
     return !digitalRead(motor_pinout[motor_id].in_home_switch);  // The switches are active LOW, so invert.
 }
 
 bool motor_get_home_triggered_debounced(motor_id_t motor_id)
 {
-    assert((motor_id >= MOTOR_ID_FIRST) && (motor_id <= MOTOR_ID_LAST));
+    assert((motor_id >= 0) && (motor_id < MOTOR_ID_COUNT));
     return motor_state[motor_id].home_triggered_debounced;
 }
 
@@ -534,7 +534,7 @@ static void print_motor_delta(int delta)
 
 static void motor_test(motor_id_t motor_id)
 {
-    assert((motor_id >= MOTOR_ID_FIRST) && (motor_id <= MOTOR_ID_LAST));
+    assert((motor_id >= 0) && (motor_id < MOTOR_ID_COUNT));
 
     const int test_speed = 255 - motor_min_pwm;
     const int delay_ms = 50;
@@ -628,7 +628,7 @@ void motor_test_enabled(void)
 {
     log_writeln(F("Testing motors"));
 
-    for (int i = MOTOR_ID_FIRST; i <= MOTOR_ID_LAST; i++) {
+    for (int i = 0; i < MOTOR_ID_COUNT; i++) {
         if (motor_state[i].enabled == false)
             continue;
         delay(25);
@@ -725,7 +725,7 @@ static void motor_track_report(motor_id_t motor_id)
 
 void motor_dump(motor_id_t motor_id)
 {
-    assert((motor_id >= MOTOR_ID_FIRST) && (motor_id <= MOTOR_ID_LAST));
+    assert((motor_id >= 0) && (motor_id < MOTOR_ID_COUNT));
     if (!motor_configured(motor_id))
         return;
 
@@ -754,7 +754,7 @@ void motor_set_user_error(bool enable)
 
 void motor_log_errors(motor_id_t motor_id)
 {
-    assert((motor_id >= MOTOR_ID_FIRST) && (motor_id <= MOTOR_ID_LAST));
+    assert((motor_id >= 0) && (motor_id < MOTOR_ID_COUNT));
     int ef = motor_state[motor_id].error_flags;
 
     if (ef == 0)
@@ -814,7 +814,7 @@ static void isr_maybe_blink_led(void)
 
 static void check_home_switch(motor_id_t motor_id)
 {
-    assert((motor_id >= MOTOR_ID_FIRST) && (motor_id <= MOTOR_ID_LAST));
+    assert((motor_id >= 0) && (motor_id < MOTOR_ID_COUNT));
 
     motor_state_t *motor = &motor_state[motor_id];
 
@@ -871,7 +871,7 @@ ISR(TIMER1_COMPA_vect) {
     const int qe_inc_states[] = { 1, 3, 0, 2 };  // 01 -> 11 -> 00 -> 10.
     const int qe_dec_states[] = { 2, 0, 3, 1 };  // 10 -> 00 -> 11 -> 01.
 
-    for (motor_id_t qe_motor_id = MOTOR_ID_FIRST; qe_motor_id <= MOTOR_ID_LAST; qe_motor_id = motor_id_t(qe_motor_id + 1)) {
+    for (motor_id_t qe_motor_id = 0; qe_motor_id < MOTOR_ID_COUNT; qe_motor_id = motor_id_t(qe_motor_id + 1)) {
         // Quadrature Encoders - read at rate of 2kHz.
         int qe_value_a = digitalRead(motor_pinout[qe_motor_id].in_quadrature_encoder_a);
         int qe_value_b = digitalRead(motor_pinout[qe_motor_id].in_quadrature_encoder_b);
@@ -921,8 +921,8 @@ ISR(TIMER1_COMPA_vect) {
     // calculations on.
     //==========================================================
     motor_id = motor_id_t(motor_id + 1);
-    if (motor_id > MOTOR_ID_LAST)
-        motor_id = MOTOR_ID_FIRST;
+    if (motor_id >= MOTOR_ID_COUNT)
+        motor_id = 0;
 
     //==========================================================
     // See if the Motor PID needs to be turned on.
@@ -1089,7 +1089,7 @@ ISR(TIMER1_COMPA_vect) {
             if (TravelSoFar != TravelSoFarPrev) {
                 TravelSoFarPrev = TravelSoFar;
                 float TravelSoFarFloat = TravelSoFar;
-                for (int sync_motor_id = MOTOR_ID_B; sync_motor_id <= MOTOR_ID_LAST; sync_motor_id++) {
+                for (int sync_motor_id = MOTOR_ID_B; sync_motor_id < MOTOR_ID_COUNT; sync_motor_id++) {
                     if (sync_motor_id != LeadMotor) {
                         float RP = TravelSoFarFloat * Ratio[sync_motor_id];
                         int RI = int(RP);

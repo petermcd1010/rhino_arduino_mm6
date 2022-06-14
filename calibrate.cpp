@@ -40,7 +40,7 @@ static void break_handler(sm_state_t *state);
 
 static bool is_stuck(motor_id_t motor_it, int *stuck_start_encoder, unsigned long *stuck_start_millis, unsigned long stuck_duration_millis)
 {
-    assert((motor_id >= MOTOR_ID_A) && (motor_id <= MOTOR_ID_LAST));
+    assert((motor_id >= MOTOR_ID_A) && (motor_id < MOTOR_ID_COUNT));
     assert(stuck_start_encoder);
     assert(stuck_start_millis);
 
@@ -96,7 +96,7 @@ static bool cant_find_home_switch(void)
 
 static void update_status(motor_id_t motor_id)
 {
-    assert((motor_id >= MOTOR_ID_A) && (motor_id <= MOTOR_ID_LAST));
+    assert((motor_id >= MOTOR_ID_A) && (motor_id < MOTOR_ID_COUNT));
 
     static unsigned long print_ms = 0;
     static bool prev_triggered = motor_get_home_triggered_debounced(motor_id);
@@ -178,7 +178,7 @@ static void calibrate_all(sm_state_t *state)
         motor_id = (motor_id_t)((int)motor_id + 1);
     }
 
-    if (motor_id > MOTOR_ID_LAST) {
+    if (motor_id >= MOTOR_ID_COUNT) {
         motor_id = (motor_id_t)-1;
         sm_set_next_state(exit_to_state);
     }
@@ -187,7 +187,7 @@ static void calibrate_all(sm_state_t *state)
 static void calibrate_one_enter(sm_state_t *state)
 {
     assert(state);
-    assert((motor_id >= MOTOR_ID_A) && (motor_id <= MOTOR_ID_LAST));
+    assert((motor_id >= MOTOR_ID_A) && (motor_id < MOTOR_ID_COUNT));
 
     log_writeln(F("Calibrating motor %c."), 'A' + motor_id);
     update_status(motor_id);
@@ -222,7 +222,7 @@ static void calibrate_one_enter(sm_state_t *state)
 static void calibrate_one_reverse_then_forward(sm_state_t *state)
 {
     assert(state);
-    assert((motor_id >= MOTOR_ID_A) && (motor_id <= MOTOR_ID_LAST));
+    assert((motor_id >= MOTOR_ID_A) && (motor_id < MOTOR_ID_COUNT));
 
     if (motor_get_target_encoder(motor_id) != INT_MIN) {
         stuck_start_millis = millis();
@@ -257,7 +257,7 @@ static void calibrate_one_reverse_then_forward(sm_state_t *state)
 static void calibrate_one_forward(sm_state_t *state)
 {
     assert(state);
-    assert((motor_id >= MOTOR_ID_A) && (motor_id <= MOTOR_ID_LAST));
+    assert((motor_id >= MOTOR_ID_A) && (motor_id < MOTOR_ID_COUNT));
 
     update_status(motor_id);
 
@@ -316,7 +316,7 @@ static void calibrate_one_forward(sm_state_t *state)
 static void calibrate_one_forward_backup(sm_state_t *state)
 {
     assert(state);
-    assert((motor_id >= MOTOR_ID_A) && (motor_id <= MOTOR_ID_LAST));
+    assert((motor_id >= MOTOR_ID_A) && (motor_id < MOTOR_ID_COUNT));
 
     if (motor_get_target_encoder(motor_id) != INT_MIN) {
         stuck_start_millis = millis();
@@ -353,7 +353,7 @@ static void calibrate_one_forward_backup(sm_state_t *state)
 static void calibrate_one_reverse(sm_state_t *state)
 {
     assert(state);
-    assert((motor_id >= MOTOR_ID_A) && (motor_id <= MOTOR_ID_LAST));
+    assert((motor_id >= MOTOR_ID_A) && (motor_id < MOTOR_ID_COUNT));
 
     update_status(motor_id);
 
@@ -413,7 +413,7 @@ static void calibrate_one_reverse(sm_state_t *state)
 static void calibrate_one_reverse_backup(sm_state_t *state)
 {
     assert(state);
-    assert((motor_id >= MOTOR_ID_A) && (motor_id <= MOTOR_ID_LAST));
+    assert((motor_id >= MOTOR_ID_A) && (motor_id < MOTOR_ID_COUNT));
 
     if (motor_get_target_encoder(motor_id) != INT_MAX) {
         stuck_start_millis = millis();
@@ -444,7 +444,7 @@ static void calibrate_one_reverse_backup(sm_state_t *state)
 static void calibrate_one_go_home(sm_state_t *state)
 {
     assert(state);
-    assert((motor_id >= MOTOR_ID_A) && (motor_id <= MOTOR_ID_LAST));
+    assert((motor_id >= MOTOR_ID_A) && (motor_id < MOTOR_ID_COUNT));
     update_status(motor_id);
 
     if (motor_get_target_encoder(motor_id) != 0) {
@@ -492,7 +492,7 @@ static void calibrate_one_go_home(sm_state_t *state)
 static void calibrate_one_failed(sm_state_t *state)
 {
     assert(state);
-    assert((motor_id >= MOTOR_ID_A) && (motor_id <= MOTOR_ID_LAST));
+    assert((motor_id >= MOTOR_ID_A) && (motor_id < MOTOR_ID_COUNT));
     update_status(motor_id);
 
     stuck_start_millis = millis();
@@ -512,7 +512,7 @@ static void calibrate_one_failed(sm_state_t *state)
 static void calibrate_one_done(sm_state_t *state)
 {
     assert(state);
-    assert((motor_id >= MOTOR_ID_A) && (motor_id <= MOTOR_ID_LAST));
+    assert((motor_id >= MOTOR_ID_A) && (motor_id < MOTOR_ID_COUNT));
     update_status(motor_id);
 
     motor_state[motor_id].home_forward_on_encoder = INT_MAX;

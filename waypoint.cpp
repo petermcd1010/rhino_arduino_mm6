@@ -211,7 +211,7 @@ void start(void)
     assert(current_index >= 0);
     assert(current_index < waypoint_get_max_count());
 
-    for (int i = MOTOR_ID_A; i <= MOTOR_ID_LAST; i++) {
+    for (int i = MOTOR_ID_A; i < MOTOR_ID_COUNT; i++) {
         motor_set_enabled((motor_id_t)i, true);
     }
 

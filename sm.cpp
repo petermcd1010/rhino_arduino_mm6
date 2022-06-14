@@ -131,7 +131,7 @@ static void process_serial_input()
         if (strlen(config.robot_name) != 0)
             log_write(F("%s: "), config.robot_name);
 
-        for (int i = MOTOR_ID_FIRST; i <= MOTOR_ID_LAST; i++) {
+        for (int i = 0; i < MOTOR_ID_COUNT; i++) {
             if (motor_get_enabled(i)) {
                 char angle_str[15];
                 dtostrf(status.motor[i].angle, 3, 2, angle_str);

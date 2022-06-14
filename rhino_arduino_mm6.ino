@@ -34,7 +34,7 @@ static bool check_system_integrity()
 
     ok = (motor_get_thermal_overload_detected() || motor_get_overcurrent_detected()) ? false : ok;
 
-    for (int i = MOTOR_ID_FIRST; i <= MOTOR_ID_LAST; i++) {
+    for (int i = 0; i < MOTOR_ID_COUNT; i++) {
         if (motor_state[i].error_flags != 0) {
             if (previous_ok) {
                 log_writeln(F(""));
