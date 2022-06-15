@@ -334,7 +334,7 @@ static void go_home(void)
         if (enabled) {
             if (motor_get_target_encoder(i) != 0)
                 motor_set_target_encoder(i, 0);
-            if ((motor_get_encoder(i) != 0) || (!motor_get_home_triggered_debounced(i)))
+            if ((motor_get_encoder(i) != 0) || (!motor_is_home_triggered_debounced(i)))
                 all_home = false;
         }
     }

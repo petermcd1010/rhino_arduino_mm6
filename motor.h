@@ -61,6 +61,9 @@ typedef struct {
     int                target_encoder;
     int                current_draw; // TODO: units? counts?
     motor_progress_t   progress;
+    int                encoders_per_second;  // Updated 3x/second.
+    int                encoders_per_second_counts;
+    int                encoders_per_second_start_encoder;
     bool               prev_home_triggered;  // Switch value last time transition detected.
     unsigned long      prev_home_triggered_millis;  // Time last transition detected.
     int                prev_home_triggered_encoder;  // Encoder value last time transition detected.
@@ -104,8 +107,10 @@ float motor_get_angle(motor_id_t motor_id);
 void motor_set_speed(motor_id_t motor_id, int speed);  // For speed in [motor_min_speed, motor_max_speed]. Sets speed to 0 if motor not enabled/configured.
 void motor_set_max_speed_percent(motor_id_t motor_id, int max_speed_percent);
 int motor_get_max_speed_percent(motor_id_t motor_id);
-bool motor_get_home_triggered(motor_id_t motor_id);
-bool motor_get_home_triggered_debounced(motor_id_t motor_id);
+void motor_clear_stuck(motor_id_t motor_id);
+bool motor_is_stuck(motor_id_t motor_id, unsigned long stuck_duration_millis);  // True if target_ecoder != encoder and hasn't moved duration_millis.
+bool motor_is_home_triggered(motor_id_t motor_id);
+bool motor_is_home_triggered_debounced(motor_id_t motor_id);
 void motor_test_enabled(void);
 void motor_dump(motor_id_t motor_id);
 void motor_set_user_error(bool enable);  // Will blink LED quickly to notify user of issue.

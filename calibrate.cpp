@@ -10,6 +10,7 @@
 #include "motor.h"
 #include "sm.h"
 
+static int exit_motor_ids_mask = 0;
 static sm_state_t exit_to_state = { 0 };  // Transition to this state when done running waypoints.
 static bool calibrate_limits = false;
 static int motor_ids_mask = 0;
@@ -38,7 +39,7 @@ static void calibrate_one_failed(sm_state_t *state);
 static void calibrate_one_done(sm_state_t *state);
 static void break_handler(sm_state_t *state);
 
-static bool is_stuck(motor_id_t motor_it, int *stuck_start_encoder, unsigned long *stuck_start_millis, unsigned long stuck_duration_millis)
+static bool is_stuck(motor_id_t motor_id, int *stuck_start_encoder, unsigned long *stuck_start_millis, unsigned long stuck_duration_millis)
 {
     assert((motor_id >= MOTOR_ID_A) && (motor_id < MOTOR_ID_COUNT));
     assert(stuck_start_encoder);
@@ -94,12 +95,19 @@ static bool cant_find_home_switch(void)
         return false;
 }
 
+static void exit_sm(void)
+{
+    motor_id = (motor_id_t)-1;
+    motor_set_enabled_mask(exit_motor_ids_mask);
+    sm_set_next_state(exit_to_state);
+}
+
 static void update_status(motor_id_t motor_id)
 {
     assert((motor_id >= MOTOR_ID_A) && (motor_id < MOTOR_ID_COUNT));
 
     static unsigned long print_ms = 0;
-    static bool prev_triggered = motor_get_home_triggered_debounced(motor_id);
+    static bool prev_triggered = motor_is_home_triggered_debounced(motor_id);
 
     if ((motor_state[motor_id].pid_perror != 0) && (millis() - print_ms > 1000)) {
         log_write(F("Calibrating motor %c: "), 'A' + motor_id);
@@ -115,11 +123,11 @@ static void update_status(motor_id_t motor_id)
             else
                 log_write(F("Heading home, "));
         }
-        log_writeln(F("encoder %d."), encoder * motor_state[motor_id].logic);
+        log_writeln(F("encoder %d. encoders_per_second %d"), encoder * motor_state[motor_id].logic, (int)motor_state[motor_id].encoders_per_second);
         print_ms = millis();
     }
 
-    bool triggered = motor_get_home_triggered_debounced(motor_id);
+    bool triggered = motor_is_home_triggered_debounced(motor_id);
 
 #if 0
     if (prev_triggered != triggered) {
@@ -139,6 +147,7 @@ void calibrate_home_switch_and_limits(int in_motor_ids_mask, int max_speed_pct)
     motor_ids_mask = in_motor_ids_mask;
     motor_id = 0;
     max_speed_percent = max_speed_pct;
+    exit_motor_ids_mask = motor_get_enabled_mask();
     exit_to_state = sm_get_state();
     sm_state_t s = { .run = calibrate_all, .break_handler = break_handler, .name = F("calibrate all"), .data = NULL };
 
@@ -155,6 +164,7 @@ void calibrate_home_switch(int in_motor_ids_mask, int max_speed_pct)
     motor_ids_mask = in_motor_ids_mask;
     motor_id = 0;
     max_speed_percent = max_speed_pct;
+    exit_motor_ids_mask = motor_get_enabled_mask();
     exit_to_state = sm_get_state();
     sm_state_t s = { .run = calibrate_all, .break_handler = break_handler, .name = F("calibrate all"), .data = NULL };
 
@@ -178,10 +188,8 @@ static void calibrate_all(sm_state_t *state)
         motor_id = (motor_id_t)((int)motor_id + 1);
     }
 
-    if (motor_id >= MOTOR_ID_COUNT) {
-        motor_id = (motor_id_t)-1;
-        sm_set_next_state(exit_to_state);
-    }
+    if (motor_id >= MOTOR_ID_COUNT)
+        exit_sm();
 }
 
 static void calibrate_one_enter(sm_state_t *state)
@@ -207,7 +215,7 @@ static void calibrate_one_enter(sm_state_t *state)
     min_encoder = INT_MIN;
     max_encoder = INT_MAX;
 
-    if (!calibrate_limits && motor_get_home_triggered_debounced(motor_id)) {
+    if (!calibrate_limits && motor_is_home_triggered_debounced(motor_id)) {
         sm_state_t s = { .run = calibrate_one_reverse_then_forward, .break_handler = break_handler, .name = F("calibrate one reverse then forward"), .data = NULL };
         sm_set_next_state(s);
     } else if (motor_get_encoder(motor_id) <= 0) {
@@ -469,7 +477,7 @@ static void calibrate_one_go_home(sm_state_t *state)
     int encoder = motor_get_encoder(motor_id);
 
     if (motor_get_target_encoder(motor_id) - encoder == 0) {
-        if (!motor_get_home_triggered_debounced(motor_id)) {
+        if (!motor_is_home_triggered_debounced(motor_id)) {
             sm_state_t s = { .run = calibrate_one_failed, .break_handler = break_handler, .name = F("calibrate one done"), .data = NULL };
             sm_set_next_state(s);
         } else {
@@ -532,7 +540,5 @@ static void break_handler(sm_state_t *state)
 {
     assert(state);
     log_writeln(F("Break detected. Stopping calibration."));
-    motor_disable_all();
-    motor_id = (motor_id_t)-1;
-    sm_set_next_state(exit_to_state);
+    exit_sm();
 }

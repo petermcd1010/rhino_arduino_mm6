@@ -138,7 +138,7 @@ static void motor_init(motor_id_t motor_id)
         //       Since the Forward and Reverse Locic are used to invert the position the values are 1 or -1
         motor_state[motor_id].logic = config.motor[motor_id].orientation;
         motor_set_max_speed_percent((motor_id_t)motor_id, 100);
-        motor_state[motor_id].prev_home_triggered = motor_get_home_triggered(motor_id);
+        motor_state[motor_id].prev_home_triggered = motor_is_home_triggered(motor_id);
         motor_state[motor_id].prev_home_triggered_millis = millis();
         motor_state[motor_id].prev_home_triggered_encoder = INT_MAX;
         motor_state[motor_id].home_triggered_debounced = motor_state[motor_id].prev_home_triggered;
@@ -306,7 +306,7 @@ void motor_set_enabled(motor_id_t motor_id, bool enabled)
         motor_state[motor_id].target_encoder = noinit_data.encoder[motor_id];
         motor_state[motor_id].pid_perror = 0;
         motor_state[motor_id].pid_dvalue = 0;
-        motor_state[motor_id].home_triggered_debounced = motor_get_home_triggered(motor_id);
+        motor_state[motor_id].home_triggered_debounced = motor_is_home_triggered(motor_id);
         motor_set_speed(motor_id, motor_max_speed);
         set_brake(motor_id, false);
         enabled_motors_mask |= 1 << (int)motor_id;
@@ -380,6 +380,7 @@ void motor_set_target_encoder(motor_id_t motor_id, int encoder)
 
     motor_state[motor_id].target_encoder = encoder * motor_state[motor_id].logic;
     motor_state[motor_id].progress = MOTOR_PROGRESS_ON_WAY_TO_TARGET;
+    motor_state[motor_id].encoders_per_second = 0;
 }
 
 int motor_get_target_encoder(motor_id_t motor_id)
@@ -510,13 +511,13 @@ int motor_get_max_speed_percent(motor_id_t motor_id)
     return motor_state[motor_id].max_speed * 100 / motor_max_speed;
 }
 
-bool motor_get_home_triggered(motor_id_t motor_id)
+bool motor_is_home_triggered(motor_id_t motor_id)
 {
     assert((motor_id >= 0) && (motor_id < MOTOR_ID_COUNT));
     return !digitalRead(motor_pinout[motor_id].in_home_switch);  // The switches are active LOW, so invert.
 }
 
-bool motor_get_home_triggered_debounced(motor_id_t motor_id)
+bool motor_is_home_triggered_debounced(motor_id_t motor_id)
 {
     assert((motor_id >= 0) && (motor_id < MOTOR_ID_COUNT));
     return motor_state[motor_id].home_triggered_debounced;
@@ -776,7 +777,7 @@ void motor_log_errors(motor_id_t motor_id)
         log_writeln(F("Motor %c encoder underflow."), 'A' + motor_id);
 }
 
-static void isr_maybe_blink_led(void)
+static void maybe_blink_led(void)
 {
     static int led_counter = 0;
 
@@ -788,12 +789,41 @@ static void isr_maybe_blink_led(void)
     }
 
     if (motor_error) {
-        led_counter++;
-        if (led_counter > 200) {
-            bool led_state = !hardware_get_led_enabled();
-            hardware_set_led_enabled(led_state);
-            hardware_set_speaker_enabled(led_state);
-            led_counter = 0;
+        // Blink S-O-S if there's an error.
+        bool led_state;
+        const int len = 300;
+        switch (led_counter) {
+        case len * 0:  // dot.
+        case len * 2:  // dot.
+        case len * 4:  // dot.
+        case len * 8:  // dash.
+        case len * 12:  // dash.
+        case len * 16:  // dash.
+        case len * 23:  // dot.
+        case len * 25:  // dot.
+        case len * 27:  // dot.
+            hardware_set_led_enabled(true);
+            hardware_set_speaker_enabled(true);
+            led_counter++;
+            break;
+        case len * 1:  // space after first dot.
+        case len * 3:  // space after second dot.
+        case len * 5:  // space after third dot (3x between words).
+        case len * 11:  // space after first dash.
+        case len * 15:  // space after second dash.
+        case len * 20:  // space after third dash.
+        case len * 24:  // space after fourth dot (3x between words).
+        case len * 26:  // space after fifth dot.
+        case len * 28:  // space after sixth dot.
+            hardware_set_led_enabled(false);
+            hardware_set_speaker_enabled(false);
+            led_counter++;
+            break;
+        default:
+            led_counter++;
+            if (led_counter > len * 35) // len*35 = len*28 + 7.
+                led_counter = 0;
+            break;
         }
         return;
     }
@@ -818,8 +848,8 @@ static void check_home_switch(motor_id_t motor_id)
 
     motor_state_t *motor = &motor_state[motor_id];
 
-    bool home_triggered_debounced = motor_get_home_triggered_debounced(motor_id);
-    bool home_triggered = motor_get_home_triggered(motor_id);
+    bool home_triggered_debounced = motor_is_home_triggered_debounced(motor_id);
+    bool home_triggered = motor_is_home_triggered(motor_id);
 
     unsigned const debounce_delay_millis = 50;
 
@@ -864,7 +894,8 @@ ISR(TIMER1_COMPA_vect) {
     static int td = 0;
     static int te = 0;
     static int tf = 0;
-    static motor_id_t motor_id = 0;
+    static int speed_counts = 0;
+    static motor_id_t motor_id = MOTOR_ID_A;
 
     const int max_error = 255 - motor_min_pwm;
     const int min_error = -(255 - motor_min_pwm);
@@ -908,9 +939,17 @@ ISR(TIMER1_COMPA_vect) {
 
         if (get_overcurrent_active(qe_motor_id))
             motor_state[qe_motor_id].error_flags |= MOTOR_ERROR_FLAG_OVERCURRENT_DETECTED;
+
+        if (motor_state[qe_motor_id].encoders_per_second_counts++ == (2000 / MOTOR_ID_COUNT / 3)) {
+            // ISR runs at 2kHz and round-robins the six motors, Every 1/3 of a second, update encoders_per_second.
+            motor_state[qe_motor_id].encoders_per_second = noinit_data.encoder[qe_motor_id] - motor_state[qe_motor_id].encoders_per_second_start_encoder;
+            motor_state[qe_motor_id].encoders_per_second *= 3;
+            motor_state[qe_motor_id].encoders_per_second_start_encoder = noinit_data.encoder[qe_motor_id];
+            motor_state[qe_motor_id].encoders_per_second_counts = 0;
+        }
     }
 
-    isr_maybe_blink_led();
+    maybe_blink_led();
 
     //==========================================================
     // Calculate Motor status values.

@@ -198,8 +198,8 @@ static const menu_item_t waypoint_menu[] = {
 
 static const char CM_C[] PROGMEM = "calibrate home switches and limits";
 static const char CH_C[] PROGMEM = "[motorids [max-speed-percent]] -- Calibrate home switches and motor limits; calibrates enabled motors if none given.";
-static const char CM_H[] PROGMEM = "calibrate home switches";
-static const char CH_H[] PROGMEM = "[motorids [max-speed-percent]] -- Calibrate home switches; calibrates enabled motors if none given.";
+static const char CM_O[] PROGMEM = "calibrate home switches";
+static const char CH_O[] PROGMEM = "[motorids [max-speed-percent]] -- Calibrate home switches; calibrates enabled motors if none given.";
 static const char CH_X[] PROGMEM = "-- Exit calibration menu.";
 
 static const menu_item_t calibration_menu[] = {
@@ -207,7 +207,8 @@ static const menu_item_t calibration_menu[] = {
     { '0', MM_0,    NULL, NULL,      true,  command_config_write,              MH_0    },
     { 'C', CM_C,    NULL, NULL,      true,  command_calibrate_home_and_limits, CH_C    },
     { 'E', MM_E,    NULL, NULL,      true,  command_set_enabled_motors,        MH_E    },
-    { 'H', CM_H,    NULL, NULL,      true,  command_calibrate_home,            CH_H    },
+    { 'H', MM_H,    NULL, NULL,      false, command_go_home,                   MH_H    },
+    { 'O', CM_O,    NULL, NULL,      true,  command_calibrate_home,            CH_O    },
     { 'M', MM_M,    NULL, NULL,      true,  command_print_motor_status,        MH_M    },
     { 'N', MM_N,    NULL, NULL,      true,  command_set_motor_angle,           MH_N    },   // TODO.
     { 'P', MM_P,    NULL, NULL,      true,  command_set_motor_encoder,         MH_P    },
