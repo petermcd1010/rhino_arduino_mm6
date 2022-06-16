@@ -1,7 +1,7 @@
 /*
  * Arduino Mega 2560 MegaMotor6 controller for Rhino Robots arms and accessories.
  * Written by Scott Savage, Peter McDermott.
- * Feb 2017-2022 GNU General Public License (GPL).
+ * Copyright (C) 2017-2022 by the authors. Licensed under the GNU General Public License (GPL).
  * See the LICENSE file in the root directory of this project for copyright and licensing details.
  */
 
