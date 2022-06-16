@@ -26,13 +26,12 @@ int command_set_motor_encoder(char *args, size_t args_nbytes);
 int command_run_test_sequence(char *args, size_t args_nbytes);
 int command_test_motors(char *args, size_t args_nbytes);
 int command_print_software_version(char *args, size_t args_nbytes);
-int command_waypoint_run(char *args, size_t args_nbytes);  // w r [start-step].
-int command_waypoint_set(char *args, size_t args_nbytes);  // w s step command [args].
-int command_waypoint_insert_before(char *args, size_t args_nbytes);  // w i step command [args].
-int command_waypoint_delete(char *args, size_t args_nbytes);  // w d step.
-int command_waypoint_append(char *args, size_t args_nbytes);  // w a command [args].
-int command_waypoint_print(char *args, size_t args_nbytes);  // w p [step [count]].
-int command_waypoint_run(char *args, size_t args_nbytes);  // w r [step [step]].
+int command_waypoint_run(char *args, size_t args_nbytes);
+int command_waypoint_set(char *args, size_t args_nbytes);
+int command_waypoint_insert_before(char *args, size_t args_nbytes);
+int command_waypoint_append(char *args, size_t args_nbytes);
+int command_waypoint_delete(char *args, size_t args_nbytes);
+int command_waypoint_print(char *args, size_t args_nbytes);
 int command_factory_reset(char *args, size_t args_nbytes);
 int command_emergency_stop(char *args, size_t args_nbytes);
 int command_print_help(char *args, size_t args_nbytes);

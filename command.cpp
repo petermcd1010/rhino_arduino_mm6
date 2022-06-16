@@ -660,7 +660,71 @@ int command_waypoint_run(char *args, size_t args_nbytes)
     return p - args;
 }
 
+static int parse_waypoint_command(char *args, size_t args_nbytes, int *step, waypoint_t *waypoint)
+{
+    assert(args);
+    assert(step);
+    assert(waypoint);
+
+    char *p = args;
+
+    *step = -1;
+    memset(waypoint, 0, sizeof(waypoint_t));
+
+    size_t nbytes = parse_int(p, args_nbytes, step);
+
+    if (nbytes == 0)
+        return -1;
+    if ((*step < 0) || (*step >= waypoint_get_max_count()))
+        return -1;
+    args_nbytes -= nbytes;
+    p += nbytes;
+
+    nbytes = parse_waypoint(p, args_nbytes, waypoint);
+    args_nbytes -= nbytes;
+    p += nbytes;
+    if (args_nbytes > 0)
+        return -1;
+
+    return p - args;
+}
+
 int command_waypoint_set(char *args, size_t args_nbytes)
+{
+    assert(args);
+
+    int step = -1;
+    waypoint_t waypoint = { 0 };
+
+    size_t nbytes = parse_waypoint_command(args, args_nbytes, &step, &waypoint);
+
+    if (nbytes <= 0)
+        return nbytes;
+
+    log_writeln(F("Setting waypoint %d."), step);
+    waypoint_set(step, waypoint);
+
+    return nbytes;
+}
+
+int command_waypoint_insert_before(char *args, size_t args_nbytes)
+{
+    assert(args);
+
+    int step = -1;
+    waypoint_t waypoint = { 0 };
+
+    size_t nbytes = parse_waypoint_command(args, args_nbytes, &step, &waypoint);
+
+    if (nbytes <= 0)
+        return nbytes;
+
+    waypoint_insert_before(step, waypoint);
+
+    return nbytes;
+}
+
+int command_waypoint_append(char *args, size_t args_nbytes)
 {
     assert(args);
 
@@ -668,43 +732,23 @@ int command_waypoint_set(char *args, size_t args_nbytes)
     int step = -1;
     waypoint_t waypoint = { 0 };
 
-    size_t nbytes = parse_int(p, args_nbytes, &step);
+    size_t nbytes = parse_waypoint(p, args_nbytes, &waypoint);
 
-    if (nbytes == 0)
-        return -1;
-    if ((step < 0) || (step >= waypoint_get_max_count()))
-        return -1;
-    args_nbytes -= nbytes;
-    p += nbytes;
-
-    nbytes = parse_waypoint(p, args_nbytes, &waypoint);
     args_nbytes -= nbytes;
     p += nbytes;
     if (args_nbytes > 0)
         return -1;
 
-    log_writeln(F("Setting waypoint %d."), step);
-    waypoint_set(step, waypoint);
+    waypoint_append(waypoint);
 
-    return p - args;
-}
-
-int command_waypoint_insert_before(char *args, size_t args_nbytes)
-{
-    assert(args);
-
-    // w i step command [args].
-    assert(false);
-    return -1;
+    return nbytes;
 }
 
 int command_waypoint_delete(char *args, size_t args_nbytes)
 {
     assert(args);
 
-    // w d step.
-    static int step = 0;
-
+    int step = 0;
     char *p = args;
 
     size_t nbytes = parse_int(p, args_nbytes, &step);
@@ -718,28 +762,15 @@ int command_waypoint_delete(char *args, size_t args_nbytes)
 
     waypoint_delete(step);
 
-    step++;  // Advance to next step.
-
     return p - args;
 
 error:
     return -1;
 }
 
-int command_waypoint_append(char *args, size_t args_nbytes)
-{
-    assert(args);
-
-    // w a command [args].
-    assert(false);
-    return -1;
-}
-
 int command_waypoint_print(char *args, size_t args_nbytes)
 {
     assert(args);
-
-    // w p [step [count]]
 
     char *p = args;
     size_t nbytes = parse_whitespace(p, args_nbytes);
@@ -750,15 +781,6 @@ int command_waypoint_print(char *args, size_t args_nbytes)
     waypoint_print_all_used();
 
     return p - args;
-}
-
-int command_waypoint_execute_single(char *args, size_t args_nbytes)
-{
-    assert(args);
-
-    // w x step.
-    assert(false);
-    return -1;
 }
 
 int command_factory_reset(char *args, size_t args_nbytes)

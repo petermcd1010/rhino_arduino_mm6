@@ -165,21 +165,21 @@ static const menu_item_t main_menu[] = {
 };
 
 static const char WM_1[] PROGMEM = "print waypoints";
-static const char WH_1[] PROGMEM = "[start-step [count]] -- Print waypoints.";
+static const char WH_1[] PROGMEM = "-- Print waypoints.";
 static const char WM_A[] PROGMEM = "append waypoint";
-static const char WH_A[] PROGMEM = "Append waypoint to end of list.";
+static const char WH_A[] PROGMEM = "-- Append waypoint to end of list.";
 static const char WM_D[] PROGMEM = "delete waypoint";
 static const char WH_D[] PROGMEM = "step -- Delete waypoint step.";
-static const char WM_I[] PROGMEM = "insert waypint";
-static const char WH_I[] PROGMEM = "step -- Insert waypoint before step.";
+static const char WM_I[] PROGMEM = "insert waypoint";
+static const char WH_I[] PROGMEM = "-- Insert waypoint.";
 static const char WM_R[] PROGMEM = "run waypoint sequence";
-static const char WH_R[] PROGMEM = "[start-step [count]] -- Run waypoint sequence.";
+static const char WH_R[] PROGMEM = "-- Run waypoint sequence.";
 static const char WM_S[] PROGMEM = "set waypoint";
-static const char WH_S[] PROGMEM = "[step] -- Set waypoint step (or next waypoint) to current motor positions.";
+static const char WH_S[] PROGMEM = "-- Set waypoint.";
 static const char WM_X[] PROGMEM = "exit waypoints menu";
 static const char WH_X[] PROGMEM = "-- Exit waypoints menu.";
 
-static const menu_item_t waypoint_menu[] = {
+const menu_item_t waypoint_menu[] = {
     { '1', WM_1,    NULL,                          NULL,      true,  command_waypoint_print,         WH_1    },
     { 'A', WM_A,    extended_menu_append_waypoint, NULL,      true,  command_waypoint_append,        WH_A    },
     { 'D', WM_D,    NULL,                          NULL,      true,  command_waypoint_delete,        WH_D    },
@@ -202,7 +202,7 @@ static const char CM_O[] PROGMEM = "calibrate home switches";
 static const char CH_O[] PROGMEM = "[motorids [max-speed-percent]] -- Calibrate home switches; calibrates enabled motors if none given.";
 static const char CH_X[] PROGMEM = "-- Exit calibration menu.";
 
-static const menu_item_t calibration_menu[] = {
+const menu_item_t calibration_menu[] = {
     { '1', MM_1,    NULL, NULL,      true,  command_print_config,              MH_1    },
     { '0', MM_0,    NULL, NULL,      true,  command_config_write,              MH_0    },
     { 'C', CM_C,    NULL, NULL,      true,  command_calibrate_home_and_limits, CH_C    },

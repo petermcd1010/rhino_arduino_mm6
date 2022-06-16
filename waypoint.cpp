@@ -97,6 +97,27 @@ void waypoint_set(int index, waypoint_t waypoint)
     EEPROM.put(get_eeprom_address(index), waypoint);
 }
 
+void waypoint_insert_before(int index, waypoint_t waypoint)
+{
+    assert(index >= 0);
+    assert(index < waypoint_get_max_count());
+
+    assert(false);
+}
+
+void waypoint_append(waypoint_t waypoint)
+{
+    int last_index = -1;
+
+    for (int i = 0; i < waypoint_get_max_count(); i++) {
+        waypoint_t waypoint2 = waypoint_get(i);
+        if (waypoint2.command != -1)
+            last_index = i;
+    }
+
+    waypoint_set(last_index + 1, waypoint);
+}
+
 void waypoint_delete(int index)
 {
     assert(index >= 0);
