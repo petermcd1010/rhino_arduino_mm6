@@ -58,15 +58,15 @@ static const int noinit_data_version = 2;
 static const int noinit_data_magic = 0xABCD1234;
 
 typedef struct noinit_motor_t {
-    int    previous_quadrature_encoder;
-    int    encoder;
+    int previous_quadrature_encoder;
+    int encoder;
 } noinit_data_motor_t;
 
 typedef struct {
     // nbytes, version, magic are used to verify valid data.
-    size_t nbytes;
-    int    version;
-    int    magic;
+    size_t              nbytes;
+    int                 version;
+    int                 magic;
     noinit_data_motor_t motor[MOTOR_ID_COUNT];
 } noinit_data_t;
 
