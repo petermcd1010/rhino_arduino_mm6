@@ -653,10 +653,6 @@ void motor_log_errors(motor_id_t motor_id)
         log_writeln(F("Motor %c direction opposite of expectation."), 'A' + motor_id);
     if (ef & MOTOR_ERROR_FLAG_UNEXPECTED_HOME_SWITCH_ENCODER)
         log_writeln(F("Motor %c unexpected home switch encoder."), 'A' + motor_id);
-    if (ef & MOTOR_ERROR_FLAG_ENCODER_OVERFLOW)
-        log_writeln(F("Motor %c encoder overflow."), 'A' + motor_id);
-    if (ef & MOTOR_ERROR_FLAG_ENCODER_UNDERFLOW)
-        log_writeln(F("Motor %c encoder underflow."), 'A' + motor_id);
 }
 
 static void maybe_blink_led(void)
