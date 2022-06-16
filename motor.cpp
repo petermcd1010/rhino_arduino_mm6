@@ -167,36 +167,7 @@ void motor_init_all(void)
     TCCR1B |= (1 << WGM12);  // Turn on CTC mode.
     TCCR1B |= (1 << CS11);  // Set CS11 bit for 8 prescaler.
     TIMSK1 |= (1 << OCIE1A);  // Enable timer compare interrupt.
-    sei();                             // Enable interrupts.
-
-#if 0
-    // Get the Angle Offsets and Forward_Logic for ALL motors
-    for (int i = 0; i < MOTOR_ID_COUNT; i++) {
-        int logic = 0;
-
-        // The Angle Offset is used in the Position-to-Angle and Angle-to-Position calculations
-        //   Each Rhino Robot may have mechanical differences in the positions of the home swithes,
-        //   so the encoder count when the arm is straight up is stored as an "AngleOffset" so that the
-        //   MegaMotor6 Angle Values will work the actual physical position of the robot
-        //   while the Position Values work with positions relative to the home switches.
-        //     The values for the AngleOffets come from the "~" Command.
-
-        // EEPROM.get(AngleOffsetELoc[iMotor], AngleOffset[iMotor]);
-
-        // The Forward and Reverse Locic is used to turn the motors in the right direction to sync with the encoders.
-        //   Each Rhino Robot may have the wires to the motors reversed.
-        //   So the Forward and Reverse Logic is used to correct that.
-        //     The values for the Direction Logic come from the "t" command.
-        //       Since the Forward and Reverse Locic are used for an I/O line the values are 0 or 1'
-#if 0
-        logic = config.motor[i].direction_logic;  // 0 = forward, 1 = reverse.
-        if (logic != 0)
-            logic = !0;
-        Reverse_Logic[i] = logic;  // Reverse Logic - The value for the Direction IO Line when the motor needs to move Reverse. Defaults to 1.
-        Forward_Logic[i] = !logic;  // Forward Logic - The value for the Direction IO Line when the motor needs to move forward. Defaults to 0.
-#endif
-    }
-#endif
+    sei();  // Enable interrupts.
 }
 
 static bool get_thermal_overload_active(motor_id_t motor_id)
@@ -639,75 +610,6 @@ void motor_test_enabled(void)
     log_writeln(F("Done testing motors."));
 }
 
-#if 0
-static bool motor_interrogate_limit_switch_a(void)
-{
-    if (!config.motor[MOTOR_ID_A].configured)
-        return false;
-
-    motor_set_target_encoder(MOTOR_ID_A, 9999);
-    delay(2000);
-    int CurF = analogRead(motor_pinout[MOTOR_ID_A].in_current_draw);
-    int EncF = noinit_data.encoder[MOTOR_ID_A];
-    int SwcF = digitalRead(motor_pinout[MOTOR_ID_A].in_home_switch);
-
-    motor_set_target_encoder(MOTOR_ID_A, -9999);
-    delay(1500);
-    int CurR = analogRead(motor_pinout[MOTOR_ID_A].in_current_draw);
-    int EncR = noinit_data.encoder[MOTOR_ID_A];
-    int SwcR = digitalRead(motor_pinout[MOTOR_ID_A].in_home_switch);
-
-    motor_set_target_encoder(MOTOR_ID_A, 9999);
-    delay(1500);
-    motor_set_target_encoder(MOTOR_ID_A, -9999);
-    delay(1500);
-    //Serial.print("  For Cur=");
-    //Serial.println(CurF);
-    //Serial.print("  For Enc=");
-    //Serial.println(EncF);
-    //Serial.print("  For Swt=");
-    //Serial.println(SwcF);
-    //Serial.print("  Rev Cur=");
-    //Serial.println(CurR);
-    //Serial.print("  Rev Enc=");
-    //Serial.println(EncR);
-    //Serial.print("  Rev Swt=");
-    //Serial.println(SwcR);
-    //Serial.print("  motor_state[MOTOR_ID_A].home_forward_on_encoder=");
-    //Serial.println(motor_state[MOTOR_ID_A].home_forward_on_encoder);
-    if (SwcF == 0) {
-        // Encoder goes Positive towards switch.
-        int OverSwitch = ((motor_state[MOTOR_ID_A].home_forward_on_encoder + EncF) / 2);
-        motor_set_target_encoder(MOTOR_ID_A, OverSwitch);
-        do {
-            track_report(MOTOR_ID_A);
-        } while (noinit_data.encoder[MOTOR_ID_A] != OverSwitch);
-        noinit_data.encoder[MOTOR_ID_A] = 0;
-        motor_state[MOTOR_ID_A].target_encoder = 0;
-        motor_state[MOTOR_ID_A].logic = -1;
-        // config_set_motor_orientation(MOTOR_ID_A, motor_state[MOTOR_ID_A].orientation);
-        config_set_gripper_open_encoder(-140);
-        config_set_gripper_close_encoder(-310);
-        Serial.println("Done");
-    } else {
-        // Encoder goes Negative towards switch.
-        int OverSwitch = ((motor_state[MOTOR_ID_A].home_reverse_on_encoder + EncR) / 2);
-        motor_set_target_encoder(MOTOR_ID_A, OverSwitch);
-        do {
-            track_report(MOTOR_ID_A);
-        } while (noinit_data.encoder[MOTOR_ID_A] != OverSwitch);
-        noinit_data.encoder[MOTOR_ID_A] = 0;
-        motor_state[MOTOR_ID_A].target_encoder = 0;
-        motor_state[MOTOR_ID_A].logic = 1;
-        // config_set_motor_orientation(MOTOR_ID_A, motor_state[MOTOR_ID_A].orientation);
-        config_set_gripper_open_encoder(140);
-        config_set_gripper_close_encoder(310);
-        Serial.println("Done");
-    }
-    return true;
-}
-#endif
-
 static void motor_track_report(motor_id_t motor_id)
 {
     if (tracking > 0) {
@@ -941,11 +843,16 @@ ISR(TIMER1_COMPA_vect) {
             motor_state[qe_motor_id].error_flags |= MOTOR_ERROR_FLAG_OVERCURRENT_DETECTED;
 
         if (motor_state[qe_motor_id].encoders_per_second_counts++ == (2000 / MOTOR_ID_COUNT / 3)) {
-            // ISR runs at 2kHz and round-robins the six motors, Every 1/3 of a second, update encoders_per_second.
+            // ISR runs at 2kHz and round-robins the six motors, Every 1/3 of a second
+
+            // Update encoders_per_second.
             motor_state[qe_motor_id].encoders_per_second = noinit_data.encoder[qe_motor_id] - motor_state[qe_motor_id].encoders_per_second_start_encoder;
             motor_state[qe_motor_id].encoders_per_second *= 3;
             motor_state[qe_motor_id].encoders_per_second_start_encoder = noinit_data.encoder[qe_motor_id];
             motor_state[qe_motor_id].encoders_per_second_counts = 0;
+
+            // Update current draw.
+            motor_state[qe_motor_id].current_draw = motor_get_current_draw(qe_motor_id);
         }
     }
 
@@ -980,22 +887,19 @@ ISR(TIMER1_COMPA_vect) {
         // apply tension on whatever it is gripping.
         //==========================================================
 
-#if 1
         if (motor_id > MOTOR_ID_A) {
             // For Motors other than the gripper, High Current means
             // that the motor is in a stall situation.  To unstall,
             // the target position is set back a bit from the
             // current position.
-
 #if 0
-            if (motor_state[motor_id].current > 200) {
-                if (motor_state[motor_id].previous_direction == 1) {
+            if (motor_state[motor_id].current_draw > 200) {
+                if (motor_state[motor_id].previous_direction == 1)
                     motor_state[motor_id].target_encoder = noinit_data.encoder[motor_id] - 50;
-                    motor_state[motor_id].current = 0;  // TODO: Why is this zero?
-                } else if (motor_state[motor_id].previous_direction == -1) {
+                else if (motor_state[motor_id].previous_direction == -1)
                     motor_state[motor_id].target_encoder = noinit_data.encoder[motor_id] + 50;
-                    motor_state[motor_id].current = 0;  // TODO: Why is this zero?
-                }
+                motor_state[motor_id].is_stuck = true;
+                motor_state[motor_id].current_draw = 0;
             }
 #endif
         } else {
@@ -1013,7 +917,7 @@ ISR(TIMER1_COMPA_vect) {
                 Gripper_StallX++;
             }
         }
-#endif
+
         //==========================================================
         // Calculate PID Proportional Error
         //==========================================================
@@ -1027,15 +931,6 @@ ISR(TIMER1_COMPA_vect) {
         else
             PIDPError = target + encoder;
 
-#if 0
-        // TODO: Make this work.
-        if ((motor_state[motor_id].pid_perror != 0) &&
-            (abs(PIDPError) > abs(motor_state[motor_id].pid_perror))) {
-            LOG_DEBUG(F("%d %d"), PIDPError, motor_state[motor_id].pid_perror);
-            // Motor is getting further away from target, not closer.
-            motor_state[motor_id].error_flags |= MOTOR_ERROR_FLAG_OPPOSITE_DIRECTION;
-        }
-#endif
         motor_state[motor_id].pid_perror = PIDPError;  // Save.
 
         //==========================================================
@@ -1111,54 +1006,5 @@ ISR(TIMER1_COMPA_vect) {
             if (CurrentSpeedChanged == 1)
                 motor_set_speed(motor_id, motor_state[motor_id].speed);
         }
-
-#if 0
-        //==========================================================
-        // Sync Move.
-        // as it stands, the synchronized move does not work well
-        // with the current PID.
-        // The current PID only regulates encoder position.
-        // For the Sync Move to work well, it needs to regulate speed.
-        //==========================================================
-        static int TravelSoFar = 0;
-        static int TravelSoFarPrev = 0;
-
-        if (motor_sync_move_enabled > 0) {
-            TravelSoFar = abs(noinit_data.encoder[LeadMotor] - Start[LeadMotor] + 1);
-            if (TravelSoFar != TravelSoFarPrev) {
-                TravelSoFarPrev = TravelSoFar;
-                float TravelSoFarFloat = TravelSoFar;
-                for (int sync_motor_id = MOTOR_ID_B; sync_motor_id < MOTOR_ID_COUNT; sync_motor_id++) {
-                    if (sync_motor_id != LeadMotor) {
-                        float RP = TravelSoFarFloat * Ratio[sync_motor_id];
-                        int RI = int(RP);
-                        int TG = Start[sync_motor_id] + RI;
-                        motor_state[sync_motor_id].target_encoder = Start[sync_motor_id] + RI;
-                    }
-                }
-                tb = abs(End[MOTOR_ID_B] - noinit_data.encoder[MOTOR_ID_B]);
-                tc = abs(End[MOTOR_ID_C] - noinit_data.encoder[MOTOR_ID_C]);
-                td = abs(End[MOTOR_ID_D] - noinit_data.encoder[MOTOR_ID_D]);
-                te = abs(End[MOTOR_ID_E] - noinit_data.encoder[MOTOR_ID_E]);
-                tf = abs(End[MOTOR_ID_F] - noinit_data.encoder[MOTOR_ID_F]);
-                if ((tb == 0) && (tc == 0) && (td == 0) && (te == 0) && (tf == 0)) {
-                    // Set the Status that indicates that the Motor is 1 click from target
-                    SyncMove_Status = MOTOR_PROGRESS_AT_TARGET;
-                    motor_sync_move_enabled = false;
-                } else if ((tb < 2) && (tc < 2) && (td < 2) && (te < 2) && (tf < 2)) {
-                    SyncMove_Status = MOTOR_PROGRESS_BESIDE_TARGET;
-                } else if ((tb < 30) && (tc < 30) && (td < 30) && (te < 30) && (tf < 30)) {
-                    // Set the Status that indicates that the Motor is 2-29 clicks from target
-                    SyncMove_Status = MOTOR_PROGRESS_NEAR_TARGET;
-                } else if ((tb < 200) && (tc < 200) && (td < 200) && (te < 200) && (tf < 200)) {
-                    // Set the Status that indicates that the Motor is 2-29 clicks from target
-                    SyncMove_Status = MOTOR_PROGRESS_APPROACHING_TARGET;
-                } else {
-                    // Set the Status that indicates that the Motor is 30-200 clicks from target
-                    SyncMove_Status = MOTOR_PROGRESS_ON_WAY_TO_TARGET;
-                }
-            }
-        }
-#endif
     }
 }
