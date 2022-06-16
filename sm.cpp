@@ -74,16 +74,12 @@ static void gather_status(status_t *pstatus)
     assert(pstatus);
 
     for (int i = 0; i < MOTOR_ID_COUNT; i++) {
-        if (config.motor[i].configured) {
-            pstatus->motor[i].angle = motor_get_angle(i);
-            pstatus->motor[i].switch_triggered = motor_is_home_triggered(i);
-            pstatus->motor[i].thermal_overload_detected = motor_get_thermal_overload_detected(i);
-            pstatus->motor[i].overcurrent_detected = motor_get_overcurrent_detected(i);
-            motor_clear_thermal_overload(i);
-            motor_clear_overcurrent(i);
-        } else {
-            memset(&pstatus->motor[i], 0, sizeof(motor_status_t));
-        }
+        pstatus->motor[i].angle = motor_get_angle(i);
+        pstatus->motor[i].switch_triggered = motor_is_home_triggered(i);
+        pstatus->motor[i].thermal_overload_detected = motor_get_thermal_overload_detected(i);
+        pstatus->motor[i].overcurrent_detected = motor_get_overcurrent_detected(i);
+        motor_clear_thermal_overload(i);
+        motor_clear_overcurrent(i);
     }
 }
 

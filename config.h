@@ -30,7 +30,6 @@ typedef enum {
 extern const char * const config_robot_name_by_id[CONFIG_ROBOT_ID_COUNT];
 
 typedef struct __attribute__((packed)) {
-    bool configured;
     int angle_offset;
     motor_orientation_t orientation;
     motor_polarity_t polarity;  // Easy to wire motors backwards.

@@ -205,15 +205,6 @@ void config_set_robot_name(char robot_name[CONFIG_ROBOT_NAME_NBYTES])
     config_sign();
 }
 
-void config_set_motor_configured(motor_id_t motor_id, bool configured)
-{
-    assert(motor_id >= 0 && motor_id < MOTOR_ID_COUNT);
-
-    assert(config_check());
-    config.motor[motor_id].configured = configured;
-    config_sign();
-}
-
 void config_set_motor_orientation(motor_id_t motor_id, motor_orientation_t motor_orientation)
 {
     assert(motor_id >= 0 && motor_id < MOTOR_ID_COUNT);
@@ -302,15 +293,11 @@ void config_print()
         config_motor_t *motor = &config.motor[i];
 
         log_write(F("  Motor %c: "), 'A' + i);
-        if (!motor->configured) {
-            log_writeln(F("Not configured"));
-        } else {
-            dtostrf(motor->angle_offset, 3, 2, str);
-            log_writeln(F("angle_offset:%s motor_orientation:%s, direction_logic:%s"),
-                        str,
-                        motor->orientation == MOTOR_ORIENTATION_NOT_INVERTED ? "not inverted" : "inverted",
-                        motor->polarity == MOTOR_POLARITY_NOT_REVERSED ? "not reversed" : "reversed");
-        }
+        dtostrf(motor->angle_offset, 3, 2, str);
+        log_writeln(F("angle_offset:%s motor_orientation:%s, direction_logic:%s"),
+                    str,
+                    motor->orientation == MOTOR_ORIENTATION_NOT_INVERTED ? "not inverted" : "inverted",
+                    motor->polarity == MOTOR_POLARITY_NOT_REVERSED ? "not reversed" : "reversed");
         log_writeln(F("  Min encoder: %d, max encoder: %d"), motor->min_encoder, motor->max_encoder);
         log_writeln(F("  Home switch forward on encoder: %d, forward off encoder: %d"), motor->home_forward_on_encoder, motor->home_forward_off_encoder);
         log_writeln(F("  Home switch reverse on encoder: %d, reverse off encoder: %d"), motor->home_reverse_on_encoder, motor->home_reverse_off_encoder);

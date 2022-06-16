@@ -245,7 +245,6 @@ void motor_clear_overcurrent(motor_id_t motor_id)
 int motor_get_current_draw(motor_id_t motor_id)
 {
     assert((motor_id >= 0) && (motor_id < MOTOR_ID_COUNT));
-    // Ignores motor_configured(motor_id).
 
     // LMD18200 datasheet says 377uA/A. What's the resistance?
     return analogRead(motor_pinout[motor_id].in_current_draw);  // 0 - 1023.
@@ -324,13 +323,6 @@ static int get_num_enabled(void)
     return num_enabled;
 }
 
-bool motor_configured(motor_id_t motor_id)
-{
-    assert((motor_id >= 0) && (motor_id < MOTOR_ID_COUNT));
-
-    return config.motor[motor_id].configured;
-}
-
 void motor_set_home_encoder(motor_id_t motor_id, int home_encoder)
 {
     assert((motor_id >= 0) && (motor_id < MOTOR_ID_COUNT));
@@ -382,29 +374,27 @@ void motor_print_encoders(void)
 float motor_get_encoder_steps_per_degree(motor_id_t motor_id)
 {
     assert((motor_id >= 0) && (motor_id < MOTOR_ID_COUNT));
-    if (!motor_configured(motor_id))
-        return 0.0f;
 
     switch (motor_id) {
+    case MOTOR_ID_A:
+        return 1;
+    case MOTOR_ID_B:
+        return 12.5;  // (5.51)(165.4/1) XR4
+        break;
+    case MOTOR_ID_C:
+    case MOTOR_ID_D:  // Fallthrough.
+    case MOTOR_ID_E:  // Fallthrough.
+        if (config.robot_id == CONFIG_ROBOT_ID_RHINO_XR_4)
+            return 35;                 // (8.8)(66.1/1) XR4
+        else
+            return 36;                 // (8.8)(66.1/1) XR3
+        break;
     case MOTOR_ID_F:
         if (config.robot_id == CONFIG_ROBOT_ID_RHINO_XR_4)
             return 17.5;               // (4.4)(66.1/1) XR4
         else
             return 29.5;               // (4.4)(66.1/1) XR3
         break;
-    case MOTOR_ID_E:  // Fallthrough.
-    case MOTOR_ID_D:  // Fallthrough.
-    case MOTOR_ID_C:
-        if (config.robot_id == CONFIG_ROBOT_ID_RHINO_XR_4)
-            return 35;                 // (8.8)(66.1/1) XR4
-        else
-            return 36;                 // (8.8)(66.1/1) XR3
-        break;
-    case MOTOR_ID_B:
-        return 12.5;  // (5.51)(165.4/1) XR4
-        break;
-    case MOTOR_ID_A:
-        return 1;
     }
 
     assert(false);
@@ -413,8 +403,6 @@ float motor_get_encoder_steps_per_degree(motor_id_t motor_id)
 int motor_angle_to_encoder(motor_id_t motor_id, float angle)
 {
     assert((motor_id >= 0) && (motor_id < MOTOR_ID_COUNT));
-    if (!motor_configured(motor_id))
-        return 0;
 
     return (angle * motor_get_encoder_steps_per_degree(motor_id)) + config.motor[motor_id].angle_offset;
 }
@@ -422,8 +410,6 @@ int motor_angle_to_encoder(motor_id_t motor_id, float angle)
 void motor_set_target_angle(motor_id_t motor_id, float angle)
 {
     assert((motor_id >= 0) && (motor_id < MOTOR_ID_COUNT));
-    if (!motor_configured(motor_id))
-        return;
 
     // TODO: assert valid angle?
     int encoder = motor_angle_to_encoder(motor_id, angle);
@@ -434,8 +420,6 @@ void motor_set_target_angle(motor_id_t motor_id, float angle)
 float motor_get_angle(motor_id_t motor_id)
 {
     assert((motor_id >= 0) && (motor_id < MOTOR_ID_COUNT));
-    if (!motor_configured(motor_id))
-        return 0.0f;
 
     return (motor_get_encoder(motor_id) - config.motor[motor_id].angle_offset) / motor_get_encoder_steps_per_degree(motor_id);
 }
@@ -511,11 +495,6 @@ static void motor_test(motor_id_t motor_id)
     const int test_speed = 255 - motor_min_pwm;
     const int delay_ms = 50;
 
-    // Mark motor as configured, so motor-control commands will execute.
-    bool was_configured = config.motor[motor_id].configured;
-
-    config.motor[motor_id].configured = true;
-
     set_brake(motor_id, false);
     motor_set_speed(motor_id, 0);
 
@@ -583,8 +562,6 @@ static void motor_test(motor_id_t motor_id)
     else if ((reverse_delta > 0) && (forward_delta < 0))
         pfailure_message = F("Motor +/- wired backwards");
 
-    config.motor[motor_id].configured = was_configured;
-    config_set_motor_configured(motor_id, pfailure_message == NULL);
     if (pfailure_message) {
         log_write(F(" ... FAILED ("));
         log_write(pfailure_message);
@@ -629,8 +606,6 @@ static void motor_track_report(motor_id_t motor_id)
 void motor_dump(motor_id_t motor_id)
 {
     assert((motor_id >= 0) && (motor_id < MOTOR_ID_COUNT));
-    if (!motor_configured(motor_id))
-        return;
 
     log_writeln(F("%c: encoder:%d qe_prev:%d, speed:%d target_speed:%d logic:%d prev_dir:%d pid_dvalue:%d pid_perror:%d target_encoder:%d current:%d progress:%d"),
                 'A' + motor_id,

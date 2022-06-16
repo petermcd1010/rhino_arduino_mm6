@@ -318,6 +318,7 @@ bool menu_test(void)
 
     ret = menu_test_single_menu(main_menu);
     ret = menu_test_single_menu(waypoint_menu) ? ret : false;
+    ret = menu_test_single_menu(calibration_menu) ? ret : false;
 
     return ret;
 }

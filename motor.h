@@ -104,7 +104,7 @@ float motor_get_encoder_steps_per_degree(motor_id_t motor_id);
 int motor_angle_to_encoder(motor_id_t motor_id, float angle);
 void motor_set_target_angle(motor_id_t motor_id, float angle);
 float motor_get_angle(motor_id_t motor_id);
-void motor_set_speed(motor_id_t motor_id, int speed);  // For speed in [motor_min_speed, motor_max_speed]. Sets speed to 0 if motor not enabled/configured.
+void motor_set_speed(motor_id_t motor_id, int speed);  // For speed in [motor_min_speed, motor_max_speed]. Sets to 0 if not enabled.
 void motor_set_max_speed_percent(motor_id_t motor_id, int max_speed_percent);
 int motor_get_max_speed_percent(motor_id_t motor_id);
 void motor_clear_stuck(motor_id_t motor_id);
