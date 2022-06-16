@@ -26,7 +26,7 @@ typedef enum {
 } motor_progress_t;
 
 typedef enum {
-    MOTOR_ERROR_FLAG_USER_FLAG                      = 1 << 0,
+    MOTOR_ERROR_FLAG_USER_FLAG                      = 1 << 0, // Hacky way to indicate the state machine is in ERROR, so LED blinks accordingly.
     MOTOR_ERROR_FLAG_THERMAL_OVERLOAD_DETECTED      = 1 << 1,
     MOTOR_ERROR_FLAG_OVERCURRENT_DETECTED           = 1 << 2,
     MOTOR_ERROR_FLAG_INVALID_ENCODER_TRANSITION     = 1 << 3, // only 0->1->3->2 and 0->2->3->1 are valid.
