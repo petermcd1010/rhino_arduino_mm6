@@ -56,13 +56,18 @@ static int Reverse_Logic[] = { 1, 1, 1, 1, 1, 1 };  // Reverse Logic - The value
 // Configuration stored in RAM and saved across reset/reboot that don't include a power-cycle of the board.
 static const int noinit_data_version = 2;
 static const int noinit_data_magic = 0xABCD1234;
+
+typedef struct noinit_motor_t {
+    int    previous_quadrature_encoder;
+    int    encoder;
+} noinit_data_motor_t;
+
 typedef struct {
     // nbytes, version, magic are used to verify valid data.
     size_t nbytes;
     int    version;
     int    magic;
-    int    previous_quadrature_encoder[MOTOR_ID_COUNT];
-    int    encoder[MOTOR_ID_COUNT];
+    noinit_data_motor_t motor[MOTOR_ID_COUNT];
 } noinit_data_t;
 
 static noinit_data_t noinit_data __attribute__((section(".noinit")));  // NOT reset to 0 when the CPU is reset.
@@ -83,8 +88,8 @@ static void check_noinit_data(void)
         noinit_data.version = noinit_data_version;
         noinit_data.magic = noinit_data_magic;
         for (int i = 0; i < MOTOR_ID_COUNT; i++) {
-            noinit_data.encoder[i] = 0;
-            noinit_data.previous_quadrature_encoder[i] = 0;
+            noinit_data.motor[i].encoder = 0;
+            noinit_data.motor[i].previous_quadrature_encoder = 0;
         }
     } else {
         log_writeln(F("Detected reset without power. Reusing in-RAM motor encoder values."));
@@ -273,7 +278,7 @@ void motor_set_enabled(motor_id_t motor_id, bool enabled)
         return;
 
     if (enabled) {
-        motor_state[motor_id].target_encoder = noinit_data.encoder[motor_id];
+        motor_state[motor_id].target_encoder = noinit_data.motor[motor_id].encoder;
         motor_state[motor_id].pid_perror = 0;
         motor_state[motor_id].pid_dvalue = 0;
         motor_state[motor_id].home_triggered_debounced = motor_is_home_triggered(motor_id);
@@ -327,7 +332,7 @@ void motor_set_home_encoder(motor_id_t motor_id, int home_encoder)
 {
     assert((motor_id >= 0) && (motor_id < MOTOR_ID_COUNT));
 
-    noinit_data.encoder[motor_id] -= home_encoder;
+    noinit_data.motor[motor_id].encoder -= home_encoder;
     motor_state[motor_id].target_encoder -= home_encoder;
 }
 
@@ -359,7 +364,7 @@ int motor_get_encoder(motor_id_t motor_id)
     if (!motor_get_enabled(motor_id))
         return 0;
 
-    return noinit_data.encoder[motor_id] * motor_state[motor_id].logic;
+    return noinit_data.motor[motor_id].encoder * motor_state[motor_id].logic;
 }
 
 void motor_print_encoders(void)
@@ -609,8 +614,8 @@ void motor_dump(motor_id_t motor_id)
 
     log_writeln(F("%c: encoder:%d qe_prev:%d, speed:%d target_speed:%d logic:%d prev_dir:%d pid_dvalue:%d pid_perror:%d target_encoder:%d current:%d progress:%d"),
                 'A' + motor_id,
-                noinit_data.encoder[motor_id],
-                noinit_data.previous_quadrature_encoder[motor_id],
+                noinit_data.motor[motor_id].encoder,
+                noinit_data.motor[motor_id].previous_quadrature_encoder,
                 motor_state[motor_id].speed,
                 motor_state[motor_id].target_speed,
                 motor_state[motor_id].logic,
@@ -733,7 +738,7 @@ static void check_home_switch(motor_id_t motor_id)
     if (home_triggered != motor->prev_home_triggered) {
         motor->prev_home_triggered = home_triggered;
         motor->prev_home_triggered_millis = millis();
-        motor->prev_home_triggered_encoder = noinit_data.encoder[motor_id];
+        motor->prev_home_triggered_encoder = noinit_data.motor[motor_id].encoder;
     }
 
     // TODO: Tighten debounce timing. Example:
@@ -785,29 +790,29 @@ ISR(TIMER1_COMPA_vect) {
         int qe_value_b = digitalRead(motor_pinout[qe_motor_id].in_quadrature_encoder_b);
         int qe_state = qe_value_a + (qe_value_b << 1);  // 0-3.
 
-        if (qe_state == noinit_data.previous_quadrature_encoder[qe_motor_id]) {
+        if (qe_state == noinit_data.motor[qe_motor_id].previous_quadrature_encoder) {
             // Same state as last time through loop.
             motor_state[qe_motor_id].pid_dvalue++;
             if (motor_state[qe_motor_id].pid_dvalue > 10000)
                 motor_state[qe_motor_id].pid_dvalue = 10000;
-        } else if (qe_state == qe_inc_states[noinit_data.previous_quadrature_encoder[qe_motor_id]]) {
+        } else if (qe_state == qe_inc_states[noinit_data.motor[qe_motor_id].previous_quadrature_encoder]) {
             // Quadrature encoder reading indicates moving in positive direction.
             motor_state[qe_motor_id].previous_direction = 1;
-            if (noinit_data.encoder[qe_motor_id] != INT_MAX) {
-                noinit_data.encoder[qe_motor_id]++;
+            if (noinit_data.motor[qe_motor_id].encoder != INT_MAX) {
+                noinit_data.motor[qe_motor_id].encoder++;
                 motor_state[qe_motor_id].pid_dvalue = 0;
             }
-        } else if (qe_state == qe_dec_states[noinit_data.previous_quadrature_encoder[qe_motor_id]]) {
+        } else if (qe_state == qe_dec_states[noinit_data.motor[qe_motor_id].previous_quadrature_encoder]) {
             // Quadrature encoder reading indicates moving in negative direction.
             motor_state[qe_motor_id].previous_direction = -1;
-            if (noinit_data.encoder[qe_motor_id] != INT_MIN) {
-                noinit_data.encoder[qe_motor_id]--;
+            if (noinit_data.motor[qe_motor_id].encoder != INT_MIN) {
+                noinit_data.motor[qe_motor_id].encoder--;
                 motor_state[qe_motor_id].pid_dvalue = 0;
             }
         } else {
             motor_state[qe_motor_id].error_flags |= MOTOR_ERROR_FLAG_INVALID_ENCODER_TRANSITION;
         }
-        noinit_data.previous_quadrature_encoder[qe_motor_id] = qe_state;
+        noinit_data.motor[qe_motor_id].previous_quadrature_encoder = qe_state;
 
         check_home_switch(qe_motor_id);
 
@@ -821,9 +826,9 @@ ISR(TIMER1_COMPA_vect) {
             // ISR runs at 2kHz and round-robins the six motors, Every 1/3 of a second
 
             // Update encoders_per_second.
-            motor_state[qe_motor_id].encoders_per_second = noinit_data.encoder[qe_motor_id] - motor_state[qe_motor_id].encoders_per_second_start_encoder;
+            motor_state[qe_motor_id].encoders_per_second = noinit_data.motor[qe_motor_id].encoder - motor_state[qe_motor_id].encoders_per_second_start_encoder;
             motor_state[qe_motor_id].encoders_per_second *= 3;
-            motor_state[qe_motor_id].encoders_per_second_start_encoder = noinit_data.encoder[qe_motor_id];
+            motor_state[qe_motor_id].encoders_per_second_start_encoder = noinit_data.motor[qe_motor_id].encoder;
             motor_state[qe_motor_id].encoders_per_second_counts = 0;
 
             // Update current draw.
@@ -851,7 +856,7 @@ ISR(TIMER1_COMPA_vect) {
         // The IntMotor PID is NOT running.
         // ( =1230 instead of =0 is just to kill the routine for now because it isn't doing what it needs to do.)
         motor_state[motor_id].pid_dvalue = 0;  // Clear the PID DValue for this motor.
-        int intMDiff = abs(motor_state[motor_id].target_encoder - noinit_data.encoder[motor_id]);
+        int intMDiff = abs(motor_state[motor_id].target_encoder - noinit_data.motor[motor_id].encoder);
         if (intMDiff > 3)
             Motor_PID[motor_id] = 1;   // Turn on the PID for this Motor.
     } else {
@@ -870,9 +875,9 @@ ISR(TIMER1_COMPA_vect) {
 #if 0
             if (motor_state[motor_id].current_draw > 200) {
                 if (motor_state[motor_id].previous_direction == 1)
-                    motor_state[motor_id].target_encoder = noinit_data.encoder[motor_id] - 50;
+                    motor_state[motor_id].target_encoder = noinit_data.motor[motor_id].encoder - 50;
                 else if (motor_state[motor_id].previous_direction == -1)
-                    motor_state[motor_id].target_encoder = noinit_data.encoder[motor_id] + 50;
+                    motor_state[motor_id].target_encoder = noinit_data.motor[motor_id].encoder + 50;
                 motor_state[motor_id].is_stuck = true;
                 motor_state[motor_id].current_draw = 0;
             }
@@ -888,7 +893,7 @@ ISR(TIMER1_COMPA_vect) {
                 //     it will turn back on but at a much lower
                 //       PWM duty cycle.
                 Gripper_StallC = motor_state[motor_id].current_draw;
-                Gripper_StallE = noinit_data.encoder[motor_id];
+                Gripper_StallE = noinit_data.motor[motor_id].encoder;
                 Gripper_StallX++;
             }
         }
@@ -898,7 +903,7 @@ ISR(TIMER1_COMPA_vect) {
         //==========================================================
         int PIDPError = 0;
         int target = motor_state[motor_id].target_encoder;
-        int encoder = -noinit_data.encoder[motor_id];
+        int encoder = -noinit_data.motor[motor_id].encoder;
         if ((target > 0) && (encoder > INT_MAX - target))
             PIDPError = INT_MAX;       // handle overflow by clamping to INT_MAX.
         else if ((target < 0) && (encoder < INT_MIN - target))
