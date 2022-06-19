@@ -88,28 +88,40 @@ int hardware_get_num_header_pins()
     return NUM_HEADER_PINS;
 }
 
+static volatile bool pin_is_button[NUM_HEADER_PINS] = { false };
+static volatile uint8_t pin_vals[NUM_HEADER_PINS] = { 0 };
+static volatile unsigned long prev_transition_millis[NUM_HEADER_PINS] = { 0 };
+
 bool hardware_get_header_pin_pressed(int pin_index)
 {
+    assert(pin_index >= 0);
     assert(pin_index < NUM_HEADER_PINS);
 
-    static uint8_t ret_vals[NUM_HEADER_PINS] = { 0 };
-    static uint8_t prev_vals[NUM_HEADER_PINS] = { -1 };
-
-    static unsigned prev_transition_millis = -1;
     unsigned const debounce_delay_millis = 50;
 
-    pinMode(header_pins[pin_index], INPUT);
-    int val = digitalRead(header_pins[pin_index]);
-
-    // TODO: Look into millis() rollover and handle appropriately.
-
-    if (val != prev_vals[pin_index]) {
-        prev_transition_millis = millis();
-        prev_vals[pin_index] = val;
+    if (!pin_is_button[pin_index]) {
+        pinMode(header_pins[pin_index], INPUT);
+        prev_transition_millis[pin_index] = millis();
+        pin_vals[pin_index] = digitalRead(header_pins[pin_index]);
+        pin_is_button[pin_index] = true;
     }
 
-    if ((millis() - prev_transition_millis) > debounce_delay_millis)
-        ret_vals[pin_index] = val;
+    // TODO: Look into millis() rollover and handle appropriately.
+    if ((millis() - prev_transition_millis[pin_index]) > debounce_delay_millis)
+        return pin_vals[pin_index] == HIGH;  // Button is pressed if pin reads HIGH.
 
-    return ret_vals[pin_index];
+    return false;
+}
+
+void hardware_debounce_buttons()
+{
+    for (int pin_index = 0; pin_index < NUM_HEADER_PINS; pin_index++) {
+        if (pin_is_button[pin_index]) {
+            int val = digitalRead(header_pins[pin_index]);
+            if (val != pin_vals[pin_index]) {
+                prev_transition_millis[pin_index] = millis();
+                pin_vals[pin_index] = val;
+            }
+        }
+    }
 }

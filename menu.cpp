@@ -14,10 +14,14 @@ static const int menu_item_max_name_nbytes = 40;
 static void extended_menu_robot_id(void)
 {
     log_writeln(F(""));
-    log_writeln(F("Current robot ID: %s."), config_robot_name_by_id[config.robot_id]);
+    log_write(F("Current robot ID: "));
+    log_write((const __FlashStringHelper *)config_robot_name_by_id[config.robot_id]);
+    log_writeln(F("."));
     log_writeln(F("Available robot IDs:"));
     for (int i = CONFIG_ROBOT_ID_FIRST; i <= CONFIG_ROBOT_ID_LAST; i++) {
-        log_writeln(F("  %d. %s."), i, config_robot_name_by_id[i]);
+        log_write(F("  %d. "), i);
+        log_write((const __FlashStringHelper *)config_robot_name_by_id[i]);
+        log_writeln(F("."));
     }
     log_writeln(F("Select new robot ID, or press [RETURN] to keep current robot ID."));
     log_write(F(">"));
@@ -57,11 +61,16 @@ static void extended_menu_append_waypoint(void)
 {
     log_writeln(F(""));
     log_writeln(F("A <ENTER> -- Append waypoint to move motors to current positions."));
+    log_writeln(F("B <ENTER> -- Append waypoint to move motors to within 1 encoder value of current positions."));
+    log_writeln(F("C <ENTER> -- Append waypoint to move motors to within 30 encoder values of current positions."));
+    log_writeln(F("D <ENTER> -- Append waypoint to move motors to within 200 encoder values current positions."));
+    log_writeln(F("E [motorids] -- Append waypoint to enable motors. Disables all motors if none specified."));
     log_writeln(F("G step <ENTER> -- Append waypoint to goto step."));
     log_writeln(F("J pin step <ENTER> -- Append waypoint so if IO pin triggered, goto step."));
     log_writeln(F("K pin <ENTER> -- Append waypoint to wait for IO pin triggered."));
+    log_writeln(F("L [motorids] <ENTER> -- Append waypoint to calibrate home switches and limits of motorids or enabled motors."));
+    log_writeln(F("O [motorids] <ENTER> --  Append waypoint to calibrate home switches of motorids or enabled motors."));
     log_writeln(F("W milliseconds <ENTER> -- Append waypoint to wait milliseconds."));
-    log_writeln(F("I <ENTER> -- Append waypoint to interrogate home switches."));
     log_write(F(">"));
 }
 
@@ -69,11 +78,16 @@ static void extended_menu_insert_waypoint(void)
 {
     log_writeln(F(""));
     log_writeln(F("step A <ENTER> -- Insert waypoint before step to move motors to current positions."));
+    log_writeln(F("step B <ENTER> -- Insert waypoint before step to move motors to within 1 encoder value of current positions."));
+    log_writeln(F("step C <ENTER> -- Insert waypoint before step to move motors to within 30 encoder values of current positions."));
+    log_writeln(F("step D <ENTER> -- Insert waypoint before step to move motors to within 200 encoder values current positions."));
+    log_writeln(F("step E [motorids] -- Insert waypoint before step to enable motors. Disables all motors if none specified."));
     log_writeln(F("step G step <ENTER> -- Insert waypoint before step to goto step."));
     log_writeln(F("step J pin step <ENTER> -- Insert waypoint before step so if IO pin triggered, goto step."));
     log_writeln(F("step K pin <ENTER> -- Insert waypoint before step to wait for IO pin triggered."));
+    log_writeln(F("step L [motorids] <ENTER> -- Insert waypoint before step to calibrate home switches and limits of motorids or enabled motors."));
+    log_writeln(F("step O [motorids] <ENTER> -- Insert waypoint before step to calibrate home switches of motorids or enabled motors."));
     log_writeln(F("step W milliseconds <ENTER> -- Insert waypoint before step to wait milliseconds."));
-    log_writeln(F("step I <ENTER> -- Insert waypoint before step to interrogate home switches."));
     log_write(F(">"));
 }
 
@@ -84,11 +98,13 @@ static void extended_menu_set_waypoint(void)
     log_writeln(F("step B <ENTER> -- Set waypoint step to move motors to within 1 encoder value of current positions."));
     log_writeln(F("step C <ENTER> -- Set waypoint step to move motors to within 30 encoder values of current positions."));
     log_writeln(F("step D <ENTER> -- Set waypoint step to move motors to within 200 encoder values current positions."));
+    log_writeln(F("step E [motorids] -- Enable motors. Disables all motors if none specified."));
     log_writeln(F("step G step <ENTER> -- Set waypoint step to goto step."));
     log_writeln(F("step J pin step <ENTER> -- Set waypoint step so if IO pin triggered, goto step."));
     log_writeln(F("step K pin <ENTER> -- Set waypoint step to wait for IO pin triggered."));
+    log_writeln(F("step L [motorids] <ENTER> -- Set waypoint step to calibrate home switches and limits of motorids or enabled motors."));
+    log_writeln(F("step O [motorids] <ENTER> -- Set waypoint step to calibrate home switches of motorids or enabled motors."));
     log_writeln(F("step W milliseconds <ENTER> -- Set waypoint step to wait milliseconds."));
-    log_writeln(F("step I <ENTER> -- Set waypoint step to interrogate home switches."));
     log_write(F(">"));
 }
 
@@ -117,8 +133,6 @@ static const char MM_M[] PROGMEM = "print motor status";
 static const char MH_M[] PROGMEM = "[motorids] -- Print motor status, list (e.g. 'abce') or blank for all.";
 static const char MM_N[] PROGMEM = "set motor angle";
 static const char MH_N[] PROGMEM = "motorid degrees -- Degrees is 0.0 to 360.0, +15, -20, +, -, ++, --.";
-static const char MM_O[] PROGMEM = "poll header pins";
-static const char MH_O[] PROGMEM = "-- Poll header pins for changes in polarity. Useful for debugging buttons.";
 static const char MM_P[] PROGMEM = "set motor encoder";
 static const char MH_P[] PROGMEM = "motorid encoder -- Encoder is in the range X - Y.";
 static const char MM_Q[] PROGMEM = "run test sequence";
@@ -129,6 +143,8 @@ static const char MM_V[] PROGMEM = "print software version";
 static const char MH_V[] PROGMEM = "-- Print software version.";
 static const char MM_W[] PROGMEM = "waypoints menu";
 static const char MH_W[] PROGMEM = "-- Edit and execute waypoints.";
+static const char MM_Z[] PROGMEM = "poll header pins";
+static const char MH_Z[] PROGMEM = "-- Poll header pins for changes in polarity. Useful for debugging buttons.";
 static const char MM_STAR[] PROGMEM = "factory reset";
 static const char MH_STAR[] PROGMEM = "RESET -- Reset system to factory defaults (clears EEPROM, etc). Requires typing 'RESET'.";
 static const char MM_BANG[] PROGMEM = "emergency stop";
@@ -151,13 +167,13 @@ static const menu_item_t main_menu[] = {
     { 'G', MM_G,    NULL,                        NULL,             true,  command_set_gripper_position,   MH_G    },
     { 'H', MM_H,    NULL,                        NULL,             false, command_go_home,                MH_H    },
     { 'M', MM_M,    NULL,                        NULL,             true,  command_print_motor_status,     MH_M    },
-    { 'N', MM_N,    NULL,                        NULL,             true,  command_set_motor_angle,        MH_N    }, // TODO.
-    { 'O', MM_O,    NULL,                        NULL,             true,  command_poll_pins,              MH_O    },
+    { 'N', MM_N,    NULL,                        NULL,             true,  command_set_motor_angle,        MH_N    },
     { 'P', MM_P,    NULL,                        NULL,             true,  command_set_motor_encoder,      MH_P    },
     { 'Q', MM_Q,    NULL,                        NULL,             false, command_run_test_sequence,      MH_Q    },
     { 'T', MM_T,    NULL,                        NULL,             true,  command_test_motors,            MH_T    },
     { 'V', MM_V,    NULL,                        NULL,             false, command_print_software_version, MH_V    },
     { 'W', MM_W,    NULL,                        waypoint_menu,    true,  NULL,                           MH_W    },
+    { 'Z', MM_Z,    NULL,                        NULL,             true,  command_poll_pins,              MH_Z    },
     { '*', MM_STAR, extended_menu_factory_reset, NULL,             false, command_factory_reset,          MH_STAR },
     { '!', MM_BANG, NULL,                        NULL,             false, command_emergency_stop,         MH_BANG },
     { '?', MM_HELP, NULL,                        NULL,             false, command_print_help,             MH_HELP },
@@ -191,6 +207,7 @@ const menu_item_t waypoint_menu[] = {
     { 'S', WM_S,    extended_menu_set_waypoint,    NULL,      true,  command_waypoint_set,           WH_S    },
     { 'T', MM_T,    NULL,                          NULL,      true,  command_test_motors,            MH_T    },
     { 'X', WM_X,    NULL,                          main_menu, true,  NULL,                           WH_X    },
+    { 'Z', MM_Z,    NULL,                          NULL,      true,  command_poll_pins,              MH_Z    },
     { '!', MM_BANG, NULL,                          NULL,      false, command_emergency_stop,         MH_BANG },
     { '?', MM_HELP, NULL,                          NULL,      false, command_print_help,             MH_HELP },
     { 0 }  // Terminate menus with an entry filled with zeros.

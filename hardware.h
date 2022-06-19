@@ -17,3 +17,4 @@ bool hardware_get_speaker_enabled(void);
 void hardware_set_speaker_enabled(bool enabled);  // expansion_io_pinout 1 can be wired to a speaker.
 int hardware_get_num_header_pins(void);
 bool hardware_get_header_pin_pressed(int pin_index);
+void hardware_debounce_buttons(void);  // Called from motor ISR.

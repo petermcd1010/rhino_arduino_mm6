@@ -80,7 +80,7 @@ size_t parse_int(char *buf, size_t buf_nbytes, int *out_int)
     *out_int = (int)li;
     if (*out_int != li) {
         LOG_ERROR(F("Overflow. %ld is larger than maximum integer of %d."), li, INT_MAX);
-        return -1;
+        return 0;
     }
 
     return nbytes;
@@ -248,7 +248,7 @@ size_t parse_string(char *buf, size_t buf_nbytes, char *out_string, size_t out_s
 
     if (nbytes >= out_string_nbytes) {
         log_writeln(F("ERROR: string too long."));
-        return -1;
+        return 0;
     }
 
     memcpy(out_string, buf, nbytes + 1);
@@ -290,6 +290,8 @@ size_t parse_motor_ids(char *buf, size_t buf_nbytes, int *out_mask)
     char *p = buf;
     char c = 0;
 
+    *out_mask = 0;
+
     size_t nbytes = parse_whitespace(p, buf_nbytes);
 
     buf_nbytes -= nbytes;
@@ -321,7 +323,7 @@ size_t parse_motor_ids(char *buf, size_t buf_nbytes, int *out_mask)
 error:
     *out_mask = -1;
     log_writeln(F("ERROR: Invalid motor ID %c. Expected A-%c."), c, 'A' + MOTOR_ID_COUNT - 1);
-    return -1;
+    return 0;
 }
 
 size_t parse_motor_id(char *buf, size_t buf_nbytes, motor_id_t *out_motor_id)
@@ -355,7 +357,7 @@ size_t parse_motor_id(char *buf, size_t buf_nbytes, motor_id_t *out_motor_id)
 
 error:
     log_writeln(F("ERROR: Invalid motor ID. Expected 'A'-'%c'."), 'A' + MOTOR_ID_COUNT - 1);
-    return -1;
+    return 0;
 }
 
 size_t parse_motor_angle_or_encoder(char *buf, size_t buf_nbytes, float *out_value)
@@ -422,7 +424,7 @@ size_t parse_motor_angle_or_encoder(char *buf, size_t buf_nbytes, float *out_val
 
 error:
     log_writeln(F("ERROR: Invalid floating point number. Expected [+/-]digits.digits."));
-    return -1;
+    return 0;
 }
 
 bool parse_test()
@@ -452,24 +454,26 @@ size_t parse_waypoint(char *buf, size_t buf_nbytes, waypoint_t *out_waypoint)
     p += nbytes;
 
     int entry_num = -1;
-    char *command_table[] = { "A", "B", "C", "D", "G", "J", "K", "W", "I" };
+    char *command_table[] = { "A", "B", "C", "D", "E", "G", "J", "K", "L", "O", "W" };
+    const int command_table_nentries = 11;
     int goto_step = -1;
     int io_pin = -1;
     long int millis = -1;
+    int enabled_motors_mask = -1;
 
-    nbytes = parse_string_in_table(p, 1, command_table, 9, &entry_num);
+    nbytes = parse_string_in_table(p, 1, command_table, command_table_nentries, &entry_num);
     buf_nbytes -= nbytes;
     p += nbytes;
 
-    if ((entry_num < 0) || (entry_num > 9))
+    if ((entry_num < 0) || (entry_num >= command_table_nentries))
         goto error;
 
     nbytes = parse_whitespace(p, buf_nbytes);
     buf_nbytes -= nbytes;
     p += nbytes;
 
-    switch (entry_num) {
-    case 0:  // A: Set waypoint step to move motors to exactly current positions.
+    switch (command_table[entry_num][0]) {
+    case 'A':  // Set waypoint step to move motors to exactly current positions.
         if (buf_nbytes != 0)
             goto error;
         out_waypoint->command = WAYPOINT_COMMAND_MOVE_AT;
@@ -477,7 +481,7 @@ size_t parse_waypoint(char *buf, size_t buf_nbytes, waypoint_t *out_waypoint)
             out_waypoint->motor[i] = motor_get_encoder((motor_id_t)i);
         }
         break;
-    case 1:  // B: Set waypoint step to move motors to within 1 encoder value of current positions.
+    case 'B':  // Set waypoint step to move motors to within 1 encoder value of current positions.
         if (buf_nbytes != 0)
             goto error;
         out_waypoint->command = WAYPOINT_COMMAND_MOVE_BESIDE;
@@ -485,7 +489,7 @@ size_t parse_waypoint(char *buf, size_t buf_nbytes, waypoint_t *out_waypoint)
             out_waypoint->motor[i] = motor_get_encoder((motor_id_t)i);
         }
         break;
-    case 2:  // C: Set waypoint step to move motors to within 30 encoder values of current positions.
+    case 'C':  // Set waypoint step to move motors to within 30 encoder values of current positions.
         if (buf_nbytes != 0)
             goto error;
         out_waypoint->command = WAYPOINT_COMMAND_MOVE_CLOSE;
@@ -493,72 +497,108 @@ size_t parse_waypoint(char *buf, size_t buf_nbytes, waypoint_t *out_waypoint)
             out_waypoint->motor[i] = motor_get_encoder((motor_id_t)i);
         }
         break;
-    case 3:  // D: Set waypoint step to move motors to within 200 encoder values current positions.
+    case 'D':  // Set waypoint step to move motors to within 200 encoder values current positions.
         if (buf_nbytes != 0)
             goto error;
         out_waypoint->command = WAYPOINT_COMMAND_MOVE_APPROACHING;
         for (int i = 0; i < MOTOR_ID_COUNT; i++) {
             out_waypoint->motor[i] = motor_get_encoder((motor_id_t)i);
-        }
+        } \
         break;
-    case 4:  // G: Set waypoint step to goto step.
+    case 'E':  // Set enabled motors.
+        nbytes = parse_motor_ids(p, buf_nbytes, &enabled_motors_mask);
+        buf_nbytes -= nbytes;
+        p += nbytes;
+
+        if (buf_nbytes != 0)
+            goto error;
+        out_waypoint->command = WAYPOINT_COMMAND_SET_ENABLED_MOTORS;
+        out_waypoint->enabled_motors_mask = enabled_motors_mask;
+        break;
+    case 'G':  // Set waypoint step to goto step.
         nbytes = parse_int(p, buf_nbytes, &goto_step);
         if (nbytes == 0)
             goto error;
         buf_nbytes -= nbytes;
         p += nbytes;
+        if (buf_nbytes != 0)
+            goto error;
+        if (goto_step >= waypoint_get_max_count()) {
+            log_writeln(F("ERROR: Goto index greater than max index %d."), waypoint_get_max_count());
+            goto error;
+        }
         out_waypoint->command = WAYPOINT_COMMAND_GOTO_STEP;
         out_waypoint->io_goto.step = goto_step;
         break;
-    case 5:  // J: Set waypoint step so if IO pin triggered, goto step.
+    case 'J':  // Set waypoint step so if IO pin triggered, goto step.
         nbytes = parse_int(p, buf_nbytes, &io_pin);
         if (nbytes == 0)
             goto error;
         buf_nbytes -= nbytes;
         p += nbytes;
 
-        nbytes = parse_whitespace(p, buf_nbytes);
-        buf_nbytes -= nbytes;
-        p += nbytes;
-
         nbytes = parse_int(p, buf_nbytes, &goto_step);
         if (nbytes == 0)
             goto error;
         buf_nbytes -= nbytes;
         p += nbytes;
-
+        if (buf_nbytes != 0)
+            goto error;
+        if (goto_step >= waypoint_get_max_count()) {
+            log_writeln(F("ERROR: Goto index greater than max index %d."), waypoint_get_max_count());
+            goto error;
+        }
         out_waypoint->command = WAYPOINT_COMMAND_IF_IO_PIN_GOTO_STEP;
         out_waypoint->io_goto.pin = io_pin;
         out_waypoint->io_goto.step = goto_step;
         break;
-    case 6:  // K: Set waypoint step to wait for IO pin triggered.
+    case 'K':  // Set waypoint step to wait for IO pin triggered.
         nbytes = parse_int(p, buf_nbytes, &io_pin);
         if (nbytes == 0)
             goto error;
         buf_nbytes -= nbytes;
         p += nbytes;
+        if (buf_nbytes != 0)
+            goto error;
         out_waypoint->command = WAYPOINT_COMMAND_WAIT_IO_PIN;
         out_waypoint->io_goto.pin = io_pin;
         break;
-    case 7:  // W: Set waypoint step to wait milliseconds.
+    case 'L':  // Se twaypoint step to calibrate home switches and limits.
+        nbytes = parse_motor_ids(p, buf_nbytes, &enabled_motors_mask);
+        buf_nbytes -= nbytes;
+        p += nbytes;
+
+        if (buf_nbytes != 0)
+            goto error;
+        out_waypoint->command = WAYPOINT_COMMAND_CALIBRATE_HOME_SWITCHES_AND_LIMITS;
+        out_waypoint->enabled_motors_mask = enabled_motors_mask;
+        break;
+    case 'O':  // Set waypoint step to calibrate home switches.
+        nbytes = parse_motor_ids(p, buf_nbytes, &enabled_motors_mask);
+        buf_nbytes -= nbytes;
+        p += nbytes;
+
+        if (buf_nbytes != 0)
+            goto error;
+        out_waypoint->command = WAYPOINT_COMMAND_CALIBRATE_HOME_SWITCHES;
+        out_waypoint->enabled_motors_mask = enabled_motors_mask;
+        break;
+    case 'W':  // Set waypoint step to wait milliseconds.
         nbytes = parse_long_int(p, buf_nbytes, &millis);
         if (nbytes == 0)
             goto error;
         buf_nbytes -= nbytes;
         p += nbytes;
 
-        long int max_wait_millis = 86400000;  // 24 * 60 * 60 * 1000.
+        const long int max_wait_millis = 86400000;  // 24 * 60 * 60 * 1000.
         if ((millis < 0) || (millis > max_wait_millis)) {
             log_writeln(F("Invalid wait of %ld milliseconds. Maximum wait time is 24 hours (24 * 60 * 60 * 1000 = %ld)."), millis, max_wait_millis);
             goto error;
         }
-        out_waypoint->command = WAYPOINT_COMMAND_WAIT_MILLIS;
-        out_waypoint->wait_millis = millis;
-        break;
-    case 8:  // I: Set waypoint step to interrogate home switches.
         if (buf_nbytes != 0)
             goto error;
-        out_waypoint->command = WAYPOINT_COMMAND_INTERROGATE_HOME_SWITCHES;
+        out_waypoint->command = WAYPOINT_COMMAND_WAIT_MILLIS;
+        out_waypoint->wait_millis = millis;
         break;
     default:
         assert(false);
@@ -571,5 +611,6 @@ size_t parse_waypoint(char *buf, size_t buf_nbytes, waypoint_t *out_waypoint)
     return p - buf;
 
 error:
-    return -1;
+    log_writeln(F("ERROR: Cannot parse waypoint command."));
+    return 0;
 }

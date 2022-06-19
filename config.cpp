@@ -11,21 +11,31 @@
 #include "log.h"
 #include "waypoint.h"
 
-// TODO: Switch to PROGMEM.
+static const char name_not_configured[] PROGMEM = "Not configured";
+static const char name_xr_1[] PROGMEM = "Rhino XR-1 6-axis arm";
+static const char name_xr_2[] PROGMEM = "Rhino XR-2 6-axis arm";
+static const char name_xr_3[] PROGMEM = "Rhino XR-3 6-axis arm";
+static const char name_xr_4[] PROGMEM = "Rhino XR-4 6-axis arm";
+static const char name_scara[] PROGMEM = "Rhino SCARA 5-axis arm";
+static const char name_linear[] PROGMEM = "Rhino linear slide table";
+static const char name_xy[] PROGMEM = "Rhino XY slide table";
+static const char name_tilt[] PROGMEM = "Rhino tilt carousel";
+static const char name_conveyor[] PROGMEM = "Rhino conveyor belt";
+
 const char * const config_robot_name_by_id[CONFIG_ROBOT_ID_COUNT] = {
-    "Not configured",
-    "Rhino XR-1 6-axis arm",
-    "Rhino XR-2 6-axis arm",
-    "Rhino XR-3 6-axis arm",
-    "Rhino XR-4 6-axis arm",
-    "Rhino SCARA 5-axis arm",
-    "Rhino linear slide table",
-    "Rhino XY slide table",
-    "Rhino tilt carousel",
-    "Rhino conveyor belt"
+    name_not_configured,
+    name_xr_1,
+    name_xr_2,
+    name_xr_3,
+    name_xr_4,
+    name_scara,
+    name_linear,
+    name_xy,
+    name_tilt,
+    name_conveyor,
 };
 
-static const int config_base_address = 4000;
+static const int config_base_address = EEPROM.length() - sizeof(config_t);
 static const int config_version = 1;
 static const int config_magic = 0x5678FEAD;
 
@@ -283,7 +293,8 @@ void config_print()
         log_writeln(F("Invalid configuration."));
 
     log_writeln(F("Configuration:"));
-    log_writeln(F("  Robot ID: %s"), config_robot_name_by_id[config.robot_id]);
+    log_write(F("  Robot ID: "));
+    log_writeln((const __FlashStringHelper *)config_robot_name_by_id[config.robot_id]);
     log_writeln(F("  Robot serial: %s"), config.robot_serial);
     log_writeln(F("  Robot name: %s"), config.robot_name);
 
@@ -311,9 +322,15 @@ void config_print()
 
 bool config_test()
 {
-    // TODO: implement config_test().
+    bool ret = true;
+
+    if (sizeof(config_t) > EEPROM.length()) {
+        LOG_ERROR(F("sizeof(config_t) > EEPROM.length()"));
+        ret = false;
+    }
+
     // test_config_check
     // test_config_read -- skip, as we don't want to exercise the EEPROM.
     // test_config_write -- skip, as we don't want to exercise the EEPROM.
-    return true;
+    return ret;
 }

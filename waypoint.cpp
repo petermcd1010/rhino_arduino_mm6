@@ -6,6 +6,7 @@
 #include <Arduino.h>
 #include <EEPROM.h>
 #include <limits.h>
+#include "calibrate.h"
 #include "config.h"
 #include "crc32c.h"
 #include "hardware.h"
@@ -94,15 +95,39 @@ void waypoint_set(int index, waypoint_t waypoint)
     waypoint.crc = 0;  // Set to zero to make the CRC reproducible.
     waypoint.crc = crc32c_calculate(&waypoint, sizeof(waypoint_t));
 
-    EEPROM.put(get_eeprom_address(index), waypoint);
+    int addr = get_eeprom_address(index);
+
+    EEPROM.put(addr, waypoint);
 }
 
 void waypoint_insert_before(int index, waypoint_t waypoint)
 {
     assert(index >= 0);
-    assert(index < waypoint_get_max_count());
+    assert(index < waypoint_get_max_count() - 1);
 
-    assert(false);
+    // Move all waypoints from index to end of list toward end of list by 1, adjust goto targets.
+    for (int i = waypoint_get_max_count() - 2; i >= index; i--) {
+        waypoint_t copy = waypoint_get(i);
+        if (((copy.command == WAYPOINT_COMMAND_GOTO_STEP) ||
+             (copy.command == WAYPOINT_COMMAND_IF_IO_PIN_GOTO_STEP)) &&
+            copy.io_goto.step >= index)
+            copy.io_goto.step++;
+        waypoint_set(i + 1, copy);
+    }
+
+    // Set our waypoint.
+    waypoint_set(index, waypoint);
+
+    // Start from the waypoint just inserted toward start of list and adjust all goto targets.
+    for (int i = index; i >= 0; i--) {
+        waypoint_t copy = waypoint_get(i);
+        if (((copy.command == WAYPOINT_COMMAND_GOTO_STEP) ||
+             (copy.command == WAYPOINT_COMMAND_IF_IO_PIN_GOTO_STEP)) &&
+            copy.io_goto.step >= index) {
+            copy.io_goto.step++;
+            waypoint_set(i, copy);
+        }
+    }
 }
 
 void waypoint_append(waypoint_t waypoint)
@@ -128,10 +153,9 @@ void waypoint_delete(int index)
     EEPROM.put(get_eeprom_address(index), waypoint);
 }
 
-static void print_move(int index, char *to_string, waypoint_t waypoint)
+static void print_move(char *to_string, waypoint_t waypoint)
 {
-    log_writeln(F("%d: Move %s a:%d b:%d c:%d d:%d e:%d f:%d."),
-                index,
+    log_writeln(F("Move %s a:%d b:%d c:%d d:%d e:%d f:%d."),
                 to_string,
                 (int)waypoint.motor[0],
                 (int)waypoint.motor[1],
@@ -141,6 +165,14 @@ static void print_move(int index, char *to_string, waypoint_t waypoint)
                 (int)waypoint.motor[5]);
 }
 
+static void print_enabled_motors(int mask)
+{
+    for (int i = 0; i < MOTOR_ID_COUNT; i++) {
+        if (mask & (1 << i))
+            log_write(F("%c"), 'A' + i);
+    }
+}
+
 void waypoint_print(int index)
 {
     assert(index >= 0);
@@ -148,42 +180,63 @@ void waypoint_print(int index)
 
     waypoint_t waypoint = waypoint_get(index);
 
+    log_write(F("%d: "), index);
+
     switch (waypoint.command) {
-    case WAYPOINT_COMMAND_MOVE_AT:  // Fallthrough.
-        print_move(index, "to", waypoint);
+    case WAYPOINT_COMMAND_MOVE_AT:     // Fallthrough.
+        print_move("to", waypoint);
         break;
-    case WAYPOINT_COMMAND_MOVE_BESIDE:  // Fallthough.
-        print_move(index, "beside", waypoint);
+    case WAYPOINT_COMMAND_MOVE_BESIDE:     // Fallthough.
+        print_move("beside", waypoint);
         break;
-    case WAYPOINT_COMMAND_MOVE_CLOSE:  // Fallthrough.
-        print_move(index, "close to", waypoint);
+    case WAYPOINT_COMMAND_MOVE_CLOSE:     // Fallthrough.
+        print_move("close to", waypoint);
         break;
     case WAYPOINT_COMMAND_MOVE_APPROACHING:
-        print_move(index, "approaching", waypoint);
+        print_move("approaching", waypoint);
+        break;
+    case WAYPOINT_COMMAND_SET_ENABLED_MOTORS:
+        if (waypoint.enabled_motors_mask == 0) {
+            log_writeln(F("Disable all motors."));
+        } else {
+            log_write(F("Enable motors "));
+            print_enabled_motors(waypoint.enabled_motors_mask);
+            log_writeln(F("."));
+        }
         break;
     case WAYPOINT_COMMAND_GOTO_STEP:
-        log_writeln(F("%d: Goto %d."),
-                    index,
+        log_writeln(F("Goto %d."),
                     waypoint.io_goto.step);
         break;
     case WAYPOINT_COMMAND_IF_IO_PIN_GOTO_STEP:
-        log_writeln(F("%d: If i/o pin %d then goto %d."),
-                    index,
+        log_writeln(F("If I/O pin %d then goto %d."),
                     waypoint.io_goto.pin,
                     waypoint.io_goto.step);
         break;
     case WAYPOINT_COMMAND_WAIT_IO_PIN:
-        log_writeln(F("%d: Wait i/o pin %d."),
-                    index,
+        log_writeln(F("Wait I/O pin %d."),
                     waypoint.io_goto.pin);
         break;
-    case WAYPOINT_COMMAND_INTERROGATE_HOME_SWITCHES:
-        log_writeln(F("%d: Interrogate home switches."), index);
-        // TODO.
+    case WAYPOINT_COMMAND_CALIBRATE_HOME_SWITCHES_AND_LIMITS:
+        if (waypoint.enabled_motors_mask == 0) {
+            log_writeln(F("Calibrate home switches and limits for all motors."));
+        } else {
+            log_write(F("Calibrate home switches and limits for motors "));
+            print_enabled_motors(waypoint.enabled_motors_mask);
+            log_writeln(F("."));
+        }
+        break;
+    case WAYPOINT_COMMAND_CALIBRATE_HOME_SWITCHES:
+        if (waypoint.enabled_motors_mask == 0) {
+            log_writeln(F("Calibrate home switches."));
+        } else {
+            log_write(F("Calibrate home switches for motors "));
+            print_enabled_motors(waypoint.enabled_motors_mask);
+            log_writeln(F("."));
+        }
         break;
     case WAYPOINT_COMMAND_WAIT_MILLIS:
-        log_writeln(F("%d: Wait %ld milliseconds."),
-                    index,
+        log_writeln(F("Wait %ld milliseconds."),
                     waypoint.wait_millis);
         break;
     default:
@@ -286,37 +339,37 @@ static bool set_target_waypoint(waypoint_t waypoint)
 static void run(void)
 {
     assert(current_index >= 0);
-    assert(current_index < waypoint_get_max_count());
 
     static waypoint_t waypoint = { 0 };
 
     static bool wait_millis_run = false;
-    static unsigned long wait_millis_start = -1;  // millis() returns unsigned_long.
-
+    static unsigned long wait_millis_start = -1;     // millis() returns unsigned_long.
     static int prev_waypoint_index = -1;
 
     if ((current_index >= waypoint_get_max_count()) || (steps_remaining == 0)) {
-        sm_state_t s = { .run = stop, .break_handler = break_handler, .name = F("waypoint run"), .data = NULL };
+        prev_waypoint_index = -1;
+        sm_state_t s = { .run = stop, .break_handler = NULL, .name = F("waypoint stop"), .data = NULL };
         sm_set_next_state(s);
         return;
     }
 
     if (prev_waypoint_index != current_index) {
         waypoint = waypoint_get(current_index);
-        if (waypoint.command != -1)
+        if (waypoint.command != -1) {
             waypoint_print(current_index);
+            if ((prev_waypoint_index != -1) && (steps_remaining > 0))
+                steps_remaining--;
+        }
         prev_waypoint_index = current_index;
-        if ((waypoint.command != -1) && (steps_remaining > 0))
-            steps_remaining--;
     }
 
     switch (waypoint.command) {
     case -1:
         current_index++;
         break;
-    case WAYPOINT_COMMAND_MOVE_AT:  // Fallthrough.
-    case WAYPOINT_COMMAND_MOVE_BESIDE:  // Fallthrough.
-    case WAYPOINT_COMMAND_MOVE_CLOSE:  // Fallthrough.
+    case WAYPOINT_COMMAND_MOVE_AT:     // Fallthrough.
+    case WAYPOINT_COMMAND_MOVE_BESIDE:     // Fallthrough.
+    case WAYPOINT_COMMAND_MOVE_CLOSE:     // Fallthrough.
     case WAYPOINT_COMMAND_MOVE_APPROACHING:
         if (check_progress(waypoint))
             current_index++;
@@ -326,20 +379,29 @@ static void run(void)
     case WAYPOINT_COMMAND_GOTO_STEP:
         current_index = waypoint.io_goto.step;
         break;
+    case WAYPOINT_COMMAND_SET_ENABLED_MOTORS:
+        motor_set_enabled_mask(waypoint.enabled_motors_mask);
+        break;
     case WAYPOINT_COMMAND_IF_IO_PIN_GOTO_STEP:
-        if (hardware_get_header_pin_pressed(waypoint.io_goto.pin))
+        if (hardware_get_header_pin_pressed(waypoint.io_goto.pin)) {
+            log_writeln(F("I/O pin %d triggered."), waypoint.io_goto.pin);
             current_index = waypoint.io_goto.step;
-        else
-            current_index++;
+        }
         break;
     case WAYPOINT_COMMAND_WAIT_IO_PIN:
         if (hardware_get_header_pin_pressed(waypoint.io_goto.pin)) {
             log_writeln(F("Pin %d triggered."), waypoint.io_goto.pin);
-            current_index = waypoint.io_goto.step;
+            current_index++;
         }
         break;
-    case WAYPOINT_COMMAND_INTERROGATE_HOME_SWITCHES:
-        // TODO.
+    case WAYPOINT_COMMAND_CALIBRATE_HOME_SWITCHES_AND_LIMITS:
+        // Sets up state machine to start calibrating.
+        calibrate_home_switch_and_limits(waypoint.enabled_motors_mask, 100);
+        current_index++;
+        break;
+    case WAYPOINT_COMMAND_CALIBRATE_HOME_SWITCHES:
+        // Sets up state machine to start calibrating.
+        calibrate_home_switch(waypoint.enabled_motors_mask, 100);
         current_index++;
         break;
     case WAYPOINT_COMMAND_WAIT_MILLIS:

@@ -7,21 +7,24 @@
 #include "config.h"
 
 typedef enum {
-    WAYPOINT_COMMAND_MOVE_AT                   = 'A',
-    WAYPOINT_COMMAND_MOVE_BESIDE               = 'B',
-    WAYPOINT_COMMAND_MOVE_CLOSE                = 'C',
-    WAYPOINT_COMMAND_MOVE_APPROACHING          = 'D',
-    WAYPOINT_COMMAND_GOTO_STEP                 = 'G',
-    WAYPOINT_COMMAND_IF_IO_PIN_GOTO_STEP       = 'J',
-    WAYPOINT_COMMAND_WAIT_IO_PIN               = 'K',
-    WAYPOINT_COMMAND_INTERROGATE_HOME_SWITCHES = 'I',
-    WAYPOINT_COMMAND_WAIT_MILLIS               = 'W',
+    WAYPOINT_COMMAND_MOVE_AT                            = 'A',
+    WAYPOINT_COMMAND_MOVE_BESIDE                        = 'B',
+    WAYPOINT_COMMAND_MOVE_CLOSE                         = 'C',
+    WAYPOINT_COMMAND_MOVE_APPROACHING                   = 'D',
+    WAYPOINT_COMMAND_SET_ENABLED_MOTORS                 = 'E',
+    WAYPOINT_COMMAND_GOTO_STEP                          = 'G',
+    WAYPOINT_COMMAND_IF_IO_PIN_GOTO_STEP                = 'J',
+    WAYPOINT_COMMAND_WAIT_IO_PIN                        = 'K',
+    WAYPOINT_COMMAND_CALIBRATE_HOME_SWITCHES_AND_LIMITS = 'L',
+    WAYPOINT_COMMAND_CALIBRATE_HOME_SWITCHES            = 'O',
+    WAYPOINT_COMMAND_WAIT_MILLIS                        = 'W',
 } waypoint_command_t;
 
 typedef struct __attribute__((packed)) {
     uint32_t crc;
     char command;  // -1 if entry has not been set or has been deleted.
     union {
+        int           enabled_motors_mask; // Mask of motors to enable.
         struct {
             int pin;  // Pin to potentially check or wait for trigger.
             int step;  // Step to potentially goto.

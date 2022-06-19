@@ -833,6 +833,7 @@ ISR(TIMER1_COMPA_vect) {
     }
 
     maybe_blink_led();
+    hardware_debounce_buttons();
 
     //==========================================================
     // Calculate Motor status values.

@@ -47,7 +47,9 @@ int command_config_robot_id(char *args, size_t args_nbytes)
     p += nbytes;
 
     if (args_nbytes == 0) {
-        log_writeln(F("Maintaining robot ID as '%s'."), config_robot_name_by_id[config.robot_id]);
+        log_write(F("Maintaining robot ID as '"));
+        log_write((const __FlashStringHelper *)config_robot_name_by_id[config.robot_id]);
+        log_writeln(F("'."));
         return p - args;
     }
 
@@ -65,7 +67,9 @@ int command_config_robot_id(char *args, size_t args_nbytes)
     if (args_nbytes > 0)
         goto error;
 
-    log_writeln(F("Setting robot ID to '%s'."), config_robot_name_by_id[robot_id]);
+    log_write(F("Setting robot ID to '"));
+    log_write((const __FlashStringHelper *)config_robot_name_by_id[robot_id]);
+    log_writeln(F("'."));
 
     config_set_robot_id(robot_id);
 
@@ -486,7 +490,7 @@ static void poll_pins(sm_state_t *state)
         bool val = hardware_get_header_pin_pressed(i);
         if (val != poll_pins_prev_val[i]) {
             poll_pins_prev_val[i] = val;
-            log_writeln(F("Pin index %d is %s"), i, val ? "HIGH" : "LOW");
+            log_writeln(F("Pin index %d is %s"), i, val ? "button pressed" : "button not pressed");
         }
     }
 }
@@ -633,26 +637,31 @@ int command_waypoint_run(char *args, size_t args_nbytes)
     int start_step = 0;
     int count = -1;
 
-    log_writeln(F("0: '%s'"), args);
-    size_t nbytes = 0;
-
     if (args_nbytes > 0) {
         // Parse optional start-step integer parameter.
-        nbytes = parse_int(p, args_nbytes, &start_step);
+        size_t nbytes = parse_int(p, args_nbytes, &start_step);
         args_nbytes -= nbytes;
         p += nbytes;
 
-        log_writeln(F("start_step: %d"), start_step);
+        if ((start_step < -1) || (start_step >= waypoint_get_max_count())) {
+            log_writeln(F("ERROR: Step %d is outside of range [-1, %d]."), start_step, waypoint_get_max_count() - 1);
+            return -1;
+        }
 
         if (args_nbytes > 0) {
             // Parse optional count parameter.
             nbytes = parse_int(p, args_nbytes, &count);
             args_nbytes -= nbytes;
             p += nbytes;
+
+            if (count <= 0) {
+                log_writeln(F("ERROR: Invalid count %d. Count should be > 0."), count);
+                return -1;
+            }
         }
     }
 
-    if ((start_step < 0) || (count < -1) || (args_nbytes > 0))
+    if (args_nbytes > 0)
         return -1;
 
     waypoint_run(start_step, count);
@@ -660,7 +669,7 @@ int command_waypoint_run(char *args, size_t args_nbytes)
     return p - args;
 }
 
-static int parse_waypoint_command(char *args, size_t args_nbytes, int *step, waypoint_t *waypoint)
+static size_t parse_step_and_waypoint(char *args, size_t args_nbytes, int *step, waypoint_t *waypoint)
 {
     assert(args);
     assert(step);
@@ -673,14 +682,17 @@ static int parse_waypoint_command(char *args, size_t args_nbytes, int *step, way
 
     size_t nbytes = parse_int(p, args_nbytes, step);
 
-    if (nbytes == 0)
-        return -1;
+    if (nbytes <= 0)
+        return 0;
     if ((*step < 0) || (*step >= waypoint_get_max_count()))
-        return -1;
+        return 0;
     args_nbytes -= nbytes;
     p += nbytes;
 
     nbytes = parse_waypoint(p, args_nbytes, waypoint);
+    if (nbytes <= 0)
+        return nbytes;
+
     args_nbytes -= nbytes;
     p += nbytes;
     if (args_nbytes > 0)
@@ -692,17 +704,20 @@ static int parse_waypoint_command(char *args, size_t args_nbytes, int *step, way
 int command_waypoint_set(char *args, size_t args_nbytes)
 {
     assert(args);
-
+    char *p = args;
     int step = -1;
     waypoint_t waypoint = { 0 };
 
-    size_t nbytes = parse_waypoint_command(args, args_nbytes, &step, &waypoint);
+    size_t nbytes = parse_step_and_waypoint(p, args_nbytes, &step, &waypoint);
 
-    if (nbytes <= 0)
-        return nbytes;
+    args_nbytes -= nbytes;
+    p += nbytes;
+    if (args_nbytes > 0)
+        return -1;
 
     log_writeln(F("Setting waypoint %d."), step);
     waypoint_set(step, waypoint);
+    waypoint_print(step);
 
     return nbytes;
 }
@@ -710,16 +725,21 @@ int command_waypoint_set(char *args, size_t args_nbytes)
 int command_waypoint_insert_before(char *args, size_t args_nbytes)
 {
     assert(args);
+    char *p = args;
 
     int step = -1;
     waypoint_t waypoint = { 0 };
 
-    size_t nbytes = parse_waypoint_command(args, args_nbytes, &step, &waypoint);
+    size_t nbytes = parse_step_and_waypoint(p, args_nbytes, &step, &waypoint);
 
-    if (nbytes <= 0)
-        return nbytes;
+    args_nbytes -= nbytes;
+    p += nbytes;
+    if (args_nbytes > 0)
+        return -1;
 
+    log_writeln(F("Inserting waypoint before step %d."), step);
     waypoint_insert_before(step, waypoint);
+    waypoint_print(step);
 
     return nbytes;
 }
@@ -739,7 +759,9 @@ int command_waypoint_append(char *args, size_t args_nbytes)
     if (args_nbytes > 0)
         return -1;
 
+    log_writeln(F("Appending waypoint to end of list."));
     waypoint_append(waypoint);
+    waypoint_print(step);
 
     return nbytes;
 }
