@@ -346,6 +346,9 @@ void motor_set_target_encoder(motor_id_t motor_id, int encoder)
         return;
     }
 
+    if (motor_get_target_encoder(motor_id) == encoder)
+        return;
+
     motor_state[motor_id].target_encoder = encoder * motor_state[motor_id].logic;
     motor_state[motor_id].progress = MOTOR_PROGRESS_ON_WAY_TO_TARGET;
     motor_state[motor_id].encoders_per_second = 0;

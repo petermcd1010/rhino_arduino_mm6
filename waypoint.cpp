@@ -298,6 +298,9 @@ void start(void)
 static bool check_progress(waypoint_t waypoint)
 {
     for (int i = 0; i < MOTOR_ID_COUNT; i++) {
+        if (!motor_get_enabled((motor_id_t)i))
+            continue;
+
         switch (waypoint.command) {
         case WAYPOINT_COMMAND_MOVE_AT:
             if (motor_get_encoder((motor_id_t)i) != waypoint.motor[i])
@@ -332,6 +335,8 @@ static bool set_target_waypoint(waypoint_t waypoint)
            (waypoint.command == WAYPOINT_COMMAND_MOVE_APPROACHING));
 
     for (int i = 0; i < MOTOR_ID_COUNT; i++) {
+        if (!motor_get_enabled((motor_id_t)i))
+            continue;
         motor_set_target_encoder((motor_id_t)i, waypoint.motor[i]);
     }
 }
@@ -381,6 +386,7 @@ static void run(void)
         break;
     case WAYPOINT_COMMAND_SET_ENABLED_MOTORS:
         motor_set_enabled_mask(waypoint.enabled_motors_mask);
+        current_index++;
         break;
     case WAYPOINT_COMMAND_IF_IO_PIN_GOTO_STEP:
         if (hardware_get_header_pin_pressed(waypoint.io_goto.pin)) {
