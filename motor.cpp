@@ -872,16 +872,14 @@ ISR(TIMER1_COMPA_vect) {
             // that the motor is in a stall situation.  To unstall,
             // the target position is set back a bit from the
             // current position.
-#if 0
-            if (motor_state[motor_id].current_draw > 200) {
+
+            if (motor_state[motor_id].current_draw > config.motor[motor_id].stall_current_threshold) {
                 if (motor_state[motor_id].previous_direction == 1)
                     motor_state[motor_id].target_encoder = noinit_data.motor[motor_id].encoder - 50;
                 else if (motor_state[motor_id].previous_direction == -1)
                     motor_state[motor_id].target_encoder = noinit_data.motor[motor_id].encoder + 50;
-                motor_state[motor_id].is_stuck = true;
-                motor_state[motor_id].current_draw = 0;
+                motor_state[motor_id].current_draw = 0;  // Prevent retriggering until next time current is read.
             }
-#endif
         } else {
             if (motor_state[motor_id].current_draw > 100) {
                 // Motor A is a special case where High Current

@@ -181,6 +181,7 @@ void config_clear()
         config.motor[i].home_forward_off_encoder = INT_MAX;
         config.motor[i].home_reverse_on_encoder = INT_MIN;
         config.motor[i].home_reverse_off_encoder = INT_MIN;
+        config.motor[i].stall_current_threshold = 200;
     }
     config.gripper_open_encoder = -130;
     config.gripper_close_encoder = -310;
@@ -287,6 +288,13 @@ void config_set_home_encoders(motor_id_t motor_id, int home_forward_on_encoder, 
     config_sign();
 }
 
+void config_set_stall_current_threshold(motor_id_t motor_id, int stall_current_threshold)
+{
+    assert(motor_id >= 0 && motor_id < MOTOR_ID_COUNT);
+    config.motor[motor_id].stall_current_threshold = stall_current_threshold;
+    config_sign();
+}
+
 void config_print()
 {
     if (!config_check())
@@ -309,9 +317,10 @@ void config_print()
                     str,
                     motor->orientation == MOTOR_ORIENTATION_NOT_INVERTED ? "not inverted" : "inverted",
                     motor->polarity == MOTOR_POLARITY_NOT_REVERSED ? "not reversed" : "reversed");
-        log_writeln(F("  Min encoder: %d, max encoder: %d"), motor->min_encoder, motor->max_encoder);
-        log_writeln(F("  Home switch forward on encoder: %d, forward off encoder: %d"), motor->home_forward_on_encoder, motor->home_forward_off_encoder);
-        log_writeln(F("  Home switch reverse on encoder: %d, reverse off encoder: %d"), motor->home_reverse_on_encoder, motor->home_reverse_off_encoder);
+        log_writeln(F("           Min encoder: %d, max encoder: %d"), motor->min_encoder, motor->max_encoder);
+        log_writeln(F("           Home switch forward on encoder: %d, forward off encoder: %d"), motor->home_forward_on_encoder, motor->home_forward_off_encoder);
+        log_writeln(F("           Home switch reverse on encoder: %d, reverse off encoder: %d"), motor->home_reverse_on_encoder, motor->home_reverse_off_encoder);
+        log_writeln(F("           Stall current threshold: %d"), motor->stall_current_threshold);
     }
 
     log_writeln(F("  Gripper open encoder: %d"), config.gripper_open_encoder);

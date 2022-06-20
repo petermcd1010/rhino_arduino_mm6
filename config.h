@@ -39,6 +39,7 @@ typedef struct __attribute__((packed)) {
     int home_forward_off_encoder;  // Home switch forward direction not triggered value.
     int home_reverse_on_encoder;  // Home switch reverse direction triggered value.
     int home_reverse_off_encoder;  // Home switch reverse direction not triggered value.
+    int stall_current_threshold;  // Threshold to trigger stall condition. Defaults to 200.
 } config_motor_t;
 
 typedef struct __attribute__((packed)) {
@@ -74,5 +75,6 @@ void config_set_gripper_close_encoder(int encoder);
 void config_set_angle_offsets(int B, int C, int D, int E, int F);
 void config_set_min_max_encoders(motor_id_t motor_id, int min_encoder, int max_encoder);
 void config_set_home_encoders(motor_id_t motor_id, int home_forward_on_encoder, int home_forward_off_encoder, int home_reverse_on_encoder, int home_reverse_off_encoder);
+void config_set_stall_current_threshold(motor_id_t motor_id, int stall_current_threshold);
 void config_print(void);
 bool config_test(void);

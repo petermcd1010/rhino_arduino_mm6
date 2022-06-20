@@ -329,7 +329,7 @@ static void go_home(void)
 {
     bool all_home = true;
 
-    // TODO: Signal failure if motors get stuck.
+    // TODO: Signal failure if motors stall.
 
     int enabled_motors = motor_get_enabled_mask();
 
