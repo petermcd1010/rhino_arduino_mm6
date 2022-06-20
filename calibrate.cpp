@@ -21,12 +21,14 @@ static int prev_stall_current_threshold = 0;
 static int stalled_start_encoder = 0;
 static unsigned long stalled_start_millis = 0;
 
-static int min_encoder = 0;
-static int max_encoder = 0;
 static int home_forward_on_encoder = 0;
 static int home_forward_off_encoder = 0;
 static int home_reverse_on_encoder = 0;
 static int home_reverse_off_encoder = 0;
+static int ntimes_found_min_encoder = 0;
+static int ntimes_found_max_encoder = 0;
+static int min_encoder = 0;
+static int max_encoder = 0;
 
 static void calibrate_all(sm_state_t *state);
 static void calibrate_one_enter(sm_state_t *state);
@@ -85,12 +87,7 @@ static bool found_all_positions(void)
 
 static bool cant_find_home_switch(void)
 {
-    if ((max_encoder != INT_MAX) &&
-        (min_encoder != INT_MIN) &&
-        ((home_forward_on_encoder == INT_MAX) ||
-         (home_forward_off_encoder == INT_MAX) ||
-         (home_reverse_on_encoder == INT_MIN) ||
-         (home_reverse_off_encoder == INT_MIN)))
+    if ((ntimes_found_max_encoder >= 2) || (ntimes_found_min_encoder >= 2))
         return true;
     else
         return false;
@@ -215,6 +212,8 @@ static void calibrate_one_enter(sm_state_t *state)
     home_forward_off_encoder = INT_MAX;
     home_reverse_on_encoder = INT_MIN;
     home_reverse_off_encoder = INT_MIN;
+    ntimes_found_min_encoder = 0;
+    ntimes_found_max_encoder = 0;
     min_encoder = INT_MIN;
     max_encoder = INT_MAX;
 
@@ -318,6 +317,7 @@ static void calibrate_one_forward(sm_state_t *state)
     } else if (is_stalled(motor_id, &stalled_start_encoder, &stalled_start_millis, 500)) {
         log_writeln(F("Calibrating motor %c: Forward direction, encoder %d, motor stalled. Reversing direction."), 'A' + motor_id, stalled_start_encoder);
         stalled_start_millis = millis();
+        ntimes_found_max_encoder++;
         max_encoder = motor_get_encoder(motor_id);
         sm_state_t s = { .run = calibrate_one_reverse, .break_handler = break_handler, .name = F("calibrate one reverse"), .data = NULL };
         sm_set_next_state(s);
@@ -415,6 +415,7 @@ static void calibrate_one_reverse(sm_state_t *state)
         log_writeln(F("Calibrating motor %c: Reverse direction, encoder %d, motor stalled. Reversing direction."), 'A' + motor_id, stalled_start_encoder);
         stalled_start_millis = millis();
         min_encoder = motor_get_encoder(motor_id);
+        ntimes_found_min_encoder++;
         motor_set_target_encoder(motor_id, INT_MAX);
         sm_state_t s = { .run = calibrate_one_forward, .break_handler = break_handler, .name = F("calibrate one forward"), .data = NULL };
         sm_set_next_state(s);
