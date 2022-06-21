@@ -346,6 +346,8 @@ void motor_set_target_encoder(motor_id_t motor_id, int encoder)
         return;
     }
 
+    LOG_DEBUG(F("%d"), encoder);
+
     if (motor_get_target_encoder(motor_id) == encoder)
         return;
 
@@ -899,17 +901,17 @@ ISR(TIMER1_COMPA_vect) {
         //==========================================================
         // Calculate PID Proportional Error
         //==========================================================
-        int PIDPError = 0;
+        int pid_perror = 0;
         int target = motor_state[motor_id].target_encoder;
         int encoder = -noinit_data.motor[motor_id].encoder;
-        if ((target > 0) && (encoder > INT_MAX - target))
-            PIDPError = INT_MAX;       // handle overflow by clamping to INT_MAX.
-        else if ((target < 0) && (encoder < INT_MIN - target))
-            PIDPError = INT_MIN;       // handle underflow by clamping to INT_MIN.
+        if ((encoder > 0) && (target > INT_MAX - encoder))
+            pid_perror = INT_MAX;       // Handle overflow by clamping to INT_MAX.
+        else if ((encoder < 0) && (target < INT_MIN - encoder))
+            pid_perror = INT_MIN;       // Handle underflow by clamping to INT_MIN.
         else
-            PIDPError = target + encoder;
+            pid_perror = target + encoder;
 
-        motor_state[motor_id].pid_perror = PIDPError;  // Save.
+        motor_state[motor_id].pid_perror = pid_perror;  // Save.
 
         //==========================================================
         // Calc the Target Speed from the Proportional Error
@@ -917,31 +919,31 @@ ISR(TIMER1_COMPA_vect) {
         //  Current Position and the Target Position (with limits).
         // Results in a speed of +/- 255.
         //==========================================================
-        if (PIDPError > max_error) {
+        if (pid_perror > max_error) {
             motor_state[motor_id].target_speed = max_error;
             // Set the Status that indicates that the Motor is more than 200 clicks from target.
             motor_state[motor_id].progress = MOTOR_PROGRESS_ON_WAY_TO_TARGET;
-        } else if (PIDPError < min_error) {
+        } else if (pid_perror < min_error) {
             motor_state[motor_id].target_speed = min_error;
             // Set the Status that indicates that the Motor is more than 200 clicks from target.
             motor_state[motor_id].progress = MOTOR_PROGRESS_ON_WAY_TO_TARGET;
-        } else if (PIDPError > 0) {  // TODO: Refactor to combine PIDPerror > 0 and < 0 cases.
+        } else if (pid_perror > 0) {  // TODO: Refactor to combine pid_perror > 0 and < 0 cases.
             motor_state[motor_id].target_speed = motor_state[motor_id].pid_perror + (motor_state[motor_id].pid_dvalue / 6);
-            if (PIDPError < 2)
+            if (pid_perror < 2)
                 // Set the Status that indicates that the Motor is 1 click from target
                 motor_state[motor_id].progress = MOTOR_PROGRESS_BESIDE_TARGET;
-            else if (PIDPError < 30)
+            else if (pid_perror < 30)
                 // Set the Status that indicates that the Motor is 2-29 clicks from target
                 motor_state[motor_id].progress = MOTOR_PROGRESS_NEAR_TARGET;
             else
                 // Set the Status that indicates that the Motor is 30-200 clicks from target
                 motor_state[motor_id].progress = MOTOR_PROGRESS_APPROACHING_TARGET;
-        } else if (PIDPError < 0) {
+        } else if (pid_perror < 0) {
             motor_state[motor_id].target_speed = motor_state[motor_id].pid_perror - (motor_state[motor_id].pid_dvalue / 6), -255;  // TODO: Check.
-            if (PIDPError > -2)
+            if (pid_perror > -2)
                 // Set the Status that indicates that the Motor is 1 click from target
                 motor_state[motor_id].progress = MOTOR_PROGRESS_BESIDE_TARGET;
-            else if (PIDPError > -30)
+            else if (pid_perror > -30)
                 // Set the Status that indicates that the Motor is 2-29 clicks from target
                 motor_state[motor_id].progress = MOTOR_PROGRESS_NEAR_TARGET;
             else

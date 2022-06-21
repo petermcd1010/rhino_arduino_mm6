@@ -39,6 +39,7 @@ static void calibrate_one_reverse(sm_state_t *state);
 static void calibrate_one_reverse_backup(sm_state_t *state);
 static void calibrate_one_go_home(sm_state_t *state);
 static void calibrate_one_failed(sm_state_t *state);
+static void calibrate_one_failed_center_between_min_max(sm_state_t *state);
 static void calibrate_one_done(sm_state_t *state);
 static void break_handler(sm_state_t *state);
 
@@ -128,6 +129,7 @@ static void update_status(motor_id_t motor_id)
     bool triggered = motor_is_home_triggered_debounced(motor_id);
 
 #if 0
+    LOG_DEBUG(F("target_encoder=%d, encoder=%d, pid_perror=%d"), motor_state[motor_id].target_encoder, motor_get_encoder(motor_id), motor_state[motor_id].pid_perror);
     if (prev_triggered != triggered) {
         log_writeln(F("Calibrating motor %c: Home switch: %d."), 'A' + motor_id, triggered);
         prev_triggered = triggered;
@@ -475,7 +477,7 @@ static void calibrate_one_go_home(sm_state_t *state)
 
         motor_set_home_encoder(motor_id, midpoint);
         motor_set_target_encoder(motor_id, 0);
-        motor_set_max_speed_percent(motor_id, 100.0f);
+        motor_set_max_speed_percent(motor_id, max_speed_percent);
     }
 
     int encoder = motor_get_encoder(motor_id);
@@ -496,7 +498,7 @@ static void calibrate_one_go_home(sm_state_t *state)
         }
     } else if (is_stalled(motor_id, &stalled_start_encoder, &stalled_start_millis, 5 * 1000)) {
         log_writeln(F("Calibrating motor %c: Motor is stalled at encoder %d. Calibration for motor %c failed."), 'A' + motor_id, encoder, 'A' + motor_id);
-        sm_state_t s = { .run = calibrate_one_failed, .break_handler = break_handler, .name = F("calibrate one done"), .data = NULL };
+        sm_state_t s = { .run = calibrate_one_failed, .break_handler = break_handler, .name = F("calibrate one failed"), .data = NULL };
         sm_set_next_state(s);
     }
 }
@@ -508,7 +510,6 @@ static void calibrate_one_failed(sm_state_t *state)
     update_status(motor_id);
 
     stalled_start_millis = millis();
-    motor_set_max_speed_percent(motor_id, 100.0f);
     log_writeln(F("Failed to calibrate motor %c. Could not find home switch: forward_on=%d, forward_off=%d, reverse_on=%d, reverse_off=%d)."),
                 'A' + motor_id,
                 home_forward_on_encoder,
@@ -516,9 +517,38 @@ static void calibrate_one_failed(sm_state_t *state)
                 home_reverse_on_encoder,
                 home_reverse_off_encoder);
 
-    sm_state_t s = { .run = calibrate_one_done, .break_handler = break_handler, .name = F("calibrate one done"), .data = NULL };
+    if ((ntimes_found_min_encoder > 0) && (ntimes_found_max_encoder > 0)) {
+        sm_state_t s = { .run = calibrate_one_failed_center_between_min_max, .break_handler = break_handler, .name = F("calibrate one center between mix max"), .data = NULL };
+        sm_set_next_state(s);
+    } else {
+        motor_set_enabled(motor_id, false);
+        sm_state_t s = { .run = calibrate_one_done, .break_handler = break_handler, .name = F("calibrate one done"), .data = NULL };
+        sm_set_next_state(s);
+    }
+}
 
-    sm_set_next_state(s);
+static void calibrate_one_failed_center_between_min_max(sm_state_t *state)
+{
+    assert(state);
+    assert((motor_id >= MOTOR_ID_A) && (motor_id < MOTOR_ID_COUNT));
+    update_status(motor_id);
+
+    int midpoint = min_encoder / 2 + max_encoder / 2;
+
+    if (motor_get_target_encoder(motor_id) != midpoint) {
+        stalled_start_millis = millis();
+        motor_set_target_encoder(motor_id, midpoint);
+    }
+
+    if (motor_get_encoder(motor_id) == midpoint) {
+        log_writeln(F("Calibrating motor %c: Motor arrived at midpoint %d between min and max encoders."), 'A' + motor_id, midpoint);
+        sm_state_t s = { .run = calibrate_one_done, .break_handler = break_handler, .name = F("calibrate one done"), .data = NULL };
+        sm_set_next_state(s);
+    } else if (is_stalled(motor_id, &stalled_start_encoder, &stalled_start_millis, 5 * 1000)) {
+        log_writeln(F("Calibrating motor %c: Motor stalled attempting to move to midpoint %d between min and max encoders. Centering for motor %c failed."), 'A' + motor_id, midpoint, 'A' + motor_id);
+        sm_state_t s = { .run = calibrate_one_done, .break_handler = break_handler, .name = F("calibrate one done"), .data = NULL };
+        sm_set_next_state(s);
+    }
 }
 
 static void calibrate_one_done(sm_state_t *state)
