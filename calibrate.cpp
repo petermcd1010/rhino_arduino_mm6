@@ -208,7 +208,7 @@ static void calibrate_one_enter(sm_state_t *state)
     motor_set_enabled(motor_id, true);
     prev_max_speed_percent = motor_get_max_speed_percent(motor_id);
     prev_stall_current_threshold = config.motor[motor_id].stall_current_threshold;
-    config_set_stall_current_threshold(motor_id, INT_MAX);
+    config_set_motor_stall_current_threshold(motor_id, INT_MAX);
 
     home_forward_on_encoder = INT_MAX;
     home_forward_off_encoder = INT_MAX;
@@ -490,8 +490,8 @@ static void calibrate_one_go_home(sm_state_t *state)
             log_writeln(F("Calibrating motor %c: Motor arrived at home position (encoder 0). Calibration for motor %c passed."), 'A' + motor_id, 'A' + motor_id);
 
             if (calibrate_limits)
-                config_set_min_max_encoders(motor_id, min_encoder, max_encoder);
-            config_set_home_encoders(motor_id, home_forward_on_encoder, home_forward_off_encoder, home_reverse_on_encoder, home_reverse_off_encoder);
+                config_set_motor_min_max_encoders(motor_id, min_encoder, max_encoder);
+            config_set_motor_home_encoders(motor_id, home_forward_on_encoder, home_forward_off_encoder, home_reverse_on_encoder, home_reverse_off_encoder);
 
             sm_state_t s = { .run = calibrate_one_done, .break_handler = break_handler, .name = F("calibrate one done"), .data = NULL };
             sm_set_next_state(s);
@@ -564,7 +564,7 @@ static void calibrate_one_done(sm_state_t *state)
 
     motor_set_max_speed_percent(motor_id, prev_max_speed_percent);
     motor_set_enabled(motor_id, false);
-    config_set_stall_current_threshold(motor_id, prev_stall_current_threshold);
+    config_set_motor_stall_current_threshold(motor_id, prev_stall_current_threshold);
     motor_id = (motor_id_t)((int)motor_id + 1);
     sm_state_t s = { .run = calibrate_all, .break_handler = break_handler, .name = F("calibrate all"), .data = NULL };
 

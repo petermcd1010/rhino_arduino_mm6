@@ -32,7 +32,7 @@ extern const char * const config_robot_name_by_id[CONFIG_ROBOT_ID_COUNT];
 typedef struct __attribute__((packed)) {
     int angle_offset;
     motor_orientation_t orientation;
-    motor_polarity_t polarity;  // Easy to wire motors backwards.
+    uint8_t forward_polarity;  // Defaults to LOW. If motor is wired backward, set to HIGH.
     int min_encoder;  // Minimum encoder limit found during calibration.
     int max_encoder;  // Maximum encoder limit found during calibration.
     int home_forward_on_encoder;  // Home switch forward direction triggered value.
@@ -67,14 +67,13 @@ void config_clear(void);
 void config_set_robot_id(config_robot_id_t robot_id);
 void config_set_robot_serial(char robot_serial[CONFIG_ROBOT_SERIAL_NBYTES]);
 void config_set_robot_name(char robot_name[CONFIG_ROBOT_NAME_NBYTES]);
-void config_set_motor_configured(motor_id_t motor_id, bool configured);
 void config_set_motor_orientation(motor_id_t motor_id, motor_orientation_t motor_orientation);
-void config_set_motor_polarity(motor_id_t motor_id, motor_polarity_t motor_polarity);
-void config_set_gripper_open_encoder(int encoder);
-void config_set_gripper_close_encoder(int encoder);
-void config_set_angle_offsets(int B, int C, int D, int E, int F);
-void config_set_min_max_encoders(motor_id_t motor_id, int min_encoder, int max_encoder);
-void config_set_home_encoders(motor_id_t motor_id, int home_forward_on_encoder, int home_forward_off_encoder, int home_reverse_on_encoder, int home_reverse_off_encoder);
-void config_set_stall_current_threshold(motor_id_t motor_id, int stall_current_threshold);
+void config_set_motor_forward_polarity(motor_id_t motor_id, int low_or_high);
+void config_set_motor_gripper_open_encoder(int encoder);
+void config_set_motor_gripper_close_encoder(int encoder);
+void config_set_motor_angle_offsets(int B, int C, int D, int E, int F);
+void config_set_motor_min_max_encoders(motor_id_t motor_id, int min_encoder, int max_encoder);
+void config_set_motor_home_encoders(motor_id_t motor_id, int home_forward_on_encoder, int home_forward_off_encoder, int home_reverse_on_encoder, int home_reverse_off_encoder);
+void config_set_motor_stall_current_threshold(motor_id_t motor_id, int stall_current_threshold);
 void config_print(void);
 bool config_test(void);

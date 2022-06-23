@@ -32,8 +32,7 @@ static const motor_pinout_t motor_pinout[MOTOR_ID_COUNT] = {
 };
 
 // For motor direction pin.
-static const int motor_direction_forward = LOW;
-static const int motor_direction_reverse = HIGH;
+// static const int motor_direction_forward = LOW;
 
 motor_state_t motor_state[MOTOR_ID_COUNT] = { 0 };  // Intentionally not static.
 
@@ -50,8 +49,6 @@ static int Gripper_StallC = 0;
 static int Gripper_StallE = 0;
 static int Gripper_StallX = 0;
 static int SyncMove_Status = 0;
-static int Forward_Logic[] = { 0, 0, 0, 0, 0, 0 };  // Forward Logic - The value for the Direction IO Line when the motor needs to move forward to sync with encoders.
-static int Reverse_Logic[] = { 1, 1, 1, 1, 1, 1 };  // Reverse Logic - The value for the Direction IO Line when the motor needs to move Reverse to sync with encoders.
 
 // Configuration stored in RAM and saved across reset/reboot that don't include a power-cycle of the board.
 static const int noinit_data_version = 2;
@@ -126,7 +123,7 @@ static void motor_init(motor_id_t motor_id)
     pinMode(motor_pinout[motor_id].out_brake, OUTPUT);
     pinMode(motor_pinout[motor_id].out_direction, OUTPUT);
     pinMode(motor_pinout[motor_id].out_pwm, OUTPUT);
-    digitalWrite(motor_pinout[motor_id].out_direction, motor_direction_forward);
+    digitalWrite(motor_pinout[motor_id].out_direction, config.motor[motor_id].forward_polarity);
 
     // Configure inputs.
     pinMode(motor_pinout[motor_id].in_home_switch, INPUT_PULLUP);
@@ -346,8 +343,6 @@ void motor_set_target_encoder(motor_id_t motor_id, int encoder)
         return;
     }
 
-    LOG_DEBUG(F("%d"), encoder);
-
     if (motor_get_target_encoder(motor_id) == encoder)
         return;
 
@@ -456,7 +451,7 @@ void motor_set_speed(motor_id_t motor_id, int speed)
         motor_state[motor_id].pwm = pwm;
     }
 
-    digitalWrite(motor_pinout[motor_id].out_direction, speed >= 0 ? motor_direction_forward : motor_direction_reverse);
+    digitalWrite(motor_pinout[motor_id].out_direction, speed >= 0 ? config.motor[motor_id].forward_polarity : !config.motor[motor_id].forward_polarity);
     analogWrite(motor_pinout[motor_id].out_pwm, motor_state[motor_id].pwm);
     motor_state[motor_id].speed = speed;
 }
@@ -545,32 +540,12 @@ static void motor_test(motor_id_t motor_id)
     log_write(F("Forward delta: "));
     print_motor_delta(forward_delta);
 
-#if 0
-    bool done = false;
-    do {
-        if (((position2 - position1) > 0) && ((position3 - position2) < 0)) {
-            log_write(F("Reversing. "));
-            Forward_Logic[motor_id] = !Forward_Logic[motor_id];
-            Reverse_Logic[motor_id] = !Reverse_Logic[motor_id];
-            config_set_direction_logic(motor_id, Reverse_Logic[motor_id]);
-            done = true;
-            // TODO: Test motor[i] again.
-        } else {
-            config_set_direction_logic(motor_id, Forward_Logic[motor_id]);
-            done = true;
-        }
-    } while (!done);
-#endif
-
     const __FlashStringHelper *pfailure_message = NULL;
 
     if (position1 == position2)
         pfailure_message = F("Failed to move when commanded");
     else if ((forward_delta < 0) == (reverse_delta < 0))
-        // To Test, execute pinMode(51, INPUT_PULLUP) to disable Motor F's direction pin.
-        pfailure_message = F("Failed to switch direction when commanded");
-    else if ((reverse_delta > 0) && (forward_delta < 0))
-        pfailure_message = F("Motor +/- wired backwards");
+        pfailure_message = F("Failed to switch direction when commanded");  // To Test, execute pinMode(51, INPUT_PULLUP) to disable Motor F's direction pin.
 
     if (pfailure_message) {
         log_write(F(" ... FAILED ("));
@@ -578,7 +553,10 @@ static void motor_test(motor_id_t motor_id)
         log_writeln(F(")."));
     } else {
         config_set_motor_orientation(motor_id, MOTOR_ORIENTATION_NOT_INVERTED);
-        config_set_motor_polarity(motor_id, MOTOR_POLARITY_NOT_REVERSED);
+        if ((reverse_delta > 0) && (forward_delta < 0)) {
+            log_write(F(". (Wired backwards, automatically reversing polarity)"));
+            config_set_motor_forward_polarity(motor_id, !config.motor[motor_id].forward_polarity);
+        }
         log_writeln(F(" ... Passed."));
     }
 }
@@ -905,9 +883,9 @@ ISR(TIMER1_COMPA_vect) {
         int target = motor_state[motor_id].target_encoder;
         int encoder = -noinit_data.motor[motor_id].encoder;
         if ((encoder > 0) && (target > INT_MAX - encoder))
-            pid_perror = INT_MAX;       // Handle overflow by clamping to INT_MAX.
+            pid_perror = INT_MAX;      // Handle overflow by clamping to INT_MAX.
         else if ((encoder < 0) && (target < INT_MIN - encoder))
-            pid_perror = INT_MIN;       // Handle underflow by clamping to INT_MIN.
+            pid_perror = INT_MIN;      // Handle underflow by clamping to INT_MIN.
         else
             pid_perror = target + encoder;
 

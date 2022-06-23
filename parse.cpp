@@ -374,7 +374,6 @@ size_t parse_motor_angle_or_encoder(char *buf, size_t buf_nbytes, float *out_val
     float new_value = 0.0f;
 
     nbytes = parse_float(p, buf_nbytes, &new_value);
-    LOG_DEBUG(F("%d %d"), nbytes, (int)new_value);
 
     if (nbytes > 0) {
         *out_value = new_value;

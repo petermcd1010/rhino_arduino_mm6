@@ -40,12 +40,6 @@ typedef enum {
     MOTOR_ORIENTATION_NOT_INVERTED = 1
 } motor_orientation_t;
 
-// Motor wiring polarity. Corrects for motors being wired backwards.
-typedef enum {
-    MOTOR_POLARITY_REVERSED     = -1,
-    MOTOR_POLARITY_NOT_REVERSED = 1,
-} motor_polarity_t;
-
 typedef struct {
     bool               enabled;
     int                max_speed;
