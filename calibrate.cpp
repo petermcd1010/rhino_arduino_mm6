@@ -206,6 +206,14 @@ static void calibrate_one_enter(sm_state_t *state)
     stalled_start_millis = millis();
 
     motor_set_enabled(motor_id, true);
+
+    if (!motor_test(motor_id)) {
+        log_writeln(F("Calibrating motor %c: Initial motor test failed."), 'A' + motor_id);
+        sm_state_t s = { .run = calibrate_one_failed, .break_handler = break_handler, .name = F("calibrate one failed"), .data = NULL };
+        sm_set_next_state(s);
+        return;
+    }
+
     prev_max_speed_percent = motor_get_max_speed_percent(motor_id);
     prev_stall_current_threshold = config.motor[motor_id].stall_current_threshold;
     config_set_motor_stall_current_threshold(motor_id, INT_MAX);

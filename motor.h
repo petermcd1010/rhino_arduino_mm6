@@ -98,6 +98,7 @@ void motor_set_max_speed_percent(motor_id_t motor_id, int max_speed_percent);
 int motor_get_max_speed_percent(motor_id_t motor_id);
 bool motor_is_home_triggered(motor_id_t motor_id);
 bool motor_is_home_triggered_debounced(motor_id_t motor_id);
+bool motor_test(motor_id_t motor_id);  // Returns true if passed, false if failed.
 void motor_test_enabled(void);
 void motor_dump(motor_id_t motor_id);
 void motor_set_user_error(bool enable);  // Will blink LED quickly to notify user of issue.

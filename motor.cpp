@@ -465,7 +465,7 @@ static void print_motor_delta(int delta)
         log_write(F("%d"), delta);
 }
 
-static void motor_test(motor_id_t motor_id)
+bool motor_test(motor_id_t motor_id)
 {
     assert((motor_id >= 0) && (motor_id < MOTOR_ID_COUNT));
 
@@ -523,6 +523,7 @@ static void motor_test(motor_id_t motor_id)
         log_write(F(" ... FAILED ("));
         log_write(pfailure_message);
         log_writeln(F(")."));
+        return false;
     } else {
         config_set_motor_orientation(motor_id, MOTOR_ORIENTATION_NOT_INVERTED);
         if ((reverse_delta > 0) && (forward_delta < 0)) {
@@ -530,6 +531,7 @@ static void motor_test(motor_id_t motor_id)
             config_set_motor_forward_polarity(motor_id, !config.motor[motor_id].forward_polarity);
         }
         log_writeln(F(" ... Passed."));
+        return true;
     }
 }
 
