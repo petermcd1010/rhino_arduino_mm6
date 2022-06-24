@@ -407,10 +407,10 @@ int command_print_motor_status(char *args, size_t args_nbytes)
                     motor_state[i].home_triggered_debounced,  // home switch.
                     motor_state[i].progress,  // sta. Report whether or not the Motor has reached the target location.
                     /* motor_get_encoder(iMotor), */  // pos.
-                    motor_get_encoder(i) * motor_state[i].logic,  // enc.
-                    motor_state[i].target_encoder * motor_state[i].logic,  // tar.
-                    motor_state[i].pid_perror * motor_state[i].logic,  // err.
-                    motor_state[i].speed * motor_state[i].logic,  // spd.
+                    motor_get_encoder(i) * config.motor[i].orientation,  // enc.
+                    motor_state[i].target_encoder * config.motor[i].orientation,  // tar.
+                    motor_state[i].pid_perror * config.motor[i].orientation,  // err.
+                    motor_state[i].speed * config.motor[i].orientation,  // spd.
                     /* motor_state[i].target_speed, */  // tspd.
                     motor_state[i].pwm,
                     motor_state[i].current_draw,  // cur.
@@ -469,8 +469,9 @@ error:
     return -1;
 }
 
-static void poll_pins_break_handler(void)
+static void poll_pins_break_handler(sm_state_t *state)
 {
+    assert(state);
     log_writeln(F("Break detected. Stopping polling of header pins."));
 
     sm_set_next_state(exit_to_state);

@@ -309,7 +309,7 @@ static bool menu_test_single_menu(const menu_item_t *menu_items)
             break;
         }
 
-        menu_item_t *item = &menu_items[n];
+        const menu_item_t *item = &menu_items[n];
         if (!item->name) {
             LOG_ERROR(F("%d NULL name"), n);
             ret = false;

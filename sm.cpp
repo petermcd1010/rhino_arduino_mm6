@@ -267,6 +267,7 @@ sm_state_t sm_get_state()
 void sm_set_next_state(sm_state_t s)
 {
     assert(s.run);
+    assert(s.name);
     next_state = s;
 }
 

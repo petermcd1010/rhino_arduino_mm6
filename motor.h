@@ -46,7 +46,6 @@ typedef struct {
     int                target_speed;
     int                speed;
     int                pwm;
-    int                logic; // -1 or +1.
     int                previous_direction;
     int                pid_dvalue;
     int                pid_perror; // Proportional Error (Difference between Current and Target)

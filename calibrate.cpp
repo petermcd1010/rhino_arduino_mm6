@@ -122,7 +122,7 @@ static void update_status(motor_id_t motor_id)
             else
                 log_write(F("Heading home, "));
         }
-        log_writeln(F("encoder %d. encoders_per_second %d"), encoder * motor_state[motor_id].logic, (int)motor_state[motor_id].encoders_per_second);
+        log_writeln(F("encoder %d. encoders_per_second %d"), encoder * config.motor[motor_id].orientation, (int)motor_state[motor_id].encoders_per_second);
         print_ms = millis();
     }
 

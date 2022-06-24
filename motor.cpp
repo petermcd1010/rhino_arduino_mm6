@@ -105,12 +105,11 @@ static void motor_init(motor_id_t motor_id)
 
     for (int motor_id = 0; motor_id < MOTOR_ID_COUNT; motor_id++) {
         memset(&motor_state[motor_id], 0, sizeof(motor_state_t));
-        // Motor logic is used to contol which way the motors turn in responce to the Positions.
+        // Motor orientation is used to contol which way the motors turn in responce to the Positions.
         //   Each Rhino Robot may have the motor assembled on either side - which winds up reversing the motors direction mechanically.
-        //   So the motor locic is used to correct that.
-        //     The values for the Motor Logic are set by the setup.
-        //       Since the Forward and Reverse Locic are used to invert the position the values are 1 or -1
-        motor_state[motor_id].logic = config.motor[motor_id].orientation;
+        //   So the motor orientation is used to correct that.
+        //     The values for the Motor orientation are set by the setup.
+        //       Since the not-inverted and inverted orientation are used to invert the position the values are 1 or -1
         motor_set_max_speed_percent((motor_id_t)motor_id, 100);
         motor_state[motor_id].prev_home_triggered = motor_is_home_triggered(motor_id);
         motor_state[motor_id].prev_home_triggered_millis = millis();
@@ -318,7 +317,7 @@ void motor_set_target_encoder(motor_id_t motor_id, int encoder)
     if (motor_get_target_encoder(motor_id) == encoder)
         return;
 
-    motor_state[motor_id].target_encoder = encoder * motor_state[motor_id].logic;
+    motor_state[motor_id].target_encoder = encoder * config.motor[motor_id].orientation;
     motor_state[motor_id].progress = MOTOR_PROGRESS_ON_WAY_TO_TARGET;
     motor_state[motor_id].encoders_per_second = 0;
 }
@@ -327,7 +326,7 @@ int motor_get_target_encoder(motor_id_t motor_id)
 {
     assert((motor_id >= 0) && (motor_id < MOTOR_ID_COUNT));
 
-    return motor_state[motor_id].target_encoder * motor_state[motor_id].logic;
+    return motor_state[motor_id].target_encoder * config.motor[motor_id].orientation;
 }
 
 int motor_get_encoder(motor_id_t motor_id)
@@ -336,7 +335,7 @@ int motor_get_encoder(motor_id_t motor_id)
     if (!motor_get_enabled(motor_id))
         return 0;
 
-    return noinit_data.motor[motor_id].encoder * motor_state[motor_id].logic;
+    return noinit_data.motor[motor_id].encoder * config.motor[motor_id].orientation;
 }
 
 void motor_print_encoders(void)
@@ -553,13 +552,13 @@ void motor_dump(motor_id_t motor_id)
 {
     assert((motor_id >= 0) && (motor_id < MOTOR_ID_COUNT));
 
-    log_writeln(F("%c: encoder:%d qe_prev:%d, speed:%d target_speed:%d logic:%d prev_dir:%d pid_dvalue:%d pid_perror:%d target_encoder:%d current:%d progress:%d"),
+    log_writeln(F("%c: encoder:%d qe_prev:%d, speed:%d target_speed:%d orientation:%d prev_dir:%d pid_dvalue:%d pid_perror:%d target_encoder:%d current:%d progress:%d"),
                 'A' + motor_id,
                 noinit_data.motor[motor_id].encoder,
                 noinit_data.motor[motor_id].previous_quadrature_encoder,
                 motor_state[motor_id].speed,
                 motor_state[motor_id].target_speed,
-                motor_state[motor_id].logic,
+                config.motor[motor_id].orientation,
                 motor_state[motor_id].previous_direction,
                 motor_state[motor_id].pid_dvalue,
                 motor_state[motor_id].pid_perror,
