@@ -31,9 +31,6 @@ static const motor_pinout_t motor_pinout[MOTOR_ID_COUNT] = {
     { 51, 9,  50, A10, 52,  38, 36, 37 }, // Motor F.
 };
 
-// For motor direction pin.
-// static const int motor_direction_forward = LOW;
-
 motor_state_t motor_state[MOTOR_ID_COUNT] = { 0 };  // Intentionally not static.
 
 // The speed sign bit is used to set the LMD18200 direction pin. So the PWM register accepts 0-255 for + and -.
@@ -42,8 +39,6 @@ static const int motor_max_speed = 255;
 
 static const int motor_min_pwm = 55;
 static int enabled_motors_mask = 0;
-static int tracking = 0;
-static int tracked[] = { 0, 0, 0, 0, 0, 0 };  // Last value while tracking.
 static int Motor_PID[MOTOR_ID_COUNT] = { 0, 0, 0, 0, 0, 0 };  // PID on or off.
 static int Gripper_StallC = 0;
 static int Gripper_StallE = 0;
@@ -51,20 +46,16 @@ static int Gripper_StallX = 0;
 static int SyncMove_Status = 0;
 
 // Configuration stored in RAM and saved across reset/reboot that don't include a power-cycle of the board.
-static const int noinit_data_version = 2;
-static const int noinit_data_magic = 0xABCD1234;
-
-typedef struct noinit_motor_t {
-    int previous_quadrature_encoder;
-    int encoder;
-} noinit_data_motor_t;
 
 typedef struct {
     // nbytes, version, magic are used to verify valid data.
-    size_t              nbytes;
-    int                 version;
-    int                 magic;
-    noinit_data_motor_t motor[MOTOR_ID_COUNT];
+    size_t nbytes;
+    int    version;
+    int    magic;
+    struct {
+        int previous_quadrature_encoder;
+        int encoder;
+    } motor[MOTOR_ID_COUNT];
 } noinit_data_t;
 
 static noinit_data_t noinit_data __attribute__((section(".noinit")));  // NOT reset to 0 when the CPU is reset.
@@ -78,6 +69,8 @@ void motor_clear_ram_data(void)
 static void check_noinit_data(void)
 {
     // Zero out saved variables on power cycle. On reset, these values are NOT erased.
+    const int noinit_data_version = 2;
+    const int noinit_data_magic = 0xABCD1234;
 
     if ((noinit_data.nbytes != sizeof(noinit_data_t) || (noinit_data.version != noinit_data_version) || (noinit_data.magic != noinit_data_magic))) {
         log_writeln(F("Initializing noinit data."));
@@ -91,27 +84,6 @@ static void check_noinit_data(void)
     } else {
         log_writeln(F("Detected reset without power. Reusing in-RAM motor encoder values."));
         log_writeln();
-    }
-}
-
-static void track_report(motor_id_t motor_id)
-{
-    if (tracking > 0) {
-        int Position = motor_get_encoder(motor_id);
-        if (tracked[motor_id] != Position) {
-            Serial.print("@");
-            if (tracking == 1) {
-                Serial.print(char(motor_id + 65));
-                Serial.print(motor_get_encoder(motor_id));
-            } else if (tracking == 2) {
-                Serial.print(char(motor_id + 97));
-                Serial.print(motor_get_angle(motor_id));
-            }
-            Serial.print(":HS");
-            Serial.print(motor_state[motor_id].home_triggered_debounced);
-            Serial.println(":");
-            tracked[motor_id] = Position;
-        }
     }
 }
 
@@ -575,22 +547,6 @@ void motor_test_enabled(void)
     log_writeln(F("Done testing motors."));
 }
 
-static void motor_track_report(motor_id_t motor_id)
-{
-    if (tracking > 0) {
-        int position = motor_get_encoder(motor_id);
-        if (tracked[motor_id] != position) {
-            log_write(F("@"));
-            if (tracking == 1)
-                log_write(F("%c:%d"), 'A' + motor_id, motor_get_encoder(motor_id));
-            else if (tracking == 2)
-                log_write(F("%c:%d"), 'A' + motor_id, motor_get_angle(motor_id));
-            log_write(F(":HS%d:"), motor_state[motor_id].home_triggered_debounced);
-            tracked[motor_id] = position;
-        }
-    }
-}
-
 void motor_dump(motor_id_t motor_id)
 {
     assert((motor_id >= 0) && (motor_id < MOTOR_ID_COUNT));
@@ -652,7 +608,7 @@ static void maybe_blink_led(void)
     if (motor_error) {
         // Blink S-O-S if there's an error.
         bool led_state;
-        const int len = 300;
+        const int len = 225;
         switch (led_counter) {
         case len * 0:  // dot.
         case len * 2:  // dot.

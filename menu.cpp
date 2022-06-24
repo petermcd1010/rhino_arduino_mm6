@@ -174,7 +174,7 @@ static const menu_item_t main_menu[] = {
     { 'V', MM_V,    NULL,                        NULL,             false, command_print_software_version, MH_V    },
     { 'W', MM_W,    NULL,                        waypoint_menu,    true,  NULL,                           MH_W    },
     { 'Z', MM_Z,    NULL,                        NULL,             true,  command_poll_pins,              MH_Z    },
-    { '*', MM_STAR, extended_menu_factory_reset, NULL,             false, command_factory_reset,          MH_STAR },
+    { '*', MM_STAR, extended_menu_factory_reset, NULL,             true,  command_factory_reset,          MH_STAR },
     { '!', MM_BANG, NULL,                        NULL,             false, command_emergency_stop,         MH_BANG },
     { '?', MM_HELP, NULL,                        NULL,             false, command_print_help,             MH_HELP },
     { 0 }  // Terminate menus with an entry filled with zeros.
