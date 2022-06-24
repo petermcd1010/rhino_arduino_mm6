@@ -24,7 +24,7 @@ static void extended_menu_robot_id(void)
         log_writeln(F("."));
     }
     log_writeln(F("Select new robot ID, or press [RETURN] to keep current robot ID."));
-    log_write(F(">"));
+    log_write(F("> "));
 }
 
 static void extended_menu_robot_serial(void)
@@ -32,7 +32,7 @@ static void extended_menu_robot_serial(void)
     log_writeln(F(""));
     log_writeln(F("Current robot serial is '%s'."), config.robot_serial);
     log_writeln(F("Enter new robot serial, or press [RETURN] to keep current serial."));
-    log_write(F(">"));
+    log_write(F("> "));
 }
 
 static void extended_menu_robot_name(void)
@@ -40,21 +40,21 @@ static void extended_menu_robot_name(void)
     log_writeln(F(""));
     log_writeln(F("Current robot name is '%s'."), config.robot_name);
     log_writeln(F("Enter new robot name shorter than %d characters, or press [RETURN] to keep current name."), CONFIG_ROBOT_NAME_NBYTES);
-    log_write(F(">"));
+    log_write(F("> "));
 }
 
 static void extended_menu_factory_reset(void)
 {
     log_writeln(F(""));
     log_writeln(F("Type 'RESET' in all capital letters to clear the EEPROM and reboot the system or <CTRL+C> to exit."));
-    log_write(F(">"));
+    log_write(F("> "));
 }
 
 static void extended_menu_reboot(void)
 {
     log_writeln(F(""));
     log_writeln(F("Type 'REBOOT' in all capital letters to reboot the system or <CTRL+C> to exit."));
-    log_write(F(">"));
+    log_write(F("> "));
 }
 
 static void extended_menu_append_waypoint(void)
@@ -71,7 +71,7 @@ static void extended_menu_append_waypoint(void)
     log_writeln(F("L [motorids] <ENTER> -- Append waypoint to calibrate home switches and limits of motorids or enabled motors."));
     log_writeln(F("O [motorids] <ENTER> --  Append waypoint to calibrate home switches of motorids or enabled motors."));
     log_writeln(F("W milliseconds <ENTER> -- Append waypoint to wait milliseconds."));
-    log_write(F(">"));
+    log_write(F("> "));
 }
 
 static void extended_menu_insert_waypoint(void)
@@ -88,7 +88,7 @@ static void extended_menu_insert_waypoint(void)
     log_writeln(F("step L [motorids] <ENTER> -- Insert waypoint before step to calibrate home switches and limits of motorids or enabled motors."));
     log_writeln(F("step O [motorids] <ENTER> -- Insert waypoint before step to calibrate home switches of motorids or enabled motors."));
     log_writeln(F("step W milliseconds <ENTER> -- Insert waypoint before step to wait milliseconds."));
-    log_write(F(">"));
+    log_write(F("> "));
 }
 
 static void extended_menu_set_waypoint(void)
@@ -105,7 +105,7 @@ static void extended_menu_set_waypoint(void)
     log_writeln(F("step L [motorids] <ENTER> -- Set waypoint step to calibrate home switches and limits of motorids or enabled motors."));
     log_writeln(F("step O [motorids] <ENTER> -- Set waypoint step to calibrate home switches of motorids or enabled motors."));
     log_writeln(F("step W milliseconds <ENTER> -- Set waypoint step to wait milliseconds."));
-    log_write(F(">"));
+    log_write(F("> "));
 }
 
 // These strings are defined outside of the menu below, so they can be stored in flash with PROGMEM.
@@ -127,8 +127,8 @@ static const char MM_E[] PROGMEM = "set enabled motors";
 static const char MH_E[] PROGMEM = "[motorids] -- Enable/disable motors, list (e.g 'abce') or blank to disable all.";
 static const char MM_G[] PROGMEM = "set gripper position";
 static const char MH_G[] PROGMEM = "-- Set current encoders as gripper?";
-static const char MM_H[] PROGMEM = "Go home";
-static const char MH_H[] PROGMEM = "[motorids] -- Command motors to home position (i.e. 0). Commands enabled motors if none given.";
+static const char MM_H[] PROGMEM = "go home";
+static const char MH_H[] PROGMEM = "[motorids] -- Command motors to home position (i.e. 0). Commands enabled motors if none specified.";
 static const char MM_M[] PROGMEM = "print motor status";
 static const char MH_M[] PROGMEM = "[motorids] -- Print motor status, list (e.g. 'abce') or blank for all.";
 static const char MM_N[] PROGMEM = "set motor angle";
@@ -138,7 +138,7 @@ static const char MH_P[] PROGMEM = "motorid encoder -- Encoder is in the range X
 static const char MM_Q[] PROGMEM = "run test sequence";
 static const char MH_Q[] PROGMEM = "";
 static const char MM_T[] PROGMEM = "test motors";
-static const char MH_T[] PROGMEM = "-- Test enabled motors.";
+static const char MH_T[] PROGMEM = "[motorids] -- Test motors. Test enabled motors if none specified.";
 static const char MM_V[] PROGMEM = "print software version";
 static const char MH_V[] PROGMEM = "-- Print software version.";
 static const char MM_W[] PROGMEM = "waypoints menu";
@@ -156,25 +156,25 @@ extern const menu_item_t waypoint_menu[];
 extern const menu_item_t calibration_menu[];
 
 static const menu_item_t main_menu[] = {
-    { '1', MM_1,    NULL,                        NULL,             true,  command_print_config,           MH_1    },
-    { '2', MM_2,    extended_menu_robot_id,      NULL,             true,  command_config_robot_id,        MH_2    },
-    { '3', MM_3,    extended_menu_robot_serial,  NULL,             true,  command_config_robot_serial,    MH_3    },
-    { '4', MM_4,    extended_menu_robot_name,    NULL,             true,  command_config_robot_name,      MH_4    },
-    { '0', MM_0,    NULL,                        NULL,             true,  command_config_write,           MH_0    },
-    { 'B', MM_B,    extended_menu_reboot,        NULL,             true,  command_reboot,                 MH_B    },
-    { 'C', MM_C,    NULL,                        calibration_menu, true,  NULL,                           MH_C    },
+    { '1', MM_1,    NULL,                        NULL,             false, command_print_config,           MH_1    },
+    { '2', MM_2,    extended_menu_robot_id,      NULL,             false, command_config_robot_id,        MH_2    },
+    { '3', MM_3,    extended_menu_robot_serial,  NULL,             false, command_config_robot_serial,    MH_3    },
+    { '4', MM_4,    extended_menu_robot_name,    NULL,             false, command_config_robot_name,      MH_4    },
+    { '0', MM_0,    NULL,                        NULL,             false, command_config_write,           MH_0    },
+    { 'B', MM_B,    extended_menu_reboot,        NULL,             false, command_reboot,                 MH_B    },
+    { 'C', MM_C,    NULL,                        calibration_menu, false, NULL,                           MH_C    },
     { 'E', MM_E,    NULL,                        NULL,             true,  command_set_enabled_motors,     MH_E    },
     { 'G', MM_G,    NULL,                        NULL,             true,  command_set_gripper_position,   MH_G    },
     { 'H', MM_H,    NULL,                        NULL,             false, command_go_home,                MH_H    },
     { 'M', MM_M,    NULL,                        NULL,             true,  command_print_motor_status,     MH_M    },
     { 'N', MM_N,    NULL,                        NULL,             true,  command_set_motor_angle,        MH_N    },
     { 'P', MM_P,    NULL,                        NULL,             true,  command_set_motor_encoder,      MH_P    },
-    { 'Q', MM_Q,    NULL,                        NULL,             false, command_run_test_sequence,      MH_Q    },
+    { 'Q', MM_Q,    NULL,                        NULL,             true,  command_run_test_sequence,      MH_Q    },
     { 'T', MM_T,    NULL,                        NULL,             true,  command_test_motors,            MH_T    },
     { 'V', MM_V,    NULL,                        NULL,             false, command_print_software_version, MH_V    },
-    { 'W', MM_W,    NULL,                        waypoint_menu,    true,  NULL,                           MH_W    },
-    { 'Z', MM_Z,    NULL,                        NULL,             true,  command_poll_pins,              MH_Z    },
-    { '*', MM_STAR, extended_menu_factory_reset, NULL,             true,  command_factory_reset,          MH_STAR },
+    { 'W', MM_W,    NULL,                        waypoint_menu,    false, NULL,                           MH_W    },
+    { 'Z', MM_Z,    NULL,                        NULL,             false, command_poll_pins,              MH_Z    },
+    { '*', MM_STAR, extended_menu_factory_reset, NULL,             false, command_factory_reset,          MH_STAR },
     { '!', MM_BANG, NULL,                        NULL,             false, command_emergency_stop,         MH_BANG },
     { '?', MM_HELP, NULL,                        NULL,             false, command_print_help,             MH_HELP },
     { 0 }  // Terminate menus with an entry filled with zeros.
@@ -188,8 +188,8 @@ static const char CM_X[] PROGMEM = "exit calibration menu";
 static const char CH_X[] PROGMEM = "-- Exit calibration menu.";
 
 const menu_item_t calibration_menu[] = {
-    { '1', MM_1,    NULL, NULL,      true,  command_print_config,              MH_1    },
-    { '0', MM_0,    NULL, NULL,      true,  command_config_write,              MH_0    },
+    { '1', MM_1,    NULL, NULL,      false, command_print_config,              MH_1    },
+    { '0', MM_0,    NULL, NULL,      false, command_config_write,              MH_0    },
     { 'C', CM_C,    NULL, NULL,      true,  command_calibrate_home_and_limits, CH_C    },
     { 'E', MM_E,    NULL, NULL,      true,  command_set_enabled_motors,        MH_E    },
     { 'H', MM_H,    NULL, NULL,      false, command_go_home,                   MH_H    },
@@ -198,7 +198,7 @@ const menu_item_t calibration_menu[] = {
     { 'N', MM_N,    NULL, NULL,      true,  command_set_motor_angle,           MH_N    },   // TODO.
     { 'P', MM_P,    NULL, NULL,      true,  command_set_motor_encoder,         MH_P    },
     { 'T', MM_T,    NULL, NULL,      true,  command_test_motors,               MH_T    },
-    { 'X', CM_X,    NULL, main_menu, true,  NULL,                              CH_X    },
+    { 'X', CM_X,    NULL, main_menu, false, NULL,                              CH_X    },
     { '!', MM_BANG, NULL, NULL,      false, command_emergency_stop,            MH_BANG },
     { '?', MM_HELP, NULL, NULL,      false, command_print_help,                MH_HELP },
     { 0 }  // Terminate menus with an entry filled with zeros.
@@ -220,21 +220,21 @@ static const char WM_X[] PROGMEM = "exit waypoints menu";
 static const char WH_X[] PROGMEM = "-- Exit waypoints menu.";
 
 const menu_item_t waypoint_menu[] = {
-    { '1', WM_1,    NULL,                          NULL,      true,  command_waypoint_print,            WH_1    },
-    { 'A', WM_A,    extended_menu_append_waypoint, NULL,      true,  command_waypoint_append,           WH_A    },
+    { '1', WM_1,    NULL,                          NULL,      false, command_waypoint_print,            WH_1    },
+    { 'A', WM_A,    extended_menu_append_waypoint, NULL,      false, command_waypoint_append,           WH_A    },
     { 'C', CM_C,    NULL,                          NULL,      true,  command_calibrate_home_and_limits, CH_C    },
-    { 'D', WM_D,    NULL,                          NULL,      true,  command_waypoint_delete,           WH_D    },
+    { 'D', WM_D,    NULL,                          NULL,      false, command_waypoint_delete,           WH_D    },
     { 'E', MM_E,    NULL,                          NULL,      true,  command_set_enabled_motors,        MH_E    },
     { 'H', MM_H,    NULL,                          NULL,      false, command_go_home,                   MH_H    },
-    { 'O', CM_O,    NULL,                          NULL,      true,  command_calibrate_home,            CH_O    },
-    { 'I', WM_I,    extended_menu_insert_waypoint, NULL,      true,  command_waypoint_insert_before,    WH_I    },
+    { 'O', CM_O,    NULL,                          NULL,      false, command_calibrate_home,            CH_O    },
+    { 'I', WM_I,    extended_menu_insert_waypoint, NULL,      false, command_waypoint_insert_before,    WH_I    },
     { 'N', MM_N,    NULL,                          NULL,      true,  command_set_motor_angle,           MH_N    }, // TODO.
     { 'P', MM_P,    NULL,                          NULL,      true,  command_set_motor_encoder,         MH_P    },
-    { 'R', WM_R,    NULL,                          NULL,      true,  command_waypoint_run,              WH_R    },
-    { 'S', WM_S,    extended_menu_set_waypoint,    NULL,      true,  command_waypoint_set,              WH_S    },
+    { 'R', WM_R,    NULL,                          NULL,      false, command_waypoint_run,              WH_R    },
+    { 'S', WM_S,    extended_menu_set_waypoint,    NULL,      false, command_waypoint_set,              WH_S    },
     { 'T', MM_T,    NULL,                          NULL,      true,  command_test_motors,               MH_T    },
-    { 'X', WM_X,    NULL,                          main_menu, true,  NULL,                              WH_X    },
-    { 'Z', MM_Z,    NULL,                          NULL,      true,  command_poll_pins,                 MH_Z    },
+    { 'X', WM_X,    NULL,                          main_menu, false, NULL,                              WH_X    },
+    { 'Z', MM_Z,    NULL,                          NULL,      false, command_poll_pins,                 MH_Z    },
     { '!', MM_BANG, NULL,                          NULL,      false, command_emergency_stop,            MH_BANG },
     { '?', MM_HELP, NULL,                          NULL,      false, command_print_help,                MH_HELP },
     { 0 }  // Terminate menus with an entry filled with zeros.
