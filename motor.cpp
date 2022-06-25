@@ -223,13 +223,6 @@ int motor_get_current_draw(motor_id_t motor_id)
     return analogRead(motor_pinout[motor_id].in_current_draw);  // 0 - 1023.
 }
 
-static void set_brake(motor_id_t motor_id, bool enabled)
-{
-    assert((motor_id >= 0) && (motor_id < MOTOR_ID_COUNT));
-
-    digitalWrite(motor_pinout[motor_id].out_brake, enabled ? HIGH : LOW);
-}
-
 void motor_disable_all(void)
 {
     for (int i = MOTOR_ID_A; i < MOTOR_ID_COUNT; i++) {
@@ -246,19 +239,19 @@ void motor_set_enabled(motor_id_t motor_id, bool enabled)
         return;
 
     if (enabled) {
-        motor_state[motor_id].target_encoder = noinit_data.motor[motor_id].encoder;
-        motor_state[motor_id].pid_perror = 0;
-        motor_state[motor_id].pid_dvalue = 0;
-        motor_state[motor_id].home_triggered_debounced = motor_is_home_triggered(motor_id);
         motor_set_speed(motor_id, motor_max_speed);
-        set_brake(motor_id, false);
+        digitalWrite(motor_pinout[motor_id].out_brake, LOW);
         enabled_motors_mask |= 1 << (int)motor_id;
     } else {
         motor_set_speed(motor_id, 0);
-        set_brake(motor_id, true);
+        digitalWrite(motor_pinout[motor_id].out_brake, HIGH);
         enabled_motors_mask &= ~(1 << (int)motor_id);
     }
 
+    motor_state[motor_id].home_triggered_debounced = motor_is_home_triggered(motor_id);
+    motor_state[motor_id].target_encoder = noinit_data.motor[motor_id].encoder;
+    motor_state[motor_id].pid_perror = 0;
+    motor_state[motor_id].pid_dvalue = 0;
     motor_state[motor_id].enabled = enabled;
 }
 
@@ -336,6 +329,14 @@ int motor_get_encoder(motor_id_t motor_id)
         return 0;
 
     return noinit_data.motor[motor_id].encoder * config.motor[motor_id].orientation;
+}
+
+bool motor_is_moving(motor_id_t motor_id)
+{
+    if (!motor_get_enabled(motor_id))
+        return false;
+
+    return motor_state[motor_id].target_encoder != noinit_data.motor[motor_id].encoder;
 }
 
 void motor_print_encoders(void)
@@ -454,66 +455,84 @@ bool motor_is_home_triggered_debounced(motor_id_t motor_id)
     return motor_state[motor_id].home_triggered_debounced;
 }
 
-static void print_motor_delta(int delta)
-{
-    if (delta == 0)
-        log_write(F("0"));
-    else if (delta > 0)
-        log_write(F("+%d"), delta);
-    else
-        log_write(F("%d"), delta);
-}
-
-bool motor_test(motor_id_t motor_id)
+static void half_wiggle(motor_id_t motor_id, int speed)
 {
     assert((motor_id >= 0) && (motor_id < MOTOR_ID_COUNT));
-
-    const int test_speed = 255 - motor_min_pwm;
     const int delay_ms = 50;
 
-    set_brake(motor_id, false);
-    motor_set_speed(motor_id, 0);
-
-    log_write(F("  %c: Reverse "), 'A' + motor_id);
-    int position1 = motor_get_encoder(motor_id);
-
-    motor_set_speed(motor_id, -test_speed);
-    log_write(F("on, "));
-    delay(delay_ms);  // Allow motor to move.
-
-    motor_set_speed(motor_id, 0);
-    log_write(F("off. "));
-    delay(delay_ms);  // Allow motor to move.
-
-    int position2 = motor_get_encoder(motor_id);
-    int reverse_delta = position2 - position1;
-
-    log_write(F("Reverse delta: "));
-    print_motor_delta(reverse_delta);
-    log_write(F(". "));
-
-    log_write(F("Forward "));
-    //Serial.print("Moving Motor ");
-    //Serial.print(char(m+65));
-    //Serial.print(" forward ");
-
-    motor_set_speed(motor_id, test_speed);
+    motor_set_speed(motor_id, speed);
     log_write(F("on, "));
     delay(delay_ms);  // Short Delay to allow the motor to move.
 
     motor_set_speed(motor_id, 0);
     log_write(F("off. "));
     delay(delay_ms);  // Short Delay to allow the motor to stop.
+}
 
+const int motor_test_speed = 255 - motor_min_pwm;
+
+static void wiggle(motor_id_t motor_id, int *forward_delta, int *reverse_delta)
+{
+    assert((motor_id >= 0) && (motor_id < MOTOR_ID_COUNT));
+    assert(forward_delta);
+    assert(reverse_delta);
+
+
+    int position1 = motor_get_encoder(motor_id);
+
+    log_write(F("  %c: Reverse "), 'A' + motor_id);
+    half_wiggle(motor_id, -motor_test_speed);
+    int position2 = motor_get_encoder(motor_id);
+
+    *reverse_delta = position2 - position1;
+    log_write(F("Reverse delta: %+d. "), *reverse_delta);
+
+    log_write(F("Forward "));
+    half_wiggle(motor_id, motor_test_speed);
     int position3 = motor_get_encoder(motor_id);
-    int forward_delta = position3 - position2;
 
-    log_write(F("Forward delta: "));
-    print_motor_delta(forward_delta);
+    *forward_delta = position3 - position2;
+    log_write(F("Forward delta: %+d"), *forward_delta);
+}
+
+bool motor_test(motor_id_t motor_id)
+{
+    assert((motor_id >= 0) && (motor_id < MOTOR_ID_COUNT));
+
+    bool was_enabled = motor_get_enabled(motor_id);
+    int forward_delta = 0;
+    int reverse_delta = 0;
+
+    if (motor_is_moving(motor_id)) {
+        motor_set_enabled(motor_id, false);
+        delay(250); // Wait for motor to come to rest if it's moving.
+    }
+
+    motor_set_enabled(motor_id, true);
+
+    wiggle(motor_id, &forward_delta, &reverse_delta);
+
+    if (((forward_delta == 0) || (reverse_delta == 0)) && (forward_delta != reverse_delta)) {
+        log_writeln(F(" ... FAILED"));
+        log_write(F("  %c: Failed to move in "), 'A' + motor_id);
+        if (forward_delta == 0) {
+            log_writeln(F("forward direction. Moving reverse and retrying."));
+            motor_set_speed(motor_id, motor_test_speed * -1);
+        } else {
+            log_writeln(F("reverse direction. Moving forward and retrying."));
+            motor_set_speed(motor_id, motor_test_speed);
+        }
+
+        delay(500);
+
+        wiggle(motor_id, &forward_delta, &reverse_delta);
+    }
+
+    motor_set_enabled(motor_id, was_enabled);
 
     const __FlashStringHelper *pfailure_message = NULL;
 
-    if (position1 == position2)
+    if ((forward_delta == 0) && (reverse_delta == 0))
         pfailure_message = F("Failed to move when commanded");
     else if ((forward_delta < 0) == (reverse_delta < 0))
         pfailure_message = F("Failed to switch direction when commanded");  // To Test, execute pinMode(51, INPUT_PULLUP) to disable Motor F's direction pin.
@@ -524,9 +543,8 @@ bool motor_test(motor_id_t motor_id)
         log_writeln(F(")."));
         return false;
     } else {
-        config_set_motor_orientation(motor_id, MOTOR_ORIENTATION_NOT_INVERTED);
         if ((reverse_delta > 0) && (forward_delta < 0)) {
-            log_write(F(". (Wired backwards, automatically reversing polarity)"));
+            log_write(F(". (Wired backwards, reversing polarity. *PLEASE SAVE CONFIGURATION*)"));
             config_set_motor_forward_polarity(motor_id, !config.motor[motor_id].forward_polarity);
         }
         log_writeln(F(" ... Passed."));
@@ -785,7 +803,7 @@ ISR(TIMER1_COMPA_vect) {
     //==========================================================
     motor_id = motor_id_t(motor_id + 1);
     if (motor_id >= MOTOR_ID_COUNT)
-        motor_id = 0;
+        motor_id = MOTOR_ID_A;
 
     //==========================================================
     // See if the Motor PID needs to be turned on.

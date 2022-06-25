@@ -89,6 +89,7 @@ int motor_get_target_encoder(motor_id_t motor_id);
 int motor_get_encoder(motor_id_t motor_id);
 void motor_print_encoders(void);
 float motor_get_encoder_steps_per_degree(motor_id_t motor_id);
+bool motor_is_moving(motor_id_t motor_id);
 int motor_angle_to_encoder(motor_id_t motor_id, float angle);
 void motor_set_target_angle(motor_id_t motor_id, float angle);
 float motor_get_angle(motor_id_t motor_id);
