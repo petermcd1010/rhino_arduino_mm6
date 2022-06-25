@@ -153,6 +153,27 @@ error:
     return -1;
 }
 
+int command_reverse_motor_orientation(char *args, size_t args_nbytes)
+{
+    assert(args);
+
+    motor_id_t motor_id = MOTOR_ID_A;
+    char *p = args;
+    size_t nbytes = parse_motor_id(p, args_nbytes, &motor_id);
+
+    if (nbytes == 0)
+        return -1;                     // parse_motor_id will emit message if error.
+    args_nbytes -= nbytes;
+    p += nbytes;
+
+    log_writeln(F("Changing orientation of motor %c to '%sinverted'."),
+                'A' + motor_id, config.motor[motor_id].orientation == MOTOR_ORIENTATION_INVERTED ? "not " : "");
+
+    config_set_motor_orientation(motor_id, (motor_orientation_t)(config.motor[motor_id].orientation * -1));
+
+    return p - args;
+}
+
 int command_config_write(char *args, size_t args_nbytes)
 {
     assert(args);
@@ -225,7 +246,7 @@ int command_calibrate_home_and_limits(char *args, size_t args_nbytes)
         return args - p;
     }
 
-    log_writeln(F("Calibrating motors %d"), motor_ids_mask);
+    log_writeln(F("Calibrating motors %d at %d%% of maximum speed."), motor_ids_mask, max_speed_percent);
 
     calibrate_home_switch_and_limits(motor_ids_mask, max_speed_percent);
 
