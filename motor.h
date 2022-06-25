@@ -28,10 +28,9 @@ typedef enum {
 typedef enum {
     MOTOR_ERROR_FLAG_USER_FLAG                      = 1 << 0, // Hacky way to indicate the state machine is in ERROR, so LED blinks accordingly.
     MOTOR_ERROR_FLAG_THERMAL_OVERLOAD_DETECTED      = 1 << 1,
-    MOTOR_ERROR_FLAG_OVERCURRENT_DETECTED           = 1 << 2,
-    MOTOR_ERROR_FLAG_INVALID_ENCODER_TRANSITION     = 1 << 3, // only 0->1->3->2 and 0->2->3->1 are valid.
-    MOTOR_ERROR_FLAG_OPPOSITE_DIRECTION             = 1 << 4,
-    MOTOR_ERROR_FLAG_UNEXPECTED_HOME_SWITCH_ENCODER = 1 << 5,
+    MOTOR_ERROR_FLAG_INVALID_ENCODER_TRANSITION     = 1 << 2, // only 0->1->3->2 and 0->2->3->1 are valid.
+    MOTOR_ERROR_FLAG_OPPOSITE_DIRECTION             = 1 << 3,
+    MOTOR_ERROR_FLAG_UNEXPECTED_HOME_SWITCH_ENCODER = 1 << 4,
 } motor_error_flag_t;
 
 // Mechanical orientation based on motor installation side.
@@ -74,9 +73,6 @@ void motor_init_all(void);
 bool motor_get_thermal_overload_detected(motor_id_t motor_id);
 bool motor_get_thermal_overload_detected();
 void motor_clear_thermal_overload(motor_id_t motor_id);
-bool motor_get_overcurrent_detected(motor_id_t motor_id);
-bool motor_get_overcurrent_detected();
-void motor_clear_overcurrent(motor_id_t motor_id);
 int motor_get_current_draw(motor_id_t motor_id);
 void motor_disable_all(void);
 void motor_set_enabled(motor_id_t motor_id, bool enable);

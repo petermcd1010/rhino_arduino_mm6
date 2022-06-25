@@ -32,7 +32,7 @@ static bool check_system_integrity()
         ok = false;
     }
 
-    ok = (motor_get_thermal_overload_detected() || motor_get_overcurrent_detected()) ? false : ok;
+    ok = motor_get_thermal_overload_detected() ? false : ok;
 
     for (int i = 0; i < MOTOR_ID_COUNT; i++) {
         if (motor_state[i].error_flags != 0) {

@@ -181,40 +181,6 @@ void motor_clear_thermal_overload(motor_id_t motor_id)
     motor_state[motor_id].error_flags &= ~MOTOR_ERROR_FLAG_THERMAL_OVERLOAD_DETECTED;
 }
 
-static bool get_overcurrent_active(motor_id_t motor_id)
-{
-    assert((motor_id >= 0) && (motor_id < MOTOR_ID_COUNT));
-    // TODO: Implement get_ovecurrent_active().
-    return false;
-}
-
-bool motor_get_overcurrent_detected(motor_id_t motor_id)
-{
-    assert((motor_id >= 0) && (motor_id < MOTOR_ID_COUNT));
-
-    if (motor_state[motor_id].error_flags & MOTOR_ERROR_FLAG_OVERCURRENT_DETECTED)
-        return true;
-    else
-        return false;
-}
-
-bool motor_get_overcurrent_detected(void)
-{
-    for (int i = 0; i < MOTOR_ID_COUNT; i++) {
-        if (motor_get_overcurrent_detected((motor_id_t)i))
-            return true;
-    }
-
-    return false;
-}
-
-void motor_clear_overcurrent(motor_id_t motor_id)
-{
-    assert((motor_id >= 0) && (motor_id < MOTOR_ID_COUNT));
-
-    motor_state[motor_id].error_flags &= ~MOTOR_ERROR_FLAG_OVERCURRENT_DETECTED;
-}
-
 int motor_get_current_draw(motor_id_t motor_id)
 {
     assert((motor_id >= 0) && (motor_id < MOTOR_ID_COUNT));
@@ -505,7 +471,7 @@ bool motor_test(motor_id_t motor_id)
 
     if (motor_is_moving(motor_id)) {
         motor_set_enabled(motor_id, false);
-        delay(250); // Wait for motor to come to rest if it's moving.
+        delay(250);  // Wait for motor to come to rest if it's moving.
     }
 
     motor_set_enabled(motor_id, true);
@@ -603,8 +569,6 @@ void motor_log_errors(motor_id_t motor_id)
 
     if (ef & MOTOR_ERROR_FLAG_THERMAL_OVERLOAD_DETECTED)
         log_writeln(F("Motor %c thermal overload detected."), 'A' + motor_id);
-    if (ef & MOTOR_ERROR_FLAG_OVERCURRENT_DETECTED)
-        log_writeln(F("Motor %c overcurrent detected."), 'A' + motor_id);
     if (ef & MOTOR_ERROR_FLAG_INVALID_ENCODER_TRANSITION)
         log_writeln(F("Motor %c invalid quadrature encoder transition."), 'A' + motor_id);
     if (ef & MOTOR_ERROR_FLAG_OPPOSITE_DIRECTION)
@@ -772,9 +736,6 @@ ISR(TIMER1_COMPA_vect) {
 
         if (get_thermal_overload_active(qe_motor_id))
             motor_state[qe_motor_id].error_flags |= MOTOR_ERROR_FLAG_THERMAL_OVERLOAD_DETECTED;
-
-        if (get_overcurrent_active(qe_motor_id))
-            motor_state[qe_motor_id].error_flags |= MOTOR_ERROR_FLAG_OVERCURRENT_DETECTED;
 
         if (motor_state[qe_motor_id].encoders_per_second_counts++ == (2000 / MOTOR_ID_COUNT / 3)) {
             // ISR runs at 2kHz and round-robins the six motors, Every 1/3 of a second
