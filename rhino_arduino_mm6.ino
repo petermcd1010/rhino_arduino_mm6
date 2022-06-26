@@ -26,12 +26,6 @@ static bool check_system_integrity()
     if (previous_ok)
         ok = config_check();
 
-    if (config.robot_id == CONFIG_ROBOT_ID_NOT_CONFIGURED) {
-        if (previous_ok)
-            log_writeln(F("ERROR: robot_id == CONFIG_ROBOT_ID_NOT_CONFIGURED. Configure robot and reboot."));
-        ok = false;
-    }
-
     ok = motor_get_thermal_overload_detected() ? false : ok;
 
     for (int i = 0; i < MOTOR_ID_COUNT; i++) {

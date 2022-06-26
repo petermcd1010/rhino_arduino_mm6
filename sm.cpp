@@ -225,9 +225,9 @@ void sm_init(void)
     command_print_software_version("", 0);  // Pass empty args to mimic user typing version command.
     log_writeln();
 
-    bool config_read_success = config_read();
+    hardware_init();
 
-    if (!config_read_success) {
+    if (!config_read()) {
         log_writeln(F("ERROR: Invalid configuration. Re-initializing configuration data."));
         config_clear();
     } else {
@@ -235,7 +235,6 @@ void sm_init(void)
         log_writeln(F("Configured for '%s'."), config_robot_name_by_id[config.robot_id]);
     }
 
-    hardware_init();
     bool self_test_success = run_self_test();
 
     if (self_test_success) {
@@ -247,7 +246,7 @@ void sm_init(void)
     menu_help();
     log_writeln(F("Ready."));
 
-    if (config_read_success && self_test_success) {
+    if (self_test_success) {
         sm_state_t s = { .run = sm_motors_off_enter, .break_handler = NULL, .name = F("sm_motors_off_enter"), .data = NULL };
         sm_set_next_state(s);
     } else {
@@ -291,8 +290,9 @@ void sm_execute(void)
     current_state.run(&current_state);
 }
 
-void sm_motors_off_enter(void)
+void sm_motors_off_enter(sm_state_t *state)
 {
+    assert(state);
     motor_disable_all();
 
     for (int i = 0; i < MOTOR_ID_COUNT; i++) {
@@ -304,13 +304,15 @@ void sm_motors_off_enter(void)
     sm_set_next_state(s);
 }
 
-void sm_motors_off_execute(void)
+void sm_motors_off_execute(sm_state_t *state)
 {
+    assert(state);
     process_serial_input();
 }
 
-void sm_motors_on_enter(void)
+void sm_motors_on_enter(sm_state_t *state)
 {
+    assert(state);
     sm_state_t s = { .run = sm_motors_on_execute, .break_handler = NULL, .name = F("motors on"), .data = NULL };
 
     sm_set_next_state(s);
@@ -322,18 +324,21 @@ void sm_motors_on_enter(void)
     }
 }
 
-void sm_motors_on_execute(void)
+void sm_motors_on_execute(sm_state_t *state)
 {
+    assert(state);
     process_serial_input();
 }
 
-void sm_motors_on_exit(void)
+void sm_motors_on_exit(sm_state_t *state)
 {
+    assert(state);
     // motor_disable_all();
 }
 
-void sm_error_enter(void)
+void sm_error_enter(sm_state_t *state)
 {
+    assert(state);
     next_state = { 0 };
 
     motor_disable_all();
@@ -343,8 +348,9 @@ void sm_error_enter(void)
     sm_set_next_state(s);
 }
 
-void sm_error_execute(void)
+void sm_error_execute(sm_state_t *state)
 {
+    assert(state);
     process_serial_input();
 }
 

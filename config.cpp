@@ -118,7 +118,7 @@ bool config_check()
     // If there's an error in the contents, keep going, but return false.
     bool ret = true;
 
-    if ((config.robot_id < CONFIG_ROBOT_ID_FIRST) || (config.robot_id > CONFIG_ROBOT_ID_LAST)) {
+    if ((config.robot_id < 0) || (config.robot_id >= CONFIG_ROBOT_ID_COUNT)) {
         log_writeln(F("ERROR: config_check: Invalid robot ID %d."), config.robot_id);
         ret = false;
     }
@@ -190,8 +190,8 @@ void config_clear()
 
 void config_set_robot_id(config_robot_id_t robot_id)
 {
-    assert(robot_id >= CONFIG_ROBOT_ID_FIRST);
-    assert(robot_id <= CONFIG_ROBOT_ID_LAST);
+    assert(robot_id >= 0);
+    assert(robot_id < CONFIG_ROBOT_ID_COUNT);
 
     assert(config_check());
     config.robot_id = robot_id;
@@ -304,8 +304,8 @@ void config_print()
     log_write(F("  Robot ID: "));
     log_write((const __FlashStringHelper *)config_robot_name_by_id[config.robot_id]);
     log_writeln(F("."));
-    log_writeln(F("  Robot serial: %s."), config.robot_serial);
-    log_writeln(F("  Robot name: %s."), config.robot_name);
+    log_writeln(F("  Robot serial: '%s'."), config.robot_serial);
+    log_writeln(F("  Robot name: '%s'."), config.robot_name);
 
     char str[15] = {};
 

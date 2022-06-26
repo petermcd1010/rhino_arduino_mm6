@@ -82,7 +82,7 @@ static void check_noinit_data(void)
             noinit_data.motor[i].previous_quadrature_encoder = 0;
         }
     } else {
-        log_writeln(F("Detected reset without power. Reusing in-RAM motor encoder values."));
+        log_writeln(F("Detected reset without RAM clear. Reusing in-RAM motor encoder values."));
         log_writeln();
     }
 }

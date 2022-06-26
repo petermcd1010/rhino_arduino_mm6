@@ -53,13 +53,13 @@ int command_config_robot_id(char *args, size_t args_nbytes)
         return p - args;
     }
 
-    config_robot_id_t robot_id = CONFIG_ROBOT_ID_FIRST - 1;
+    config_robot_id_t robot_id = (config_robot_id_t)-1;
 
     nbytes = parse_int(p, args_nbytes, (int *)(&robot_id));
     args_nbytes -= nbytes;
     p += nbytes;
 
-    if ((robot_id < CONFIG_ROBOT_ID_FIRST) || (robot_id > CONFIG_ROBOT_ID_LAST)) {
+    if ((robot_id < 0) || (robot_id > CONFIG_ROBOT_ID_COUNT)) {
         log_writeln(F("ERROR: Invalid robot ID."));
         return 0;
     }

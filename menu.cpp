@@ -18,7 +18,7 @@ static void extended_menu_config_robot_id(void)
     log_write((const __FlashStringHelper *)config_robot_name_by_id[config.robot_id]);
     log_writeln(F("."));
     log_writeln(F("Available robot IDs:"));
-    for (int i = CONFIG_ROBOT_ID_FIRST; i <= CONFIG_ROBOT_ID_LAST; i++) {
+    for (int i = 0; i < CONFIG_ROBOT_ID_COUNT; i++) {
         log_write(F("  %d. "), i);
         log_write((const __FlashStringHelper *)config_robot_name_by_id[i]);
         log_writeln(F("."));
