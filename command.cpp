@@ -224,7 +224,7 @@ int command_calibrate_home_and_limits(char *args, size_t args_nbytes)
     if (motor_ids_mask == -1)
         return nbytes;
 
-    int max_speed_percent = 75;
+    int max_speed_percent = 50;
 
     if (motor_ids_mask != 0) {
         nbytes = parse_int(p, args_nbytes, &max_speed_percent);
@@ -267,7 +267,7 @@ int command_calibrate_home(char *args, size_t args_nbytes)
     if (motor_ids_mask == -1)
         return nbytes;
 
-    int max_speed_percent = 75;
+    int max_speed_percent = 50;
 
     if (motor_ids_mask != 0) {
         nbytes = parse_int(p, args_nbytes, &max_speed_percent);
@@ -346,8 +346,9 @@ static void go_home_break_handler(void)
     sm_set_next_state(exit_to_state);
 }
 
-static void go_home(void)
+static void go_home(sm_state_t *state)
 {
+    assert(state);
     bool all_home = true;
 
     // TODO: Signal failure if motors stall.
@@ -366,6 +367,7 @@ static void go_home(void)
 
     if (all_home) {
         log_writeln(F("Motors at home position."));
+        motor_set_enabled_mask((int)state->data);
         sm_set_next_state(exit_to_state);
     }
 }
@@ -373,29 +375,30 @@ static void go_home(void)
 int command_go_home(char *args, size_t args_nbytes)
 {
     assert(args);
-
+    int old_motor_ids_mask = 0;
     int motor_ids_mask = 0;
     char *p = args;
-    size_t nbytes = parse_motor_ids(p, args_nbytes, &motor_ids_mask);  // parse_motor_ids will emit message if error.
+    size_t nbytes = parse_motor_ids(p, args_nbytes, &motor_ids_mask);
 
-    args_nbytes -= nbytes;
-    p += nbytes;
+    if ((motor_ids_mask == -1) || (args_nbytes != nbytes))
+        return nbytes;                 // parse_motors_ids prints an error.
 
-    if (motor_ids_mask == -1)
-        return nbytes;
+    if (nbytes != args_nbytes)
+        return -1;
+
+    old_motor_ids_mask = motor_get_enabled_mask();
 
     if (motor_ids_mask == 0)
         motor_ids_mask = motor_get_enabled_mask();
 
-    if (motor_ids_mask == 0) {
-        log_writeln(F("No motors enabled and no motors specified. Skipping."));
-        return args - p;
-    }
+    motor_set_enabled_mask(motor_ids_mask);
 
     exit_to_state = sm_get_state();
-    sm_state_t s = { .run = go_home, .break_handler = go_home_break_handler, .name = F("go_home"), .data = NULL };
+    sm_state_t s = { .run = go_home, .break_handler = go_home_break_handler, .name = F("go_home"), .data = (void *)old_motor_ids_mask };
 
     sm_set_next_state(s);
+
+    return nbytes;
 }
 
 int command_print_motor_status(char *args, size_t args_nbytes)

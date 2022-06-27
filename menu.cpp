@@ -122,7 +122,7 @@ static const char MH_5[] PROGMEM = "motorid -- Reverse orientation of a motor.";
 static const char MM_0[] PROGMEM = "write configuration";
 static const char MH_0[] PROGMEM = "-- Write configuration data to EEPROM.";
 static const char MM_B[] PROGMEM = "reboot";
-static const char MH_B[] PROGMEM = "REBOOT -- Reboot system. Requires typing 'REBOOT'.";
+static const char MH_B[] PROGMEM = "-- Reboot system. Requires typing 'REBOOT'.";
 static const char MM_C[] PROGMEM = "calibration menu";
 static const char MH_C[] PROGMEM = "-- Print, run, and save home switch and motor calibration.";
 static const char MM_E[] PROGMEM = "set enabled motors";
@@ -148,7 +148,7 @@ static const char MH_W[] PROGMEM = "-- Edit and execute waypoints.";
 static const char MM_Z[] PROGMEM = "poll header pins";
 static const char MH_Z[] PROGMEM = "-- Poll header pins for changes in polarity. Useful for debugging buttons.";
 static const char MM_STAR[] PROGMEM = "factory reset";
-static const char MH_STAR[] PROGMEM = "RESET -- Reset system to factory defaults (clears EEPROM, etc). Requires typing 'RESET'.";
+static const char MH_STAR[] PROGMEM = "-- Reset system to factory defaults (clears EEPROM, etc). Requires typing 'RESET'.";
 static const char MM_BANG[] PROGMEM = "emergency stop";
 static const char MH_BANG[] PROGMEM = "-- Execute hardware emergency stop (E-Stop). Enters 'Error' state. Requires reboot.";
 static const char MM_HELP[] PROGMEM = "print help";
@@ -168,7 +168,7 @@ static const menu_item_t main_menu[] = {
     { 'C', MM_C,    NULL,                              calibration_menu, false, NULL,                              MH_C    },
     { 'E', MM_E,    NULL,                              NULL,             true,  command_set_enabled_motors,        MH_E    },
     { 'G', MM_G,    NULL,                              NULL,             true,  command_set_gripper_position,      MH_G    },
-    { 'H', MM_H,    NULL,                              NULL,             false, command_go_home,                   MH_H    },
+    { 'H', MM_H,    NULL,                              NULL,             true,  command_go_home,                   MH_H    },
     { 'M', MM_M,    NULL,                              NULL,             true,  command_print_motor_status,        MH_M    },
     { 'N', MM_N,    NULL,                              NULL,             true,  command_set_motor_angle,           MH_N    },
     { 'P', MM_P,    NULL,                              NULL,             true,  command_set_motor_encoder,         MH_P    },

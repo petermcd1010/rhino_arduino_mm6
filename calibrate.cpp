@@ -97,7 +97,8 @@ static bool cant_find_home_switch(void)
 static void exit_sm(void)
 {
     motor_id = (motor_id_t)-1;
-    motor_set_enabled_mask(exit_motor_ids_mask);
+    motor_set_enabled_mask(0);  // Stop motors that may be moving.
+    motor_set_enabled_mask(exit_motor_ids_mask);  // Re-enable motors enabled at start.
     sm_set_next_state(exit_to_state);
 }
 
@@ -122,7 +123,7 @@ static void update_status(motor_id_t motor_id)
             else
                 log_write(F("Heading home, "));
         }
-        log_writeln(F("encoder %d. encoders_per_second %d"), encoder * config.motor[motor_id].orientation, (int)motor_state[motor_id].encoders_per_second);
+        log_writeln(F("encoder %d."), encoder * config.motor[motor_id].orientation);
         print_ms = millis();
     }
 
@@ -179,8 +180,6 @@ static void calibrate_all(sm_state_t *state)
 
     assert((motor_ids_mask >= 0) && (motor_ids_mask <= max_motor_ids_mask));
 
-    log_writeln(F("calibrate_all"));
-
     if (motor_ids_mask & (1 << motor_id)) {
         sm_state_t s = { .run = calibrate_one_enter, .break_handler = break_handler, .name = F("calibrate one enter"), .data = NULL };
         sm_set_next_state(s);
@@ -207,8 +206,8 @@ static void calibrate_one_enter(sm_state_t *state)
 
     motor_set_enabled(motor_id, true);
 
+    log_writeln(F("Calibrating motor %c: Running initial motor test."), 'A' + motor_id);
     if (!motor_test(motor_id)) {
-        log_writeln(F("Calibrating motor %c: Initial motor test failed."), 'A' + motor_id);
         sm_state_t s = { .run = calibrate_one_failed, .break_handler = break_handler, .name = F("calibrate one failed"), .data = NULL };
         sm_set_next_state(s);
         return;
@@ -395,7 +394,7 @@ static void calibrate_one_reverse(sm_state_t *state)
             motor_state[motor_id].home_reverse_on_encoder = INT_MIN;
         } else {
             min_encoder = motor_get_encoder(motor_id);
-            sm_state_t s = { .run = calibrate_one_reverse_backup, .break_handler = break_handler, .name = F("calibrate one forward"), .data = NULL };
+            sm_state_t s = { .run = calibrate_one_reverse_backup, .break_handler = break_handler, .name = F("calibrate one reverse backup"), .data = NULL };
             sm_set_next_state(s);
         }
     }
@@ -492,7 +491,7 @@ static void calibrate_one_go_home(sm_state_t *state)
 
     if (motor_get_target_encoder(motor_id) - encoder == 0) {
         if (!motor_is_home_triggered_debounced(motor_id)) {
-            sm_state_t s = { .run = calibrate_one_failed, .break_handler = break_handler, .name = F("calibrate one done"), .data = NULL };
+            sm_state_t s = { .run = calibrate_one_failed, .break_handler = break_handler, .name = F("calibrate one failed"), .data = NULL };
             sm_set_next_state(s);
         } else {
             log_writeln(F("Calibrating motor %c: Motor arrived at home position (encoder 0). Calibration for motor %c passed."), 'A' + motor_id, 'A' + motor_id);

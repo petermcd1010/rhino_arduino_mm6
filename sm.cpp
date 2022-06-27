@@ -13,6 +13,8 @@
 #include "parse.h"
 #include "sm.h"
 
+// #define DEBUG_STATE
+
 sm_state_t current_state;
 sm_state_t next_state;
 
@@ -113,16 +115,13 @@ static void process_serial_input()
         if (status_updated && !reset_prompt)
             log_writeln(F(""));
 
-        // motor_dump_motor(MOTOR_ID_E);
-        // motor_dump_motor(MOTOR_ID_F);
-
         pprev_menu_item = NULL;
         command_args_nbytes = 0;
         have_command = false;
         reset_prompt = false;
 
         if (strlen(config.robot_name) != 0)
-            log_write(F("%s: "), config.robot_name);
+            log_write(F("%s "), config.robot_name);
 
         for (int i = 0; i < MOTOR_ID_COUNT; i++) {
             if (motor_get_enabled(i)) {
@@ -134,10 +133,12 @@ static void process_serial_input()
             }
         }
 
+#ifdef DEBUG_STATE
         if (current_state.name != NULL)
             log_write(current_state.name);
         else
             log_write(F("Unknown state"));
+#endif
         log_write(F("> "));
 
         memcpy(&previous_status, &status, sizeof(status_t));
@@ -247,12 +248,13 @@ void sm_init(void)
     log_writeln(F("Ready."));
 
     if (self_test_success) {
-        sm_state_t s = { .run = sm_motors_off_enter, .break_handler = NULL, .name = F("sm_motors_off_enter"), .data = NULL };
+        sm_state_t s = { .run = sm_motors_off_enter, .break_handler = NULL, .name = F("motors off enter"), .data = NULL };
         sm_set_next_state(s);
     } else {
-        sm_state_t s = { .run = sm_error_enter, .break_handler = NULL, .name = F("sm_error_enter"), .data = NULL };
+        sm_state_t s = { .run = sm_error_enter, .break_handler = NULL, .name = F("error enter"), .data = NULL };
         sm_set_next_state(s);
     }
+    sm_execute();
 }
 
 sm_state_t sm_get_state()
@@ -269,25 +271,28 @@ void sm_set_next_state(sm_state_t s)
 
 void sm_execute(void)
 {
-    process_serial_input();
-
     if (next_state.run) {
+#ifdef DEBUG_STATE
         if (current_state.name) {
             log_write(F("Leaving state "));
             log_writeln(current_state.name);
         }
+#endif
         current_state = next_state;
 
+#ifdef DEBUG_STATE
         if (current_state.name) {
             log_write(F("Entering state "));
             log_writeln(current_state.name);
         }
+#endif
 
         next_state = { 0 };
     }
 
     assert(current_state.run);
     current_state.run(&current_state);
+    process_serial_input();
 }
 
 void sm_motors_off_enter(sm_state_t *state)
@@ -307,7 +312,6 @@ void sm_motors_off_enter(sm_state_t *state)
 void sm_motors_off_execute(sm_state_t *state)
 {
     assert(state);
-    process_serial_input();
 }
 
 void sm_motors_on_enter(sm_state_t *state)
@@ -327,7 +331,6 @@ void sm_motors_on_enter(sm_state_t *state)
 void sm_motors_on_execute(sm_state_t *state)
 {
     assert(state);
-    process_serial_input();
 }
 
 void sm_motors_on_exit(sm_state_t *state)
@@ -351,7 +354,6 @@ void sm_error_enter(sm_state_t *state)
 void sm_error_execute(sm_state_t *state)
 {
     assert(state);
-    process_serial_input();
 }
 
 int sm_get_enabled_motors_mask(void)
