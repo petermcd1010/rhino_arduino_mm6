@@ -131,7 +131,7 @@ static void process_all_input()
     const int command_args_max_nbytes = 64;
     static char command_args[command_args_max_nbytes] = {};
     static int command_args_nbytes = 0;
-    static menu_item_t *pprev_menu_item = NULL;
+    static menu_item_t *prev_menu_item = NULL;
     static bool have_command = false;
 
     bool status_updated = false;
@@ -147,13 +147,13 @@ static void process_all_input()
     unsigned long current_time_millis = millis();
 
     if (reset_prompt ||
-        (!pprev_menu_item &&
+        (!prev_menu_item &&
          status_updated &&
          (current_time_millis - previous_status_time_millis > 250))) {
         if (status_updated && !reset_prompt)
             log_writeln(F(""));
 
-        pprev_menu_item = NULL;
+        prev_menu_item = NULL;
         command_args_nbytes = 0;
         have_command = false;
         reset_prompt = false;
@@ -198,24 +198,24 @@ static void process_all_input()
             } else if ((input_char == ASCII_BACKSPACE) || (input_char == ASCII_DELETE)) {
                 log_write(F("\9"));  // Emit ASCII bell (flashes screen on some terminals)
             } else {
-                const menu_item_t *pmenu_item = menu_item_by_command_char(input_char);
-                pprev_menu_item = pmenu_item;
+                const menu_item_t *menu_item = menu_item_by_command_char(input_char);
+                prev_menu_item = menu_item;
 
-                if (!pmenu_item) {
+                if (!menu_item) {
                     log_writeln(F("ERROR: Invalid command '%c'. Type '?' for help."), input_char);  // TODO: NAK?
                     reset_prompt = true;
                 } else {
-                    log_write((const __FlashStringHelper *)pmenu_item->name);
-                    if (pmenu_item->print_sub_menu_fn)
-                        pmenu_item->print_sub_menu_fn();
-                    if (pmenu_item->has_args)
+                    log_write((const __FlashStringHelper *)menu_item->name);
+                    if (menu_item->print_sub_menu_fn)
+                        menu_item->print_sub_menu_fn();
+                    if (menu_item->has_args)
                         log_write(F(" "));  // Additional space for args.
 
                     have_command = true;
                 }
             }
         } else {
-            assert(pprev_menu_item);
+            assert(prev_menu_item);
             if ((input_char == '\n') || (input_char == '\r')) {
                 log_writeln(F(""));
                 command_args[command_args_nbytes] = '\0';
@@ -225,17 +225,17 @@ static void process_all_input()
                 char *p = command_args + nbytes;
                 command_args_nbytes -= nbytes;
 
-                if (pprev_menu_item->sub_menu) {
-                    menu_set_current_menu(pprev_menu_item->sub_menu);
+                if (prev_menu_item->sub_menu) {
+                    menu_set_current_menu(prev_menu_item->sub_menu);
                     menu_help();
-                } else if (pprev_menu_item->function && (pprev_menu_item->function(p, command_args_nbytes) != command_args_nbytes)) {
+                } else if (prev_menu_item->function && (prev_menu_item->function(p, command_args_nbytes) != command_args_nbytes)) {
                     log_writeln(F("ERROR: Invalid command arguments. Type '?' for help."));  // TODO: NAK?
                 }
                 reset_prompt = true;
             } else if ((input_char == ASCII_BACKSPACE) || (input_char == ASCII_DELETE)) {
                 // TODO: only 1 BS if we're entering args.
-                int nbackspaces_count = strlen(pprev_menu_item->name) + 2;  // +2 for " >"
-                if (pprev_menu_item->has_args)
+                int nbackspaces_count = strlen(prev_menu_item->name) + 2;  // +2 for " >"
+                if (prev_menu_item->has_args)
                     nbackspaces_count++;  // Account for additional ' '.
                 for (int i = 0; i < nbackspaces_count; i++) {
                     Serial.write(ASCII_BACKSPACE);
@@ -243,12 +243,12 @@ static void process_all_input()
                     Serial.write(ASCII_BACKSPACE);
                 }
                 reset_prompt = true;
-            } else if (command_args_nbytes < command_args_max_nbytes - 1) {  // -1 to leave space for '\0' at end.
+            } else if (prev_menu_item->has_args && (command_args_nbytes < command_args_max_nbytes - 1)) {  // -1 to leave space for '\0' at end.
                 log_write(F("%c"), input_char);
                 command_args[command_args_nbytes++] = input_char;
             } else {
                 log_writeln(F(""));
-                LOG_ERROR(F("Too many characters in input buffer."));
+                log_writeln(F("ERROR: Too many characters in input buffer."));
                 reset_prompt = true;
             }
         }
