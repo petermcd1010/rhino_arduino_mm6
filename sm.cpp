@@ -21,10 +21,6 @@ sm_state_t next_state;
 static int enabled_motors_mask = 0;
 static bool reset_prompt = true;
 
-static void sm_motors_off_execute(sm_state_t *state);
-static void sm_motors_on_execute(sm_state_t *state);
-static void sm_error_execute(sm_state_t *state);
-
 static const char sm_state_motors_off_enter_name[] PROGMEM = "sm motors off enter";
 static const char sm_state_motors_off_execute_name[] PROGMEM = "sm motors off execute";
 static const char sm_state_motors_on_enter_name[] PROGMEM = "sm motors on enter";
@@ -131,7 +127,7 @@ static void process_all_input()
     const int command_args_max_nbytes = 64;
     static char command_args[command_args_max_nbytes] = {};
     static int command_args_nbytes = 0;
-    static menu_item_t *prev_menu_item = NULL;
+    static menu_item_t const *prev_menu_item = NULL;
     static bool have_command = false;
 
     bool status_updated = false;
@@ -162,7 +158,7 @@ static void process_all_input()
             log_write(F("%s "), config.robot_name);
 
         for (int i = 0; i < MOTOR_ID_COUNT; i++) {
-            if (motor_get_enabled(i)) {
+            if (motor_get_enabled((motor_id_t)i)) {
                 char angle_str[15];
                 dtostrf(status.motor[i].angle, 3, 2, angle_str);
                 char motor_name = (status.motor[i].switch_triggered ? 'A' : 'a') + i;
@@ -340,7 +336,7 @@ void sm_motors_off_enter(sm_state_t *state)
     motor_disable_all();
 
     for (int i = 0; i < MOTOR_ID_COUNT; i++) {
-        motor_set_enabled(i, false);
+        motor_set_enabled((motor_id_t)i, false);
     }
 
     sm_set_next_state(sm_state_motors_off_execute);
@@ -359,8 +355,8 @@ void sm_motors_on_enter(sm_state_t *state)
 
     for (int i = 0; i < MOTOR_ID_COUNT; i++) {
         bool enabled = enabled_motors_mask & (1 << i);
-        if (motor_get_enabled(i) != enabled)
-            motor_set_enabled(i, enabled);
+        if (motor_get_enabled((motor_id_t)i) != enabled)
+            motor_set_enabled((motor_id_t)i, enabled);
     }
 }
 
