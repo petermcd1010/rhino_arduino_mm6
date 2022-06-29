@@ -49,7 +49,8 @@ typedef struct {
     int                pid_dvalue;
     int                pid_perror; // Proportional Error (Difference between Current and Target)
     int                target_encoder;
-    int                current_draw; // TODO: units? counts?
+    int                current; // TODO: units? counts?
+    bool               stall_triggered; // If current >= stall_current once, remains true until cleared.
     motor_progress_t   progress;
     int                encoders_per_second;  // Updated 3x/second.
     int                encoders_per_second_counts;
@@ -73,7 +74,9 @@ void motor_init_all(void);
 bool motor_get_thermal_overload_detected(motor_id_t motor_id);
 bool motor_get_thermal_overload_detected();
 void motor_clear_thermal_overload(motor_id_t motor_id);
-int motor_get_current_draw(motor_id_t motor_id);
+int motor_get_current(motor_id_t motor_id);
+bool motor_stall_triggered(motor_id_t motor_id);
+void motor_clear_stall(motor_id_t motor_id);
 void motor_disable_all(void);
 void motor_set_enabled(motor_id_t motor_id, bool enable);
 bool motor_get_enabled(motor_id_t motor_id);

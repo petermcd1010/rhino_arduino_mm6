@@ -162,7 +162,7 @@ static void process_all_input()
                 dtostrf(status.motor[i].angle, 3, 2, angle_str);
                 char motor_name = (status.motor[i].switch_triggered ? 'A' : 'a') + i;
 
-                log_write(F("%c:%s,%d,%d "), motor_name, angle_str, motor_get_current_draw((motor_id_t)i), motor_state[i].pid_perror);
+                log_write(F("%c:%s,%d,%d "), motor_name, angle_str, motor_get_current((motor_id_t)i), motor_state[i].pid_perror);
             }
         }
 

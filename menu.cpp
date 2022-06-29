@@ -198,7 +198,7 @@ const menu_item_t calibration_menu[] = {
     { 'C', CM_C,    NULL, NULL,      true,  command_calibrate_home_and_limits, CH_C    },
     { 'E', MM_E,    NULL, NULL,      true,  command_set_enabled_motors,        MH_E    },
     { 'G', CM_G,    NULL, NULL,      true,  command_calibrate_gripper,         CH_G    },
-    { 'H', MM_H,    NULL, NULL,      false, command_go_home,                   MH_H    },
+    { 'H', MM_H,    NULL, NULL,      true,  command_go_home,                   MH_H    },
     { 'O', CM_O,    NULL, NULL,      true,  command_calibrate_home,            CH_O    },
     { 'M', MM_M,    NULL, NULL,      true,  command_print_motor_status,        MH_M    },
     { 'N', MM_N,    NULL, NULL,      true,  command_set_motor_angle,           MH_N    },   // TODO.

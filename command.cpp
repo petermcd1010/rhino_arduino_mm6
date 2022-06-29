@@ -397,13 +397,19 @@ static void go_home(sm_state_t *state)
         if (enabled) {
             if (motor_get_target_encoder((motor_id_t)i) != 0)
                 motor_set_target_encoder((motor_id_t)i, 0);
-            if ((motor_get_encoder((motor_id_t)i) != 0) || (!motor_is_home_triggered_debounced((motor_id_t)i)))
+            if (motor_get_encoder((motor_id_t)i) != 0)
                 all_home = false;
         }
     }
 
     if (all_home) {
-        log_writeln(F("Motors at home position."));
+        for (int i = 0; i < MOTOR_ID_COUNT; i++) {
+            bool enabled = ((enabled_motors & (1 << i)) != 0);
+            if (enabled && (!motor_is_home_triggered_debounced((motor_id_t)i)))
+                log_writeln(F("WARNING: Motor %c arrived home, but home switch not triggered.."), 'A' + i);
+        }
+
+        log_writeln(F("Commanded or enabled motors at home position."));
         motor_set_enabled_mask((int)state->data);
         sm_set_next_state(exit_to_state);
     }
@@ -431,9 +437,10 @@ int command_go_home(char *args, size_t args_nbytes)
     motor_set_enabled_mask(motor_ids_mask);
 
     exit_to_state = sm_get_state();
+    assert(exit_to_state.run != go_home);
 
     static const char state_go_home_name[] PROGMEM = "go home";
-    sm_state_t s = { .run = go_home, .break_handler = go_home_break_handler, .process_break_only = false, .name = state_go_home_name, .data = (void *)old_motor_ids_mask };
+    sm_state_t s = { .run = go_home, .break_handler = go_home_break_handler, .process_break_only = true, .name = state_go_home_name, .data = (void *)old_motor_ids_mask };
 
     sm_set_next_state(s);
 
@@ -476,7 +483,7 @@ int command_print_motor_status(char *args, size_t args_nbytes)
                     motor_state[i].speed * config.motor[i].orientation,  // spd.
                     /* motor_state[i].target_speed, */  // tspd.
                     motor_state[i].pwm,
-                    motor_state[i].current_draw,  // cur.
+                    motor_state[i].current,  // cur.
                     motor_state[i].home_reverse_off_encoder,  // hs.
                     motor_state[i].home_forward_on_encoder,  // hs.
                     motor_state[i].home_reverse_on_encoder,  // hs.

@@ -17,7 +17,6 @@ static int motor_ids_mask = 0;
 static motor_id_t motor_id = (motor_id_t)-1;
 static int prev_max_speed_percent = 0;
 static int max_speed_percent = 0;
-static int prev_stall_current_threshold = 0;
 static int stalled_start_encoder = 0;
 static unsigned long stalled_start_millis = 0;
 
@@ -76,23 +75,57 @@ static bool is_stalled(motor_id_t motor_id, int *stalled_start_encoder, unsigned
 
     bool ret = false;
 
+    static unsigned long trigger_millis = 0;
+    static unsigned int stall_current_sum = 0;
+    static unsigned int stall_current_nmeasurements = 0;
+
     const int stalled_check_encoder_count = 5;
 
     int encoder = motor_get_encoder(motor_id);
     unsigned long ms = millis();
 
+    if (motor_stall_triggered(motor_id)) {
+        motor_clear_stall(motor_id);
+        if ((ms - trigger_millis) >= 500) {
+            LOG_DEBUG(F("motor %c stall current threshold %d exceeded"), 'A' + motor_id, config.motor[motor_id].stall_current_threshold);
+            trigger_millis = ms;
+            return true;
+        }
+    }
+
     if (((ms - *stalled_start_millis) >= stalled_duration_millis)) {
         // log_writeln(F("ms:%lu, encoder:%d, stalled_check_start_encoder:%d"), ms, encoder, stalled_start_encoder);
         if (abs(encoder - *stalled_start_encoder) <= stalled_check_encoder_count) {
             log_writeln(F("Calibrating motor %c: Stuck at encoder %d for > %lu ms."), 'A' + motor_id, encoder, stalled_duration_millis);
+            log_writeln(F("Average stall current = %d (sum=%d n=%d)"), stall_current_sum / stall_current_nmeasurements, stall_current_sum, stall_current_nmeasurements);
             ret = true;
         }
-
         *stalled_start_encoder = encoder;
         *stalled_start_millis = ms;
+        stall_current_sum = motor_get_current(motor_id);
+        stall_current_nmeasurements = 1;
+    } else {
+        stall_current_sum += motor_get_current(motor_id);
+        stall_current_nmeasurements++;
     }
 
     return ret;
+}
+
+static bool is_gripper(void)
+{
+    if ((max_encoder == INT_MAX) ||
+        (min_encoder == INT_MIN))
+        return false;
+
+    // If exactly one on_encoder and exactly one off_encoder, return true;
+    if (((home_forward_on_encoder == INT_MAX) != (home_reverse_on_encoder == INT_MIN)) &&
+        ((home_forward_off_encoder == INT_MAX) != (home_reverse_off_encoder == INT_MIN))) {
+        LOG_DEBUG(F("is_gripper: fon=%d foff=%d ron=%d roff=%d"), home_forward_on_encoder, home_forward_off_encoder, home_reverse_on_encoder, home_reverse_off_encoder);
+        return true;
+    }
+
+    return false;
 }
 
 static bool found_all_positions(void)
@@ -148,7 +181,7 @@ static void update_status(motor_id_t motor_id)
             else
                 log_write(F("Heading home, "));
         }
-        log_writeln(F("encoder %d."), encoder * config.motor[motor_id].orientation);
+        log_writeln(F("encoder %d. current %d"), encoder * config.motor[motor_id].orientation, motor_get_current(motor_id));
         print_ms = millis();
     }
 
@@ -233,8 +266,6 @@ static void calibrate_all(sm_state_t *state)
 
 static void calibrate_one_enter(sm_state_t *state)
 {
-    LOG_DEBUG(F("%d %d"), motor_ids_mask, motor_id);
-
     assert(state);
     assert((motor_id >= MOTOR_ID_A) && (motor_id < MOTOR_ID_COUNT));
 
@@ -248,15 +279,14 @@ static void calibrate_one_enter(sm_state_t *state)
 
     motor_set_enabled(motor_id, true);
 
-    log_writeln(F("Calibrating motor %c: Running initial motor test."), 'A' + motor_id);
+    log_writeln(F("Calibrating motor %c: Running initial motor test and checking motor polarity."), 'A' + motor_id);
     if (!motor_test(motor_id)) {
         sm_set_next_state(state_calibrate_one_failed);
         return;
     }
 
     prev_max_speed_percent = motor_get_max_speed_percent(motor_id);
-    prev_stall_current_threshold = config.motor[motor_id].stall_current_threshold;
-    config_set_motor_stall_current_threshold(motor_id, INT_MAX);
+    motor_clear_stall(motor_id);
 
     home_forward_on_encoder = INT_MAX;
     home_forward_off_encoder = INT_MAX;
@@ -350,6 +380,18 @@ static void calibrate_one_forward(sm_state_t *state)
 
     if (found_all_positions()) {
         sm_set_next_state(state_calibrate_one_go_home);
+    } else if (is_gripper()) {
+        LOG_DEBUG(F("is gripper"));
+        if (home_forward_on_encoder == INT_MAX)
+            home_forward_on_encoder = home_reverse_on_encoder;
+        else
+            home_reverse_on_encoder = home_forward_on_encoder;
+
+        if (home_forward_off_encoder == INT_MAX)
+            home_forward_off_encoder = home_reverse_off_encoder;
+        else
+            home_reverse_off_encoder = home_forward_off_encoder;
+        sm_set_next_state(state_calibrate_one_go_home);
     } else if (cant_find_home_switch()) {
         sm_set_next_state(state_calibrate_one_failed);
     } else if (!calibrate_limits && (home_forward_on_encoder != INT_MAX) && (home_forward_off_encoder != INT_MAX)) {
@@ -439,6 +481,18 @@ static void calibrate_one_reverse(sm_state_t *state)
     }
 
     if (found_all_positions()) {
+        sm_set_next_state(state_calibrate_one_go_home);
+    } else if (is_gripper()) {
+        LOG_DEBUG(F("is gripper"));
+        if (home_forward_on_encoder == INT_MAX)
+            home_forward_on_encoder = home_reverse_on_encoder;
+        else
+            home_reverse_on_encoder = home_forward_on_encoder;
+
+        if (home_forward_off_encoder == INT_MAX)
+            home_forward_off_encoder = home_reverse_off_encoder;
+        else
+            home_reverse_off_encoder = home_forward_off_encoder;
         sm_set_next_state(state_calibrate_one_go_home);
     } else if (cant_find_home_switch()) {
         sm_set_next_state(state_calibrate_one_failed);
@@ -585,7 +639,6 @@ static void calibrate_one_done(sm_state_t *state)
 
     motor_set_max_speed_percent(motor_id, prev_max_speed_percent);
     motor_set_enabled(motor_id, false);
-    config_set_motor_stall_current_threshold(motor_id, prev_stall_current_threshold);
     motor_id = (motor_id_t)((int)motor_id + 1);
 
     sm_set_next_state(state_calibrate_all);
