@@ -21,10 +21,10 @@ static int current_index = 0;
 static waypoint_t current_waypoint = { 0 };
 static int steps_remaining = 0;
 
-static void break_handler(void);
-static void start(void);
-static void run(void);
-static void stop(void);
+static void break_handler(sm_state_t *state);
+static void start(sm_state_t *state);
+static void run(sm_state_t *state);
+static void stop(sm_state_t *state);
 
 static const char state_waypoint_start_name[] PROGMEM = "waypoint_start";
 static const char state_waypoint_run_name[] PROGMEM = "waypoint_stop";
@@ -279,16 +279,18 @@ void waypoint_run(int start_index, int count)
     sm_set_next_state(state_waypoint_start);
 }
 
-static void break_handler(void)
+static void break_handler(sm_state_t *state)
 {
+    assert(state);
     log_writeln(F("Break detected. Stopping waypoint sequence."));
     motor_disable_all();
 
     sm_set_next_state(state_waypoint_stop);
 }
 
-void start(void)
+void start(sm_state_t *state)
 {
+    assert(state);
     assert(current_index >= 0);
     assert(current_index < waypoint_get_max_count());
 
@@ -347,8 +349,9 @@ static bool set_target_waypoint(waypoint_t waypoint)
     }
 }
 
-static void run(void)
+static void run(sm_state_t *state)
 {
+    assert(state);
     assert(current_index >= 0);
 
     static waypoint_t waypoint = { 0 };
@@ -433,8 +436,9 @@ static void run(void)
     }
 }
 
-static void stop(void)
+static void stop(sm_state_t *state)
 {
+    assert(state);
     current_index = -1;
 
     motor_disable_all();

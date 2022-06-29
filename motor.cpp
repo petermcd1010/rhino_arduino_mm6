@@ -111,7 +111,7 @@ static void motor_init(motor_id_t motor_id)
         //     The values for the Motor orientation are set by the setup.
         //       Since the not-inverted and inverted orientation are used to invert the position the values are 1 or -1
         motor_set_max_speed_percent((motor_id_t)motor_id, 100);
-        motor_state[motor_id].prev_home_triggered = motor_is_home_triggered(motor_id);
+        motor_state[motor_id].prev_home_triggered = motor_is_home_triggered((motor_id_t)motor_id);
         motor_state[motor_id].prev_home_triggered_millis = millis();
         motor_state[motor_id].prev_home_triggered_encoder = INT_MAX;
         motor_state[motor_id].home_triggered_debounced = motor_state[motor_id].prev_home_triggered;
@@ -700,7 +700,7 @@ ISR(TIMER1_COMPA_vect) {
     const int qe_inc_states[] = { 1, 3, 0, 2 };  // 01 -> 11 -> 00 -> 10.
     const int qe_dec_states[] = { 2, 0, 3, 1 };  // 10 -> 00 -> 11 -> 01.
 
-    for (motor_id_t qe_motor_id = 0; qe_motor_id < MOTOR_ID_COUNT; qe_motor_id = motor_id_t(qe_motor_id + 1)) {
+    for (motor_id_t qe_motor_id = (motor_id_t)0; qe_motor_id < MOTOR_ID_COUNT; qe_motor_id = motor_id_t(qe_motor_id + 1)) {
         // Quadrature Encoders - read at rate of 2kHz.
         int qe_value_a = digitalRead(motor_pinout[qe_motor_id].in_quadrature_encoder_a);
         int qe_value_b = digitalRead(motor_pinout[qe_motor_id].in_quadrature_encoder_b);

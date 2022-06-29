@@ -44,12 +44,11 @@ typedef struct {
 } test_case_t;
 
 static test_case_t test_case[] = {
-    { config_test, "config"              },
-    { crc32c_test, "crc32c"              },
-    { log_test,    "log"                 },
-    { menu_test,   "menu"                },
-    { parse_test,  "parse"               },
-    { sm_test,     "sm (state smachine)" },
+    { config_test, "config" },
+    { crc32c_test, "crc32c" },
+    { log_test,    "log"    },
+    { menu_test,   "menu"   },
+    { parse_test,  "parse"  },
 };
 #define TEST_CASE_COUNT sizeof(test_case) / sizeof(test_case[0])
 
@@ -395,12 +394,4 @@ int sm_get_enabled_motors_mask(void)
 void sm_set_enabled_motors_mask(int mask)
 {
     enabled_motors_mask = mask;
-}
-
-bool sm_test()
-{
-    // TODO: Implement.
-
-    // Confirm can't escape error state.
-    return true;
 }

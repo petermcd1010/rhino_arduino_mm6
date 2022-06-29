@@ -40,7 +40,7 @@ size_t parse_bool(char *buf, size_t buf_nbytes, bool *out_bool)
 #define BOOL_STRINGS_COUNT sizeof(bool_strings) / sizeof(bool_strings[0])
 
     int entry_num = -1;
-    size_t nbytes = parse_string_in_table(buf, buf_nbytes, bool_strings, BOOL_STRINGS_COUNT, &entry_num);
+    size_t nbytes = parse_string_in_table(buf, buf_nbytes, (char **)bool_strings, BOOL_STRINGS_COUNT, &entry_num);
     if (nbytes > 0) {
         if ((entry_num & 1) == 0)
             *out_bool = true;
@@ -437,7 +437,6 @@ bool parse_test()
 
     ret = test_parse_float() ? ret : false;
 
-
     return ret;
 }
 
@@ -447,6 +446,7 @@ size_t parse_waypoint(char *buf, size_t buf_nbytes, waypoint_t *out_waypoint)
     assert(out_waypoint);
     char *p = buf;
 
+    const long int max_wait_millis = 86400000;  // 24 * 60 * 60 * 1000.
     size_t nbytes = parse_whitespace(p, buf_nbytes);
 
     buf_nbytes -= nbytes;
@@ -589,7 +589,6 @@ size_t parse_waypoint(char *buf, size_t buf_nbytes, waypoint_t *out_waypoint)
         buf_nbytes -= nbytes;
         p += nbytes;
 
-        const long int max_wait_millis = 86400000;  // 24 * 60 * 60 * 1000.
         if ((millis < 0) || (millis > max_wait_millis)) {
             log_writeln(F("Invalid wait of %ld milliseconds. Maximum wait time is 24 hours (24 * 60 * 60 * 1000 = %ld)."), millis, max_wait_millis);
             goto error;
