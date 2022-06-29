@@ -39,9 +39,34 @@ static void calibrate_one_reverse(sm_state_t *state);
 static void calibrate_one_reverse_backup(sm_state_t *state);
 static void calibrate_one_go_home(sm_state_t *state);
 static void calibrate_one_failed(sm_state_t *state);
-static void calibrate_one_failed_center_between_min_max(sm_state_t *state);
+static void calibrate_one_failed_center(sm_state_t *state);
 static void calibrate_one_done(sm_state_t *state);
 static void break_handler(sm_state_t *state);
+
+static const char state_calibrate_all_name[] PROGMEM = "calibrate all";
+static const char state_calibrate_one_enter_name[] PROGMEM = "calibrate one enter";
+static const char state_calibrate_one_forward_name[] PROGMEM = "calibrate one forward";
+static const char state_calibrate_one_forward_backup_name[] PROGMEM = "calibrate one forward backup";
+static const char state_calibrate_one_reverse_then_forward_name[] PROGMEM = "calibrate one reverse then forward";
+static const char state_calibrate_one_reverse_name[] PROGMEM = "calibrate one reverse";
+static const char state_calibrate_one_reverse_backup_name[] PROGMEM = "calibrate one reverse backup";
+static const char state_calibrate_one_go_home_name[] PROGMEM = "calibrate one go home";
+static const char state_calibrate_one_failed_name[] PROGMEM = "calibrate one failed";
+static const char state_calibrate_one_failed_center_name[] PROGMEM = "calibrate one center";
+static const char state_calibrate_one_done_name[] PROGMEM = "calibrate one done";
+
+static const sm_state_t state_calibrate_all = { .run = calibrate_all, .break_handler = break_handler, .process_break_only = true, .name = state_calibrate_all_name, .data = NULL };
+static const sm_state_t state_calibrate_one_enter = { .run = calibrate_one_enter, .break_handler = break_handler, .process_break_only = true, .name = state_calibrate_one_enter_name, .data = NULL };
+static const sm_state_t state_calibrate_one_forward = { .run = calibrate_one_forward, .break_handler = break_handler, .process_break_only = true, .name = state_calibrate_one_forward_name, .data = NULL };
+static const sm_state_t state_calibrate_one_forward_backup = { .run = calibrate_one_forward_backup, .break_handler = break_handler, .process_break_only = true, .name = state_calibrate_one_forward_backup_name, .data = NULL };
+static const sm_state_t state_calibrate_one_reverse_then_forward = { .run = calibrate_one_reverse_then_forward, .break_handler = break_handler, .process_break_only = true, .name = state_calibrate_one_reverse_then_forward_name, .data = NULL };
+static const sm_state_t state_calibrate_one_reverse = { .run = calibrate_one_reverse, .break_handler = break_handler, .process_break_only = true, .name = state_calibrate_one_reverse_name, .data = NULL };
+static const sm_state_t state_calibrate_one_reverse_backup = { .run = calibrate_one_reverse_backup, .break_handler = break_handler, .process_break_only = true, .name = state_calibrate_one_reverse_backup_name, .data = NULL };
+static const sm_state_t state_calibrate_one_go_home = { .run = calibrate_one_go_home, .break_handler = break_handler, .process_break_only = true, .name = state_calibrate_one_go_home_name, .data = NULL };
+static const sm_state_t state_calibrate_one_failed_center = { .run = calibrate_one_failed_center, .break_handler = break_handler, .process_break_only = true, .name = state_calibrate_one_failed_center_name, .data = NULL };
+static const sm_state_t state_calibrate_one_failed = { .run = calibrate_one_failed, .break_handler = break_handler, .process_break_only = true, .name = state_calibrate_one_failed_name, .data = NULL };
+static const sm_state_t state_calibrate_one_done = { .run = calibrate_one_done, .break_handler = break_handler, .process_break_only = true, .name = state_calibrate_one_done_name, .data = NULL };
+
 
 static bool is_stalled(motor_id_t motor_id, int *stalled_start_encoder, unsigned long *stalled_start_millis, unsigned long stalled_duration_millis)
 {
@@ -138,6 +163,25 @@ static void update_status(motor_id_t motor_id)
 #endif
 }
 
+
+
+void calibrate_gripper(motor_id_t in_motor_id, int max_speed_pct)
+{
+    assert((in_motor_id >= 0) && (in_motor_id < MOTOR_ID_COUNT));
+
+    motor_id = in_motor_id;
+    log_writeln(F("calibrate_gripper motor %c"), 'A' + motor_id);
+
+    calibrate_limits = true;
+    motor_ids_mask = 1 << motor_id;
+    motor_id = 0;
+    max_speed_percent = max_speed_pct;
+    exit_motor_ids_mask = motor_get_enabled_mask();
+    exit_to_state = sm_get_state();
+
+    sm_set_next_state(state_calibrate_all);
+}
+
 void calibrate_home_switch_and_limits(int in_motor_ids_mask, int max_speed_pct)
 {
     assert(in_motor_ids_mask >= 0);
@@ -150,9 +194,8 @@ void calibrate_home_switch_and_limits(int in_motor_ids_mask, int max_speed_pct)
     max_speed_percent = max_speed_pct;
     exit_motor_ids_mask = motor_get_enabled_mask();
     exit_to_state = sm_get_state();
-    sm_state_t s = { .run = calibrate_all, .break_handler = break_handler, .name = F("calibrate all"), .data = NULL };
 
-    sm_set_next_state(s);
+    sm_set_next_state(state_calibrate_all);
 }
 
 void calibrate_home_switch(int in_motor_ids_mask, int max_speed_pct)
@@ -167,9 +210,8 @@ void calibrate_home_switch(int in_motor_ids_mask, int max_speed_pct)
     max_speed_percent = max_speed_pct;
     exit_motor_ids_mask = motor_get_enabled_mask();
     exit_to_state = sm_get_state();
-    sm_state_t s = { .run = calibrate_all, .break_handler = break_handler, .name = F("calibrate all"), .data = NULL };
 
-    sm_set_next_state(s);
+    sm_set_next_state(state_calibrate_all);
 }
 
 static void calibrate_all(sm_state_t *state)
@@ -180,12 +222,10 @@ static void calibrate_all(sm_state_t *state)
 
     assert((motor_ids_mask >= 0) && (motor_ids_mask <= max_motor_ids_mask));
 
-    if (motor_ids_mask & (1 << motor_id)) {
-        sm_state_t s = { .run = calibrate_one_enter, .break_handler = break_handler, .name = F("calibrate one enter"), .data = NULL };
-        sm_set_next_state(s);
-    } else {
+    if (motor_ids_mask & (1 << motor_id))
+        sm_set_next_state(state_calibrate_one_enter);
+    else
         motor_id = (motor_id_t)((int)motor_id + 1);
-    }
 
     if (motor_id >= MOTOR_ID_COUNT)
         exit_sm();
@@ -193,6 +233,8 @@ static void calibrate_all(sm_state_t *state)
 
 static void calibrate_one_enter(sm_state_t *state)
 {
+    LOG_DEBUG(F("%d %d"), motor_ids_mask, motor_id);
+
     assert(state);
     assert((motor_id >= MOTOR_ID_A) && (motor_id < MOTOR_ID_COUNT));
 
@@ -208,8 +250,7 @@ static void calibrate_one_enter(sm_state_t *state)
 
     log_writeln(F("Calibrating motor %c: Running initial motor test."), 'A' + motor_id);
     if (!motor_test(motor_id)) {
-        sm_state_t s = { .run = calibrate_one_failed, .break_handler = break_handler, .name = F("calibrate one failed"), .data = NULL };
-        sm_set_next_state(s);
+        sm_set_next_state(state_calibrate_one_failed);
         return;
     }
 
@@ -226,16 +267,12 @@ static void calibrate_one_enter(sm_state_t *state)
     min_encoder = INT_MIN;
     max_encoder = INT_MAX;
 
-    if (!calibrate_limits && motor_is_home_triggered_debounced(motor_id)) {
-        sm_state_t s = { .run = calibrate_one_reverse_then_forward, .break_handler = break_handler, .name = F("calibrate one reverse then forward"), .data = NULL };
-        sm_set_next_state(s);
-    } else if (motor_get_encoder(motor_id) <= 0) {
-        sm_state_t s = { .run = calibrate_one_forward, .break_handler = break_handler, .name = F("calibrate one forward"), .data = NULL };
-        sm_set_next_state(s);
-    } else {
-        sm_state_t s = { .run = calibrate_one_reverse, .break_handler = break_handler, .name = F("calibrate one reverse"), .data = NULL };
-        sm_set_next_state(s);
-    }
+    if (!calibrate_limits && motor_is_home_triggered_debounced(motor_id))
+        sm_set_next_state(state_calibrate_one_reverse_then_forward);
+    else if (motor_get_encoder(motor_id) <= 0)
+        sm_set_next_state(state_calibrate_one_forward);
+    else
+        sm_set_next_state(state_calibrate_one_reverse);
 }
 
 static void calibrate_one_reverse_then_forward(sm_state_t *state)
@@ -257,8 +294,7 @@ static void calibrate_one_reverse_then_forward(sm_state_t *state)
         log_writeln(F("Calibrating motor %c: Reverse direction, encoder %d, backup past home switch complete."), 'A' + motor_id, motor_get_encoder(motor_id));
         home_reverse_off_encoder = motor_state[motor_id].home_reverse_off_encoder;
         // motor_set_target_encoder(motor_id, INT_MAX);
-        sm_state_t s = { .run = calibrate_one_forward, .break_handler = break_handler, .name = F("calibrate one forward"), .data = NULL };
-        sm_set_next_state(s);
+        sm_set_next_state(state_calibrate_one_forward);
     }
 
     if (motor_state[motor_id].home_reverse_on_encoder != INT_MIN) {
@@ -268,8 +304,7 @@ static void calibrate_one_reverse_then_forward(sm_state_t *state)
         log_writeln(F("Calibrating motor %c: Forward backing up, encoder %d, motor stalled."), 'A' + motor_id, stalled_start_encoder);
         stalled_start_millis = millis();
         max_encoder = motor_get_encoder(motor_id);
-        sm_state_t s = { .run = calibrate_one_failed, .break_handler = break_handler, .name = F("calibrate one failed"), .data = NULL };
-        sm_set_next_state(s);
+        sm_set_next_state(state_calibrate_one_failed);
     }
 }
 
@@ -297,8 +332,7 @@ static void calibrate_one_forward(sm_state_t *state)
             motor_state[motor_id].home_forward_on_encoder = INT_MAX;
         } else {
             max_encoder = motor_get_encoder(motor_id);
-            sm_state_t s = { .run = calibrate_one_forward_backup, .break_handler = break_handler, .name = F("calibrate one forward backup"), .data = NULL };
-            sm_set_next_state(s);
+            sm_set_next_state(state_calibrate_one_forward_backup);
         }
     }
 
@@ -315,21 +349,17 @@ static void calibrate_one_forward(sm_state_t *state)
     }
 
     if (found_all_positions()) {
-        sm_state_t s = { .run = calibrate_one_go_home, .break_handler = break_handler, .name = F("calibrate one go home"), .data = NULL };
-        sm_set_next_state(s);
+        sm_set_next_state(state_calibrate_one_go_home);
     } else if (cant_find_home_switch()) {
-        sm_state_t s = { .run = calibrate_one_failed, .break_handler = break_handler, .name = F("calibrate one failed"), .data = NULL };
-        sm_set_next_state(s);
+        sm_set_next_state(state_calibrate_one_failed);
     } else if (!calibrate_limits && (home_forward_on_encoder != INT_MAX) && (home_forward_off_encoder != INT_MAX)) {
-        sm_state_t s = { .run = calibrate_one_reverse, .break_handler = break_handler, .name = F("calibrate one reverse"), .data = NULL };
-        sm_set_next_state(s);
+        sm_set_next_state(state_calibrate_one_reverse);
     } else if (is_stalled(motor_id, &stalled_start_encoder, &stalled_start_millis, 500)) {
         log_writeln(F("Calibrating motor %c: Forward direction, encoder %d, motor stalled. Reversing direction."), 'A' + motor_id, stalled_start_encoder);
         stalled_start_millis = millis();
         ntimes_found_max_encoder++;
         max_encoder = motor_get_encoder(motor_id);
-        sm_state_t s = { .run = calibrate_one_reverse, .break_handler = break_handler, .name = F("calibrate one reverse"), .data = NULL };
-        sm_set_next_state(s);
+        sm_set_next_state(state_calibrate_one_reverse);
     }
 }
 
@@ -354,8 +384,7 @@ static void calibrate_one_forward_backup(sm_state_t *state)
         motor_state[motor_id].home_reverse_off_encoder = INT_MIN;
         home_reverse_on_encoder = INT_MIN;
         home_reverse_off_encoder = INT_MIN;
-        sm_state_t s = { .run = calibrate_one_reverse, .break_handler = break_handler, .name = F("calibrate one reverse"), .data = NULL };
-        sm_set_next_state(s);
+        sm_set_next_state(state_calibrate_one_reverse);
     }
 
     if (motor_state[motor_id].home_reverse_on_encoder != INT_MIN) {
@@ -365,8 +394,7 @@ static void calibrate_one_forward_backup(sm_state_t *state)
         log_writeln(F("Calibrating motor %c: Forward backing up, encoder %d, motor stalled."), 'A' + motor_id, stalled_start_encoder);
         stalled_start_millis = millis();
         max_encoder = motor_get_encoder(motor_id);
-        sm_state_t s = { .run = calibrate_one_failed, .break_handler = break_handler, .name = F("calibrate one failed"), .data = NULL };
-        sm_set_next_state(s);
+        sm_set_next_state(state_calibrate_one_failed);
     }
 }
 
@@ -394,8 +422,7 @@ static void calibrate_one_reverse(sm_state_t *state)
             motor_state[motor_id].home_reverse_on_encoder = INT_MIN;
         } else {
             min_encoder = motor_get_encoder(motor_id);
-            sm_state_t s = { .run = calibrate_one_reverse_backup, .break_handler = break_handler, .name = F("calibrate one reverse backup"), .data = NULL };
-            sm_set_next_state(s);
+            sm_set_next_state(state_calibrate_one_reverse_backup);
         }
     }
 
@@ -412,22 +439,18 @@ static void calibrate_one_reverse(sm_state_t *state)
     }
 
     if (found_all_positions()) {
-        sm_state_t s = { .run = calibrate_one_go_home, .break_handler = break_handler, .name = F("calibrate one go home"), .data = NULL };
-        sm_set_next_state(s);
+        sm_set_next_state(state_calibrate_one_go_home);
     } else if (cant_find_home_switch()) {
-        sm_state_t s = { .run = calibrate_one_failed, .break_handler = break_handler, .name = F("calibrate one failed"), .data = NULL };
-        sm_set_next_state(s);
+        sm_set_next_state(state_calibrate_one_failed);
     } else if (!calibrate_limits && (home_reverse_on_encoder != INT_MIN) && (home_reverse_off_encoder != INT_MIN)) {
-        sm_state_t s = { .run = calibrate_one_forward, .break_handler = break_handler, .name = F("calibrate one forward"), .data = NULL };
-        sm_set_next_state(s);
+        sm_set_next_state(state_calibrate_one_forward);
     } else if (is_stalled(motor_id, &stalled_start_encoder, &stalled_start_millis, 500)) {
         log_writeln(F("Calibrating motor %c: Reverse direction, encoder %d, motor stalled. Reversing direction."), 'A' + motor_id, stalled_start_encoder);
         stalled_start_millis = millis();
         min_encoder = motor_get_encoder(motor_id);
         ntimes_found_min_encoder++;
         motor_set_target_encoder(motor_id, INT_MAX);
-        sm_state_t s = { .run = calibrate_one_forward, .break_handler = break_handler, .name = F("calibrate one forward"), .data = NULL };
-        sm_set_next_state(s);
+        sm_set_next_state(state_calibrate_one_forward);
     }
 }
 
@@ -448,8 +471,7 @@ static void calibrate_one_reverse_backup(sm_state_t *state)
         log_writeln(F("Calibrating motor %c: Forward direction, encoder %d, backup past home switch complete."), 'A' + motor_id, motor_get_encoder(motor_id));
         motor_state[motor_id].home_forward_on_encoder = INT_MAX;
         motor_state[motor_id].home_forward_off_encoder = INT_MAX;
-        sm_state_t s = { .run = calibrate_one_forward, .break_handler = break_handler, .name = F("calibrate one forward"), .data = NULL };
-        sm_set_next_state(s);
+        sm_set_next_state(state_calibrate_one_forward);
     } else if (motor_state[motor_id].home_forward_on_encoder != INT_MAX) {
         motor_state[motor_id].home_forward_on_encoder = INT_MAX;
         log_writeln(F("Calibrating motor %c: Forward direction, encoder %d, unexpected second forward on home switch. Ignoring."), 'A' + motor_id, motor_get_encoder(motor_id));
@@ -457,8 +479,7 @@ static void calibrate_one_reverse_backup(sm_state_t *state)
         log_writeln(F("Calibrating motor %c: Reverse backing up, encoder %d, motor stalled."), 'A' + motor_id, stalled_start_encoder);
         stalled_start_millis = millis();
         max_encoder = motor_get_encoder(motor_id);
-        sm_state_t s = { .run = calibrate_one_failed, .break_handler = break_handler, .name = F("calibrate one failed"), .data = NULL };
-        sm_set_next_state(s);
+        sm_set_next_state(state_calibrate_one_failed);
     }
 }
 
@@ -491,8 +512,7 @@ static void calibrate_one_go_home(sm_state_t *state)
 
     if (motor_get_target_encoder(motor_id) - encoder == 0) {
         if (!motor_is_home_triggered_debounced(motor_id)) {
-            sm_state_t s = { .run = calibrate_one_failed, .break_handler = break_handler, .name = F("calibrate one failed"), .data = NULL };
-            sm_set_next_state(s);
+            sm_set_next_state(state_calibrate_one_failed);
         } else {
             log_writeln(F("Calibrating motor %c: Motor arrived at home position (encoder 0). Calibration for motor %c passed."), 'A' + motor_id, 'A' + motor_id);
 
@@ -500,13 +520,11 @@ static void calibrate_one_go_home(sm_state_t *state)
                 config_set_motor_min_max_encoders(motor_id, min_encoder, max_encoder);
             config_set_motor_home_encoders(motor_id, home_forward_on_encoder, home_forward_off_encoder, home_reverse_on_encoder, home_reverse_off_encoder);
 
-            sm_state_t s = { .run = calibrate_one_done, .break_handler = break_handler, .name = F("calibrate one done"), .data = NULL };
-            sm_set_next_state(s);
+            sm_set_next_state(state_calibrate_one_done);
         }
     } else if (is_stalled(motor_id, &stalled_start_encoder, &stalled_start_millis, 5 * 1000)) {
         log_writeln(F("Calibrating motor %c: Motor is stalled at encoder %d. Calibration for motor %c failed."), 'A' + motor_id, encoder, 'A' + motor_id);
-        sm_state_t s = { .run = calibrate_one_failed, .break_handler = break_handler, .name = F("calibrate one failed"), .data = NULL };
-        sm_set_next_state(s);
+        sm_set_next_state(state_calibrate_one_failed);
     }
 }
 
@@ -525,16 +543,14 @@ static void calibrate_one_failed(sm_state_t *state)
                 home_reverse_off_encoder);
 
     if ((ntimes_found_min_encoder > 0) && (ntimes_found_max_encoder > 0)) {
-        sm_state_t s = { .run = calibrate_one_failed_center_between_min_max, .break_handler = break_handler, .name = F("calibrate one center between mix max"), .data = NULL };
-        sm_set_next_state(s);
+        sm_set_next_state(state_calibrate_one_failed_center);
     } else {
         motor_set_enabled(motor_id, false);
-        sm_state_t s = { .run = calibrate_one_done, .break_handler = break_handler, .name = F("calibrate one done"), .data = NULL };
-        sm_set_next_state(s);
+        sm_set_next_state(state_calibrate_one_done);
     }
 }
 
-static void calibrate_one_failed_center_between_min_max(sm_state_t *state)
+static void calibrate_one_failed_center(sm_state_t *state)
 {
     assert(state);
     assert((motor_id >= MOTOR_ID_A) && (motor_id < MOTOR_ID_COUNT));
@@ -549,12 +565,10 @@ static void calibrate_one_failed_center_between_min_max(sm_state_t *state)
 
     if (motor_get_encoder(motor_id) == midpoint) {
         log_writeln(F("Calibrating motor %c: Motor arrived at midpoint %d between min and max encoders."), 'A' + motor_id, midpoint);
-        sm_state_t s = { .run = calibrate_one_done, .break_handler = break_handler, .name = F("calibrate one done"), .data = NULL };
-        sm_set_next_state(s);
+        sm_set_next_state(state_calibrate_one_done);
     } else if (is_stalled(motor_id, &stalled_start_encoder, &stalled_start_millis, 5 * 1000)) {
         log_writeln(F("Calibrating motor %c: Motor stalled attempting to move to midpoint %d between min and max encoders. Centering for motor %c failed."), 'A' + motor_id, midpoint, 'A' + motor_id);
-        sm_state_t s = { .run = calibrate_one_done, .break_handler = break_handler, .name = F("calibrate one done"), .data = NULL };
-        sm_set_next_state(s);
+        sm_set_next_state(state_calibrate_one_done);
     }
 }
 
@@ -573,9 +587,8 @@ static void calibrate_one_done(sm_state_t *state)
     motor_set_enabled(motor_id, false);
     config_set_motor_stall_current_threshold(motor_id, prev_stall_current_threshold);
     motor_id = (motor_id_t)((int)motor_id + 1);
-    sm_state_t s = { .run = calibrate_all, .break_handler = break_handler, .name = F("calibrate all"), .data = NULL };
 
-    sm_set_next_state(s);
+    sm_set_next_state(state_calibrate_all);
 }
 
 static void break_handler(sm_state_t *state)

@@ -13,12 +13,30 @@
 #include "parse.h"
 #include "sm.h"
 
-// #define DEBUG_STATE
+#define DEBUG_STATE
 
 sm_state_t current_state;
 sm_state_t next_state;
 
 static int enabled_motors_mask = 0;
+static bool reset_prompt = true;
+
+static void sm_motors_off_execute(sm_state_t *state);
+static void sm_motors_on_execute(sm_state_t *state);
+static void sm_error_execute(sm_state_t *state);
+
+static const char sm_state_motors_off_enter_name[] PROGMEM = "sm motors off enter";
+static const char sm_state_motors_off_execute_name[] PROGMEM = "sm motors off execute";
+static const char sm_state_motors_on_enter_name[] PROGMEM = "sm motors on enter";
+static const char sm_state_motors_on_execute_name[] PROGMEM = "sm motors on execute";
+static const char sm_state_error_name[] PROGMEM = "ERROR";
+
+const sm_state_t sm_state_motors_off_enter = { .run = sm_motors_off_enter, .break_handler = NULL, .process_break_only = false, .name = sm_state_motors_off_enter_name, .data = NULL };
+const sm_state_t sm_state_motors_off_execute = { .run = sm_motors_off_execute, .break_handler = NULL, .process_break_only = false, .name = sm_state_motors_off_execute_name, .data = NULL };
+const sm_state_t sm_state_motors_on_enter = { .run = sm_motors_on_enter, .break_handler = NULL, .process_break_only = false, .name = sm_state_motors_on_enter_name, .data = NULL };
+const sm_state_t sm_state_motors_on_execute = { .run = sm_motors_on_execute, .break_handler = NULL, .process_break_only = false, .name = sm_state_motors_on_execute_name, .data = NULL };
+const sm_state_t sm_state_error_enter = { .run = sm_error_enter, .break_handler = NULL, .process_break_only = false, .name = sm_state_error_name, .data = NULL };
+const sm_state_t sm_state_error_execute = { .run = sm_error_execute, .break_handler = NULL, .process_break_only = false, .name = sm_state_error_name, .data = NULL };
 
 /*
  * Self-test functions.
@@ -75,14 +93,35 @@ static void gather_status(status_t *pstatus)
     assert(pstatus);
 
     for (int i = 0; i < MOTOR_ID_COUNT; i++) {
-        pstatus->motor[i].angle = motor_get_angle(i);
-        pstatus->motor[i].switch_triggered = motor_is_home_triggered(i);
-        pstatus->motor[i].thermal_overload_detected = motor_get_thermal_overload_detected(i);
-        motor_clear_thermal_overload(i);
+        pstatus->motor[i].angle = motor_get_angle((motor_id_t)i);
+        pstatus->motor[i].switch_triggered = motor_is_home_triggered((motor_id_t)i);
+        pstatus->motor[i].thermal_overload_detected = motor_get_thermal_overload_detected((motor_id_t)i);
+        motor_clear_thermal_overload((motor_id_t)i);
     }
 }
 
-static void process_serial_input()
+static void process_break_only()
+{
+    const char ASCII_CTRL_C = 3;
+
+    if (Serial.available()) {
+        char input_char = Serial.read();
+
+        if (input_char == ASCII_CTRL_C) {
+            reset_prompt = true;
+            log_writeln(F("<CTRL+C>"));
+            if (current_state.break_handler)
+                current_state.break_handler(&current_state);
+        } else {
+            if (current_state.break_handler)
+                log_writeln(F("Invalid input. Press <CTRL+C> to break."));
+            else
+                log_writeln(F("Invalid input. Please wait."));
+        }
+    }
+}
+
+static void process_all_input()
 {
     const char ASCII_CTRL_C = 3;
     const char ASCII_BACKSPACE = 8;
@@ -94,7 +133,6 @@ static void process_serial_input()
     static int command_args_nbytes = 0;
     static menu_item_t *pprev_menu_item = NULL;
     static bool have_command = false;
-    static bool reset_prompt = true;
 
     bool status_updated = false;
     static status_t previous_status = { 0 };
@@ -135,7 +173,7 @@ static void process_serial_input()
 
 #ifdef DEBUG_STATE
         if (current_state.name != NULL)
-            log_write(current_state.name);
+            log_write((const __FlashStringHelper *)current_state.name);
         else
             log_write(F("Unknown state"));
 #endif
@@ -247,13 +285,10 @@ void sm_init(void)
     menu_help();
     log_writeln(F("Ready."));
 
-    if (self_test_success) {
-        sm_state_t s = { .run = sm_motors_off_enter, .break_handler = NULL, .name = F("motors off enter"), .data = NULL };
-        sm_set_next_state(s);
-    } else {
-        sm_state_t s = { .run = sm_error_enter, .break_handler = NULL, .name = F("error enter"), .data = NULL };
-        sm_set_next_state(s);
-    }
+    if (self_test_success)
+        sm_set_next_state(sm_state_motors_off_enter);
+    else
+        sm_set_next_state(sm_state_error_enter);
     sm_execute();
 }
 
@@ -275,7 +310,7 @@ void sm_execute(void)
 #ifdef DEBUG_STATE
         if (current_state.name) {
             log_write(F("Leaving state "));
-            log_writeln(current_state.name);
+            log_writeln((const __FlashStringHelper *)current_state.name);
         }
 #endif
         current_state = next_state;
@@ -283,7 +318,7 @@ void sm_execute(void)
 #ifdef DEBUG_STATE
         if (current_state.name) {
             log_write(F("Entering state "));
-            log_writeln(current_state.name);
+            log_writeln((const __FlashStringHelper *)current_state.name);
         }
 #endif
 
@@ -292,7 +327,11 @@ void sm_execute(void)
 
     assert(current_state.run);
     current_state.run(&current_state);
-    process_serial_input();
+
+    if (current_state.process_break_only)
+        process_break_only();
+    else
+        process_all_input();
 }
 
 void sm_motors_off_enter(sm_state_t *state)
@@ -304,9 +343,7 @@ void sm_motors_off_enter(sm_state_t *state)
         motor_set_enabled(i, false);
     }
 
-    sm_state_t s = { .run = sm_motors_off_execute, .break_handler = NULL, .name = F("motors off"), .data = NULL };
-
-    sm_set_next_state(s);
+    sm_set_next_state(sm_state_motors_off_execute);
 }
 
 void sm_motors_off_execute(sm_state_t *state)
@@ -317,9 +354,8 @@ void sm_motors_off_execute(sm_state_t *state)
 void sm_motors_on_enter(sm_state_t *state)
 {
     assert(state);
-    sm_state_t s = { .run = sm_motors_on_execute, .break_handler = NULL, .name = F("motors on"), .data = NULL };
 
-    sm_set_next_state(s);
+    sm_set_next_state(sm_state_motors_on_execute);
 
     for (int i = 0; i < MOTOR_ID_COUNT; i++) {
         bool enabled = enabled_motors_mask & (1 << i);
@@ -346,9 +382,8 @@ void sm_error_enter(sm_state_t *state)
 
     motor_disable_all();
     motor_set_user_error(true);
-    sm_state_t s = { .run = sm_error_execute, .break_handler = NULL, .name = F("ERROR"), .data = NULL };
 
-    sm_set_next_state(s);
+    sm_set_next_state(sm_state_error_execute);
 }
 
 void sm_error_execute(sm_state_t *state)

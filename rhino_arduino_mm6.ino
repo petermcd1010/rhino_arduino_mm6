@@ -51,8 +51,7 @@ void loop()
 
     if (previous_check_system_integrity_ok && !check_system_integrity()) {
         previous_check_system_integrity_ok = false;
-        sm_state_t s = { .run = sm_error_enter, .break_handler = NULL, .name = F("ERROR"), .data = NULL };
-        sm_set_next_state(s);
+        sm_set_next_state(sm_state_error_enter);
         log_writeln(F("ERROR: System integrity check failed."));
     }
 

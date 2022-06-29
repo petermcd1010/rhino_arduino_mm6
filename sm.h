@@ -9,9 +9,14 @@
 typedef struct _sm_state_t {
     void (*run)(struct _sm_state_t *state);
     void (*break_handler)(struct _sm_state_t *state);  // May be NULL.
-    const __FlashStringHelper *name;
-    void *                     data;
+    bool                process_break_only; // When true, only processes CTRL+C.
+    const PROGMEM char *name;
+    void *              data;
 } sm_state_t;
+
+extern const sm_state_t sm_state_error_enter;
+extern const sm_state_t sm_state_motors_off_enter;
+extern const sm_state_t sm_state_motors_on_enter;
 
 typedef void (*sm_state_func)(void);
 

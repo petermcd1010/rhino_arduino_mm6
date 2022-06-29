@@ -443,7 +443,6 @@ static void wiggle(motor_id_t motor_id, int *forward_delta, int *reverse_delta)
     assert(forward_delta);
     assert(reverse_delta);
 
-
     int position1 = motor_get_encoder(motor_id);
 
     log_write(F("  %c: Reverse "), 'A' + motor_id);
@@ -489,7 +488,7 @@ bool motor_test(motor_id_t motor_id)
             motor_set_speed(motor_id, motor_test_speed);
         }
 
-        delay(500);
+        delay(1000);
 
         wiggle(motor_id, &forward_delta, &reverse_delta);
     }
@@ -651,7 +650,7 @@ static void check_home_switch(motor_id_t motor_id)
     bool home_triggered_debounced = motor_is_home_triggered_debounced(motor_id);
     bool home_triggered = motor_is_home_triggered(motor_id);
 
-    unsigned const debounce_delay_millis = 50;
+    unsigned const debounce_delay_millis = 100;
 
     if (home_triggered != motor->prev_home_triggered) {
         motor->prev_home_triggered = home_triggered;
@@ -665,10 +664,9 @@ static void check_home_switch(motor_id_t motor_id)
         home_triggered_debounced = home_triggered;
 
     // See if the home switch has changed from on to off or off to on.
-    // There are 4 different motor positions stored for the home switches.
-    //  - The On and Off locations when the motor is moving forward.
-    //  - The On and Off locations when the motor is moving reverse.
-    // The average value of these 4 positions is used as the center of "home".
+    // There are 4 different motor positions stored for the home switches:
+    //  - The on and off locations when the motor is moving forward.
+    //  - The on and off locations when the motor is moving reverse.
 
     if (home_triggered_debounced != motor->home_triggered_debounced) {
         int encoder = motor->prev_home_triggered_encoder;

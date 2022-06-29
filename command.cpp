@@ -210,6 +210,46 @@ int command_reboot(char *args, size_t args_nbytes)
     return 0;
 }
 
+int command_calibrate_gripper(char *args, size_t args_nbytes)
+{
+    assert(args);
+
+    motor_id_t motor_id = (motor_id_t)-1;
+    char *p = args;
+    size_t nbytes = parse_motor_id(p, args_nbytes, &motor_id);
+
+    args_nbytes -= nbytes;
+    p += nbytes;
+
+    int max_speed_percent = 100;
+
+    if (motor_id != (motor_id_t)-1) {
+        nbytes = parse_int(p, args_nbytes, &max_speed_percent);
+        args_nbytes -= nbytes;
+        p += nbytes;
+
+        if (args_nbytes > 0)
+            return -1;
+    }
+
+    if (args_nbytes > 0)
+        return -1;
+
+    if (motor_id == (motor_id_t)-1)
+        motor_id = MOTOR_ID_A;
+
+    if ((max_speed_percent < 0) || (max_speed_percent > 100)) {
+        log_writeln(F("Max speed percent must be between 0 and 100. Skipping calibration."));
+        return args - p;
+    }
+
+    log_writeln(F("Calibrating gripper on motor %c at %d%% of maximum speed."), 'A' + motor_id, max_speed_percent);
+
+    calibrate_gripper(motor_id, max_speed_percent);
+
+    return p - args;
+}
+
 int command_calibrate_home_and_limits(char *args, size_t args_nbytes)
 {
     assert(args);
@@ -318,13 +358,10 @@ int command_set_enabled_motors(char *args, size_t args_nbytes)
 
     sm_set_enabled_motors_mask(motor_ids_mask);
 
-    if (motor_ids_mask == 0) {
-        sm_state_t s = { .run = sm_motors_off_enter, .break_handler = NULL, .name = F("sm_motors_off_enter"), .data = NULL };
-        sm_set_next_state(s);
-    } else if (motor_ids_mask <= 0x3f) {
-        sm_state_t s = { .run = sm_motors_on_enter, .break_handler = NULL, .name = F("sm_motors_on_enter"), .data = NULL };
-        sm_set_next_state(s);
-    }
+    if (motor_ids_mask == 0)
+        sm_set_next_state(sm_state_motors_off_enter);
+    else if (motor_ids_mask <= 0x3f)
+        sm_set_next_state(sm_state_motors_on_enter);
 
 error:
     return nbytes;
@@ -338,7 +375,7 @@ int command_set_gripper_position(char *args, size_t args_nbytes)
     return -1;
 }
 
-static void go_home_break_handler(void)
+static void go_home_break_handler(sm_state_t *state)
 {
     log_writeln(F("Break detected. Stopping motors."));
 
@@ -358,9 +395,9 @@ static void go_home(sm_state_t *state)
     for (int i = 0; i < MOTOR_ID_COUNT; i++) {
         bool enabled = ((enabled_motors & (1 << i)) != 0);
         if (enabled) {
-            if (motor_get_target_encoder(i) != 0)
-                motor_set_target_encoder(i, 0);
-            if ((motor_get_encoder(i) != 0) || (!motor_is_home_triggered_debounced(i)))
+            if (motor_get_target_encoder((motor_id_t)i) != 0)
+                motor_set_target_encoder((motor_id_t)i, 0);
+            if ((motor_get_encoder((motor_id_t)i) != 0) || (!motor_is_home_triggered_debounced((motor_id_t)i)))
                 all_home = false;
         }
     }
@@ -394,7 +431,9 @@ int command_go_home(char *args, size_t args_nbytes)
     motor_set_enabled_mask(motor_ids_mask);
 
     exit_to_state = sm_get_state();
-    sm_state_t s = { .run = go_home, .break_handler = go_home_break_handler, .name = F("go_home"), .data = (void *)old_motor_ids_mask };
+
+    static const char state_go_home_name[] PROGMEM = "go home";
+    sm_state_t s = { .run = go_home, .break_handler = go_home_break_handler, .process_break_only = false, .name = state_go_home_name, .data = (void *)old_motor_ids_mask };
 
     sm_set_next_state(s);
 
@@ -431,7 +470,7 @@ int command_print_motor_status(char *args, size_t args_nbytes)
                     motor_state[i].home_triggered_debounced,  // home switch.
                     motor_state[i].progress,  // sta. Report whether or not the Motor has reached the target location.
                     /* motor_get_encoder(iMotor), */  // pos.
-                    motor_get_encoder(i) * config.motor[i].orientation,  // enc.
+                    motor_get_encoder((motor_id_t)i) * config.motor[i].orientation,  // enc.
                     motor_state[i].target_encoder * config.motor[i].orientation,  // tar.
                     motor_state[i].pid_perror * config.motor[i].orientation,  // err.
                     motor_state[i].speed * config.motor[i].orientation,  // spd.
@@ -534,7 +573,8 @@ int command_poll_pins(char *args, size_t args_nbytes)
 
     exit_to_state = sm_get_state();
 
-    sm_state_t s = { .run = poll_pins, .break_handler = poll_pins_break_handler, .name = F("poll_pins"), .data = NULL };
+    static const char state_poll_pins_name[] PROGMEM = "poll pins";
+    const sm_state_t s = { .run = poll_pins, .break_handler = poll_pins_break_handler, .process_break_only = true, .name = state_poll_pins_name, .data = NULL };
 
     sm_set_next_state(s);
 

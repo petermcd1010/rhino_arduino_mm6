@@ -26,6 +26,15 @@ static void start(void);
 static void run(void);
 static void stop(void);
 
+static const char state_waypoint_start_name[] PROGMEM = "waypoint_start";
+static const char state_waypoint_run_name[] PROGMEM = "waypoint_stop";
+static const char state_waypoint_stop_name[] PROGMEM = "waypoint_run";
+
+static const sm_state_t state_waypoint_start = { .run = start, .break_handler = break_handler, .process_break_only = true, .name = state_waypoint_start_name, .data = NULL };
+static const sm_state_t state_waypoint_run = { .run = run, .break_handler = break_handler, .process_break_only = true, .name = state_waypoint_run_name, .data = NULL };
+static const sm_state_t state_waypoint_stop = { .run = stop, .break_handler = break_handler, .process_break_only = true, .name = state_waypoint_stop_name, .data = NULL };
+
+
 int waypoint_get_max_count(void)
 {
     int start_address = 0;
@@ -266,18 +275,16 @@ void waypoint_run(int start_index, int count)
     steps_remaining = count;
 
     exit_to_state = sm_get_state();
-    sm_state_t s = { .run = start, .break_handler = break_handler, .name = F("waypoint start"), .data = NULL };
 
-    sm_set_next_state(s);
+    sm_set_next_state(state_waypoint_start);
 }
 
 static void break_handler(void)
 {
     log_writeln(F("Break detected. Stopping waypoint sequence."));
     motor_disable_all();
-    sm_state_t s = { .run = stop, .break_handler = NULL, .name = F("waypoint stop"), .data = NULL };
 
-    sm_set_next_state(s);
+    sm_set_next_state(state_waypoint_stop);
 }
 
 void start(void)
@@ -290,9 +297,8 @@ void start(void)
     }
 
     log_writeln(F("Execuing waypoint sequence. Press <CTRL+C> to stop."));
-    sm_state_t s = { .run = run, .break_handler = break_handler, .name = F("waypoint run"), .data = NULL };
 
-    sm_set_next_state(s);
+    sm_set_next_state(state_waypoint_run);
 }
 
 static bool check_progress(waypoint_t waypoint)
@@ -353,8 +359,7 @@ static void run(void)
 
     if ((current_index >= waypoint_get_max_count()) || (steps_remaining == 0)) {
         prev_waypoint_index = -1;
-        sm_state_t s = { .run = stop, .break_handler = NULL, .name = F("waypoint stop"), .data = NULL };
-        sm_set_next_state(s);
+        sm_set_next_state(state_waypoint_stop);
         return;
     }
 
