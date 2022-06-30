@@ -737,6 +737,8 @@ int command_waypoint_run(char *args, size_t args_nbytes)
     if (args_nbytes > 0)
         return -1;
 
+    log_writeln(F("Running waypoint sequence. Type <CTRL+C> to stop."));
+
     waypoint_run(start_step, count);
 
     return p - args;
