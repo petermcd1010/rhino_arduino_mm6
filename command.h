@@ -14,7 +14,6 @@ int command_config_robot_name(char *args, size_t args_nbytes);
 int command_reverse_motor_orientation(char *args, size_t args_nbytes);
 int command_config_write(char *args, size_t args_nbytes);
 int command_reboot(char *args, size_t args_nbytes);
-int command_calibrate_gripper(char *args, size_t args_nbytes);
 int command_calibrate_home_and_limits(char *args, size_t args_nbytes);
 int command_calibrate_home(char *args, size_t args_nbytes);
 int command_calibrate_motors(char *args, size_t args_nbytes);

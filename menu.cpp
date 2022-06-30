@@ -185,8 +185,6 @@ static const menu_item_t main_menu[] = {
 
 static const char CM_C[] PROGMEM = "calibrate home switches and limits";
 static const char CH_C[] PROGMEM = "[motorids [max-speed-percent]] -- Calibrate home switches and motor limits; calibrates enabled motors if none given.";
-static const char CM_G[] PROGMEM = "calibrate gripper";
-static const char CH_G[] PROGMEM = "[motorid [max-speed-percent]] -- Calibrate gripper; calibrates A motor if none given.";
 static const char CM_O[] PROGMEM = "calibrate home switches";
 static const char CH_O[] PROGMEM = "[motorids [max-speed-percent]] -- Calibrate home switches; calibrates enabled motors if none given.";
 static const char CM_X[] PROGMEM = "exit calibration menu";
@@ -197,7 +195,6 @@ const menu_item_t calibration_menu[] = {
     { '0', MM_0,    NULL, NULL,      false, command_config_write,              MH_0    },
     { 'C', CM_C,    NULL, NULL,      true,  command_calibrate_home_and_limits, CH_C    },
     { 'E', MM_E,    NULL, NULL,      true,  command_set_enabled_motors,        MH_E    },
-    { 'G', CM_G,    NULL, NULL,      true,  command_calibrate_gripper,         CH_G    },
     { 'H', MM_H,    NULL, NULL,      true,  command_go_home,                   MH_H    },
     { 'O', CM_O,    NULL, NULL,      true,  command_calibrate_home,            CH_O    },
     { 'M', MM_M,    NULL, NULL,      true,  command_print_motor_status,        MH_M    },

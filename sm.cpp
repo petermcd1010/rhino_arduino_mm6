@@ -13,7 +13,8 @@
 #include "parse.h"
 #include "sm.h"
 
-#define DEBUG_STATE
+// Uncomment the following line to add 'Leaving state [name]' and 'Entering state [name]' logs.
+// #define DEBUG_STATE
 
 sm_state_t current_state;
 sm_state_t next_state;
@@ -158,11 +159,12 @@ static void process_all_input()
 
         for (int i = 0; i < MOTOR_ID_COUNT; i++) {
             if (motor_get_enabled((motor_id_t)i)) {
-                char angle_str[15];
-                dtostrf(status.motor[i].angle, 3, 2, angle_str);
+                // TODO: Print angle when it makes sense.
+                // char angle_str[15];
+                // dtostrf(status.motor[i].angle, 3, 1, angle_str);
                 char motor_name = (status.motor[i].switch_triggered ? 'A' : 'a') + i;
 
-                log_write(F("%c:%s,%d,%d "), motor_name, angle_str, motor_get_current((motor_id_t)i), motor_state[i].pid_perror);
+                log_write(F("%c:%d "), motor_name, motor_get_encoder((motor_id_t)i));
             }
         }
 

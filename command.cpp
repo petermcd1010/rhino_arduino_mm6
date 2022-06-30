@@ -210,46 +210,6 @@ int command_reboot(char *args, size_t args_nbytes)
     return 0;
 }
 
-int command_calibrate_gripper(char *args, size_t args_nbytes)
-{
-    assert(args);
-
-    motor_id_t motor_id = (motor_id_t)-1;
-    char *p = args;
-    size_t nbytes = parse_motor_id(p, args_nbytes, &motor_id);
-
-    args_nbytes -= nbytes;
-    p += nbytes;
-
-    int max_speed_percent = 100;
-
-    if (motor_id != (motor_id_t)-1) {
-        nbytes = parse_int(p, args_nbytes, &max_speed_percent);
-        args_nbytes -= nbytes;
-        p += nbytes;
-
-        if (args_nbytes > 0)
-            return -1;
-    }
-
-    if (args_nbytes > 0)
-        return -1;
-
-    if (motor_id == (motor_id_t)-1)
-        motor_id = MOTOR_ID_A;
-
-    if ((max_speed_percent < 0) || (max_speed_percent > 100)) {
-        log_writeln(F("Max speed percent must be between 0 and 100. Skipping calibration."));
-        return args - p;
-    }
-
-    log_writeln(F("Calibrating gripper on motor %c at %d%% of maximum speed."), 'A' + motor_id, max_speed_percent);
-
-    calibrate_gripper(motor_id, max_speed_percent);
-
-    return p - args;
-}
-
 int command_calibrate_home_and_limits(char *args, size_t args_nbytes)
 {
     assert(args);
@@ -286,7 +246,12 @@ int command_calibrate_home_and_limits(char *args, size_t args_nbytes)
         return args - p;
     }
 
-    log_writeln(F("Calibrating motors %d at %d%% of maximum speed."), motor_ids_mask, max_speed_percent);
+    log_write(F("Calibrating motors "));
+    for (int i = 0; i < MOTOR_ID_COUNT; i++) {
+        if (motor_ids_mask & (1 << i))
+            log_write(F("%c"), 'A' + i);
+    }
+    log_writeln(F(" at %d%% of maximum speed."), max_speed_percent);
 
     calibrate_home_switch_and_limits(motor_ids_mask, max_speed_percent);
 
