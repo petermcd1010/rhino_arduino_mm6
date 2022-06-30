@@ -17,7 +17,9 @@ static int motor_ids_mask = 0;
 static motor_id_t motor_id = (motor_id_t)-1;
 static int prev_max_speed_percent = 0;
 static int max_speed_percent = 0;
+static uint8_t prev_gripper_motor_id = MOTOR_ID_COUNT;
 
+static bool is_gripper = false;
 static int stalled_start_encoder = 0;
 static unsigned long stalled_start_millis = 0;
 static int home_forward_on_encoder = 0;
@@ -99,7 +101,7 @@ static bool is_stalled(motor_id_t motor_id, int *stalled_start_encoder, unsigned
     return ret;
 }
 
-static bool is_gripper(int *gripper_home_center)
+static bool is_gripper_and_get_home_center(int *gripper_home_center)
 {
     assert(gripper_home_center);
 
@@ -112,6 +114,7 @@ static bool is_gripper(int *gripper_home_center)
         ((home_forward_off_encoder == INT_MAX) != (home_reverse_off_encoder == INT_MIN))) {
         int avg = 0;
 
+        // Divide before adding to avoid overflow.
         if (home_forward_on_encoder != INT_MAX)
             avg = home_forward_on_encoder / 2;
         else
@@ -122,6 +125,7 @@ static bool is_gripper(int *gripper_home_center)
         else
             avg += home_reverse_off_encoder / 2;
 
+        // Set gripper home switch center to whichever encoder min/max the switch is closest to.
         if (abs(max_encoder - avg) < abs(min_encoder - avg))
             *gripper_home_center = max_encoder;
         else
@@ -244,6 +248,7 @@ static void calibrate_one_enter(sm_state_t *state)
     assert(state);
     assert((motor_id >= MOTOR_ID_A) && (motor_id < MOTOR_ID_COUNT));
 
+    is_gripper = false;
     stalled_start_encoder = 0;
     stalled_start_millis = millis();
     home_forward_on_encoder = INT_MAX;
@@ -256,6 +261,9 @@ static void calibrate_one_enter(sm_state_t *state)
     max_encoder = INT_MAX;
 
     motor_set_enabled(motor_id, true);
+
+    prev_gripper_motor_id = config.gripper_motor_id;
+    config_set_gripper_motor_id((motor_id_t)MOTOR_ID_COUNT);  // Set to no motor.
 
     log_writeln(F("Calibrating motor %c: Running initial motor test and checking motor polarity."), 'A' + motor_id);
     if (!motor_test(motor_id)) {
@@ -364,7 +372,8 @@ static void calibrate_one_forward(sm_state_t *state)
     } else if (!calibrate_limits && (home_forward_on_encoder != INT_MAX) && (home_forward_off_encoder != INT_MAX)) {
         transition_to_calibrate_one_reverse();
     } else if (is_stalled(motor_id, &stalled_start_encoder, &stalled_start_millis, 500)) {
-        if (is_gripper(&gripper_home_center)) {
+        if (is_gripper_and_get_home_center(&gripper_home_center)) {
+            is_gripper = true;
             home_forward_on_encoder = home_forward_off_encoder = home_reverse_on_encoder = home_reverse_off_encoder = gripper_home_center;
             sm_set_next_state(state_calibrate_one_go_home);
         } else {
@@ -429,7 +438,7 @@ static void calibrate_one_reverse(sm_state_t *state)
     } else if (!calibrate_limits && (home_reverse_on_encoder != INT_MIN) && (home_reverse_off_encoder != INT_MIN)) {
         transition_to_calibrate_one_forward();
     } else if (is_stalled(motor_id, &stalled_start_encoder, &stalled_start_millis, 500)) {
-        if (is_gripper(&gripper_home_center)) {
+        if (is_gripper_and_get_home_center(&gripper_home_center)) {
             home_forward_on_encoder = home_forward_off_encoder = home_reverse_on_encoder = home_reverse_off_encoder = gripper_home_center;
             sm_set_next_state(state_calibrate_one_go_home);
         } else {
@@ -478,8 +487,13 @@ static void calibrate_one_go_home(sm_state_t *state)
                 config_set_motor_min_max_encoders(motor_id, min_encoder, max_encoder);
             }
 
+            if (is_gripper) {
+                log_writeln(F("Calibrating motor %c: Setting gripper to motor %c."), 'A' + motor_id, 'A' + motor_id);
+                prev_gripper_motor_id = motor_id;  // config_one_done calls config_set_gripper_motor_id(prev_gripper_motor_id).
+            }
+
             log_writeln(F("Calibrating motor %c: Motor arrived at home position (encoder 0)."), 'A' + motor_id);
-            log_writeln(F("Calibrating motor %c: Calibration for motor %c passed. *PLEASE SAVE CALIBRATION*"), 'A' + motor_id);
+            log_writeln(F("Calibrating motor %c: Calibration for motor %c passed. *PLEASE SAVE CALIBRATION*"), 'A' + motor_id, 'A' + motor_id);
             config_set_motor_home_encoders(motor_id, home_forward_on_encoder, home_forward_off_encoder, home_reverse_on_encoder, home_reverse_off_encoder);
 
             sm_set_next_state(state_calibrate_one_done);
@@ -546,8 +560,8 @@ static void calibrate_one_done(sm_state_t *state)
     motor_state[motor_id].home_reverse_on_encoder = INT_MIN;
     motor_state[motor_id].home_reverse_off_encoder = INT_MIN;
 
+    config_set_gripper_motor_id(prev_gripper_motor_id);
     motor_set_max_speed_percent(motor_id, prev_max_speed_percent);
-    motor_set_enabled(motor_id, false);
     motor_id = (motor_id_t)((int)motor_id + 1);
 
     sm_set_next_state(state_calibrate_all);

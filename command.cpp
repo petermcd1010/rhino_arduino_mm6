@@ -332,14 +332,6 @@ error:
     return nbytes;
 }
 
-int command_set_gripper_position(char *args, size_t args_nbytes)
-{
-    // TODO: Implement command_set_gripper_position.
-    assert(false);
-
-    return -1;
-}
-
 static void go_home_break_handler(sm_state_t *state)
 {
     log_writeln(F("Break detected. Stopping motors."));
@@ -644,6 +636,46 @@ int command_test_motors(char *args, size_t args_nbytes)
 
 error:
     return -1;
+}
+
+int command_open_gripper(char *args, size_t args_nbytes)
+{
+    assert(args);
+    assert((config.gripper_motor_id >= 0) && (config.gripper_motor_id <= MOTOR_ID_COUNT));  // MOTOR_ID_COUNT means not configured, so is OK.
+
+    size_t nbytes = parse_whitespace(args, args_nbytes);
+
+    if (nbytes != args_nbytes)
+        return -1;
+
+    motor_id_t gripper_motor_id = (motor_id_t)config.gripper_motor_id;
+
+    if (gripper_motor_id == MOTOR_ID_COUNT) {
+        log_writeln(F("No gripper motor configured. Run calibration and retry."));
+        return args_nbytes;
+    }
+
+    motor_set_target_encoder(gripper_motor_id, config.motor[gripper_motor_id].max_encoder);
+}
+
+int command_close_gripper(char *args, size_t args_nbytes)
+{
+    assert(args);
+    assert((config.gripper_motor_id >= 0) && (config.gripper_motor_id <= MOTOR_ID_COUNT));  // MOTOR_ID_COUNT means not configured, so is OK.
+
+    size_t nbytes = parse_whitespace(args, args_nbytes);
+
+    if (nbytes != args_nbytes)
+        return -1;
+
+    motor_id_t gripper_motor_id = (motor_id_t)config.gripper_motor_id;
+
+    if (gripper_motor_id == MOTOR_ID_COUNT) {
+        log_writeln(F("No gripper motor configured. Run calibration and retry."));
+        return args_nbytes;
+    }
+
+    motor_set_target_encoder(gripper_motor_id, config.motor[gripper_motor_id].min_encoder);
 }
 
 int command_print_software_version(char *args, size_t args_nbytes)

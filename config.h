@@ -51,8 +51,7 @@ typedef struct __attribute__((packed)) {
     char robot_serial[CONFIG_ROBOT_SERIAL_NBYTES];  // To help user confirm board/robot match.
     char robot_name[CONFIG_ROBOT_NAME_NBYTES];  // Optional robot name for user.
     config_motor_t motor[MOTOR_ID_COUNT];
-    int gripper_open_encoder;
-    int gripper_close_encoder;
+    uint8_t gripper_motor_id;
 } config_t;
 
 extern config_t config;
@@ -67,11 +66,10 @@ void config_set_robot_serial(char robot_serial[CONFIG_ROBOT_SERIAL_NBYTES]);
 void config_set_robot_name(char robot_name[CONFIG_ROBOT_NAME_NBYTES]);
 void config_set_motor_orientation(motor_id_t motor_id, motor_orientation_t motor_orientation);
 void config_set_motor_forward_polarity(motor_id_t motor_id, int low_or_high);
-void config_set_motor_gripper_open_encoder(int encoder);
-void config_set_motor_gripper_close_encoder(int encoder);
 void config_set_motor_angle_offsets(int B, int C, int D, int E, int F);
 void config_set_motor_min_max_encoders(motor_id_t motor_id, int min_encoder, int max_encoder);
 void config_set_motor_home_encoders(motor_id_t motor_id, int home_forward_on_encoder, int home_forward_off_encoder, int home_reverse_on_encoder, int home_reverse_off_encoder);
 void config_set_motor_stall_current_threshold(motor_id_t motor_id, int stall_current_threshold);
+void config_set_gripper_motor_id(motor_id_t motor_id);
 void config_print(void);
 bool config_test(void);

@@ -793,34 +793,29 @@ ISR(TIMER1_COMPA_vect) {
         // apply tension on whatever it is gripping.
         //==========================================================
 
-        if (true) {  // motor_id > MOTOR_ID_A) {
+        if (motor_id != config.gripper_motor_id) {
             // For Motors other than the gripper, High Current means
-            // that the motor is in a stall situation.  To unstall,
+            // that the motor is in a stall situation. To unstall,
             // the target position is set back a bit from the
             // current position.
 
+            const int destall_delta = 50;
             if (motor_state[motor_id].current > config.motor[motor_id].stall_current_threshold) {
                 if (motor_state[motor_id].previous_direction == 1)
-                    motor_state[motor_id].target_encoder = noinit_data.motor[motor_id].encoder - 50;
+                    motor_state[motor_id].target_encoder = noinit_data.motor[motor_id].encoder - destall_delta;
                 else if (motor_state[motor_id].previous_direction == -1)
-                    motor_state[motor_id].target_encoder = noinit_data.motor[motor_id].encoder + 50;
+                    motor_state[motor_id].target_encoder = noinit_data.motor[motor_id].encoder + destall_delta;
                 motor_state[motor_id].current = 0;  // Prevent retriggering until next time current is read.
                 motor_state[motor_id].stall_triggered = true;
             }
-        } else {
-            if (motor_state[motor_id].current > 100) {
-                // Motor A is a special case where High Current
-                // means that the Gripper is gripping someting.
-                // Set gripper tension on MotorA by setting
-                // the Target Position to the Currernt Position.
-                // This will cause the PWM to drop to off.
-                //   AND if the relaxed gripper opens a little,
-                //     it will turn back on but at a much lower
-                //       PWM duty cycle.
-                Gripper_StallC = motor_state[motor_id].current;
-                Gripper_StallE = noinit_data.motor[motor_id].encoder;
-                Gripper_StallX++;
-            }
+        } else if (motor_state[motor_id].current > 100) {
+            // The gripper motor is a special case where high curren means that the gripper is gripping
+            // something. Create gripper pressure on by setting the target position to the currernt
+            // position. This will cause the PWM to drop to off, and if the relaxed gripper opens a
+            // little, it will turn back on but at a much lower PWM duty cycle.
+            Gripper_StallC = motor_state[motor_id].current;
+            Gripper_StallE = noinit_data.motor[motor_id].encoder;
+            Gripper_StallX++;
         }
 
         //==========================================================

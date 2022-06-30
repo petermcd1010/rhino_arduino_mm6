@@ -155,13 +155,8 @@ bool config_check()
         }
     }
 
-    if ((config.gripper_open_encoder < min_count) || (config.gripper_open_encoder > max_count)) {
-        log_writeln(F("ERROR: config_check: Invalid gripper_open."));
-        ret = false;
-    }
-
-    if ((config.gripper_close_encoder < min_count) || (config.gripper_close_encoder > max_count)) {
-        log_writeln(F("ERROR: config_check: Invalid gripper_open."));
+    if ((config.gripper_motor_id < 0) || (config.gripper_motor_id > MOTOR_ID_COUNT)) {
+        log_writeln(F("ERROR: config_check: Invalid gripper motor id."));
         ret = false;
     }
 
@@ -183,8 +178,7 @@ void config_clear()
         config.motor[i].home_reverse_off_encoder = INT_MIN;
         config.motor[i].stall_current_threshold = 200;
     }
-    config.gripper_open_encoder = -130;
-    config.gripper_close_encoder = -310;
+    config.gripper_motor_id = MOTOR_ID_COUNT;
     config_sign();
 }
 
@@ -237,24 +231,6 @@ void config_set_motor_forward_polarity(motor_id_t motor_id, int high_or_low)
     config_sign();
 }
 
-void config_set_motor_gripper_open_encoder(int encoder)
-{
-    // TODO: assert encoder is in valid range.
-
-    assert(config_check());
-    config.gripper_open_encoder = encoder;
-    config_sign();
-}
-
-void config_set_motor_gripper_close_encoder(int encoder)
-{
-    // TODO: assert encoder is in valid range.
-
-    assert(config_check());
-    config.gripper_close_encoder = encoder;
-    config_sign();
-}
-
 void config_set_motor_angle_offsets(int B, int C, int D, int E, int F)
 {
     config.motor[MOTOR_ID_B].angle_offset = B;
@@ -295,6 +271,15 @@ void config_set_motor_stall_current_threshold(motor_id_t motor_id, int stall_cur
     config_sign();
 }
 
+void config_set_gripper_motor_id(motor_id_t motor_id)
+{
+    // Allow motor_id == MOTOR_ID_COUNT, so calibration can set no motor as the gripper motor.
+    assert((motor_id >= 0) && (motor_id <= MOTOR_ID_COUNT));
+
+    config.gripper_motor_id = motor_id;
+    config_sign();
+}
+
 void config_print()
 {
     if (!config_check())
@@ -324,10 +309,11 @@ void config_print()
         log_writeln(F("           Stall current threshold: %d."), motor->stall_current_threshold);
     }
 
-    log_writeln(F("  Gripper open encoder: %d."), config.gripper_open_encoder);
-    log_writeln(F("  Gripper close encoder: %d."), config.gripper_close_encoder);
-
-    log_writeln(F("  Validated %d stored waypoints."), waypoint_get_used_count());
+    if (config.gripper_motor_id != MOTOR_ID_COUNT)
+        log_writeln(F("  Gripper motor: Motor %c."), 'A' + config.gripper_motor_id);
+    else
+        log_writeln(F("  Gripper motor: Not determined. Run calibration."));
+    log_writeln(F("  Waypoints: %d of maximum %d waypoints saved."), waypoint_get_used_count(), waypoint_get_max_count());
 }
 
 bool config_test()

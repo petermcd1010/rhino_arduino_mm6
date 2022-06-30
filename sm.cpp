@@ -22,10 +22,10 @@ sm_state_t next_state;
 static int enabled_motors_mask = 0;
 static bool reset_prompt = true;
 
-static const char sm_state_motors_off_enter_name[] PROGMEM = "motors off";
+static const char sm_state_motors_off_enter_name[] PROGMEM = "motors off";  // Keep as 'motors off', so the prompt isn't confusing to the user.
 static const char sm_state_motors_off_execute_name[] PROGMEM = "motors off";
-static const char sm_state_motors_on_enter_name[] PROGMEM = "motors on";
-static const char sm_state_motors_on_execute_name[] PROGMEM = "motors on";
+static const char sm_state_motors_on_enter_name[] PROGMEM = "motors on enter";
+static const char sm_state_motors_on_execute_name[] PROGMEM = "motors on execute";
 static const char sm_state_error_name[] PROGMEM = "ERROR";
 
 const sm_state_t sm_state_motors_off_enter = { .run = sm_motors_off_enter, .break_handler = NULL, .process_break_only = false, .name = sm_state_motors_off_enter_name, .data = NULL };
@@ -75,9 +75,9 @@ static bool run_self_test()
 
 // Used for status messages.
 typedef struct {
-    float angle;
-    bool  switch_triggered;
-    bool  thermal_overload_detected;
+    int  encoder;
+    bool switch_triggered;
+    bool thermal_overload_detected;
 } motor_status_t;
 
 typedef struct {
@@ -89,7 +89,7 @@ static void gather_status(status_t *pstatus)
     assert(pstatus);
 
     for (int i = 0; i < MOTOR_ID_COUNT; i++) {
-        pstatus->motor[i].angle = motor_get_angle((motor_id_t)i);
+        pstatus->motor[i].encoder = motor_get_encoder((motor_id_t)i);
         pstatus->motor[i].switch_triggered = motor_is_home_triggered((motor_id_t)i);
         pstatus->motor[i].thermal_overload_detected = motor_get_thermal_overload_detected((motor_id_t)i);
         motor_clear_thermal_overload((motor_id_t)i);
@@ -158,8 +158,11 @@ static void process_all_input()
             log_write(F("%s: "), config.robot_name);
 
         if (current_state.name != NULL) {
-            log_write((const __FlashStringHelper *)current_state.name);
-            log_write(F(" "));
+            // Don't print 'motors on', as it's redundant with the motor_name and encoder outputs in the for loop below.
+            if ((current_state.run != sm_motors_on_enter) && (current_state.run != sm_motors_on_execute)) {
+                log_write((const __FlashStringHelper *)current_state.name);
+                log_write(F(" "));
+            }
         } else {
             log_write(F("Unknown state "));
         }
@@ -171,7 +174,7 @@ static void process_all_input()
                 // dtostrf(status.motor[i].angle, 3, 1, angle_str);
                 char motor_name = (status.motor[i].switch_triggered ? 'A' : 'a') + i;
 
-                log_write(F("%c:%d "), motor_name, motor_get_encoder((motor_id_t)i));
+                log_write(F("%c:%d "), motor_name, status.motor[i].encoder);
             }
         }
 
