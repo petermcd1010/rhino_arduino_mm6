@@ -291,6 +291,10 @@ void config_print()
     log_writeln(F("."));
     log_writeln(F("  Robot serial: '%s'."), config.robot_serial);
     log_writeln(F("  Robot name: '%s'."), config.robot_name);
+    if (config.gripper_motor_id != MOTOR_ID_COUNT)
+        log_writeln(F("  Gripper motor: Motor %c."), 'A' + config.gripper_motor_id);
+    else
+        log_writeln(F("  Gripper motor: Not configured. Run calibration."));
 
     char str[15] = {};
 
@@ -309,10 +313,6 @@ void config_print()
         log_writeln(F("           Stall current threshold: %d."), motor->stall_current_threshold);
     }
 
-    if (config.gripper_motor_id != MOTOR_ID_COUNT)
-        log_writeln(F("  Gripper motor: Motor %c."), 'A' + config.gripper_motor_id);
-    else
-        log_writeln(F("  Gripper motor: Not determined. Run calibration."));
     log_writeln(F("  Waypoints: %d of maximum %d waypoints saved."), waypoint_get_used_count(), waypoint_get_max_count());
 }
 

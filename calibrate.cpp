@@ -488,8 +488,11 @@ static void calibrate_one_go_home(sm_state_t *state)
             }
 
             if (is_gripper) {
-                log_writeln(F("Calibrating motor %c: Setting gripper to motor %c."), 'A' + motor_id, 'A' + motor_id);
+                log_writeln(F("Calibrating motor %c: Setting gripper to motor %c. *PLEASE SAVE CALIBRATION*"), 'A' + motor_id, 'A' + motor_id);
                 prev_gripper_motor_id = motor_id;  // config_one_done calls config_set_gripper_motor_id(prev_gripper_motor_id).
+            } else if (prev_gripper_motor_id == motor_id) {
+                log_writeln(F("Calibrating motor %c: Gripper was set to motor %c. Setting gripper as not configured. *PLEASE SAVE CALIBRATION*"), 'A' + motor_id, 'A' + motor_id);
+                prev_gripper_motor_id = MOTOR_ID_COUNT;  // config_one_done calls config_set_gripper_motor_id(prev_gripper_motor_id).
             }
 
             log_writeln(F("Calibrating motor %c: Motor arrived at home position (encoder 0)."), 'A' + motor_id);
