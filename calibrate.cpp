@@ -488,15 +488,15 @@ static void calibrate_one_go_home(sm_state_t *state)
             }
 
             if (is_gripper) {
-                log_writeln(F("Calibrating motor %c: Setting gripper to motor %c. *PLEASE SAVE CALIBRATION*"), 'A' + motor_id, 'A' + motor_id);
+                log_writeln(F("Calibrating motor %c: Configuring gripper to motor %c. *PLEASE WRITE CONFIGURATION*"), 'A' + motor_id, 'A' + motor_id);
                 prev_gripper_motor_id = motor_id;  // config_one_done calls config_set_gripper_motor_id(prev_gripper_motor_id).
             } else if (prev_gripper_motor_id == motor_id) {
-                log_writeln(F("Calibrating motor %c: Gripper was set to motor %c. Setting gripper as not configured. *PLEASE SAVE CALIBRATION*"), 'A' + motor_id, 'A' + motor_id);
+                log_writeln(F("Calibrating motor %c: Gripper was set to motor %c. Setting gripper as not configured. *PLEASE WRITE CONFIGURATION*"), 'A' + motor_id, 'A' + motor_id);
                 prev_gripper_motor_id = MOTOR_ID_COUNT;  // config_one_done calls config_set_gripper_motor_id(prev_gripper_motor_id).
             }
 
             log_writeln(F("Calibrating motor %c: Motor arrived at home position (encoder 0)."), 'A' + motor_id);
-            log_writeln(F("Calibrating motor %c: Calibration for motor %c passed. *PLEASE SAVE CALIBRATION*"), 'A' + motor_id, 'A' + motor_id);
+            log_writeln(F("Calibrating motor %c: Calibration for motor %c passed. *PLEASE WRITE CONFIGURATION*"), 'A' + motor_id, 'A' + motor_id);
             config_set_motor_home_encoders(motor_id, home_forward_on_encoder, home_forward_off_encoder, home_reverse_on_encoder, home_reverse_off_encoder);
 
             sm_set_next_state(state_calibrate_one_done);
@@ -563,7 +563,7 @@ static void calibrate_one_done(sm_state_t *state)
     motor_state[motor_id].home_reverse_on_encoder = INT_MIN;
     motor_state[motor_id].home_reverse_off_encoder = INT_MIN;
 
-    config_set_gripper_motor_id(prev_gripper_motor_id);
+    config_set_gripper_motor_id(prev_gripper_motor_id);  // TODO: Fix motor will remain configed as MOTOR_ID_COUNT if CTRL+C during calibration.
     motor_set_max_speed_percent(motor_id, prev_max_speed_percent);
     motor_id = (motor_id_t)((int)motor_id + 1);
 

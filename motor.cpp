@@ -31,19 +31,14 @@ static const motor_pinout_t motor_pinout[MOTOR_ID_COUNT] = {
     { 51, 9,  50, A10, 52,  38, 36, 37 }, // Motor F.
 };
 
-motor_state_t motor_state[MOTOR_ID_COUNT] = { 0 };  // Intentionally not static.
+motor_state_t motor_state[MOTOR_ID_COUNT] = { 0 };  // Intentionally not static, so can be accessed globally.
 
 // The speed sign bit is used to set the LMD18200 direction pin. So the PWM register accepts 0-255 for + and -.
 static const int motor_min_speed = -255;
 static const int motor_max_speed = 255;
-
 static const int motor_min_pwm = 55;
+
 static int enabled_motors_mask = 0;
-static int Motor_PID[MOTOR_ID_COUNT] = { 0, 0, 0, 0, 0, 0 };  // PID on or off.
-static int Gripper_StallC = 0;
-static int Gripper_StallE = 0;
-static int Gripper_StallX = 0;
-static int SyncMove_Status = 0;
 
 // Configuration stored in RAM and saved across reset/reboot that don't include a power-cycle of the board.
 
@@ -778,13 +773,13 @@ ISR(TIMER1_COMPA_vect) {
 
     //==========================================================
     // See if the Motor PID needs to be turned on.
-    if (Motor_PID[motor_id] == 1230) {
+    if (false) {
         // The IntMotor PID is NOT running.
         // ( =1230 instead of =0 is just to kill the routine for now because it isn't doing what it needs to do.)
         motor_state[motor_id].pid_dvalue = 0;  // Clear the PID DValue for this motor.
         int intMDiff = abs(motor_state[motor_id].target_encoder - noinit_data.motor[motor_id].encoder);
-        if (intMDiff > 3)
-            Motor_PID[motor_id] = 1;   // Turn on the PID for this Motor.
+        // if (intMDiff > 3)
+        //    Motor_PID[motor_id] = 1;   // Turn on the PID for this Motor.
     } else {
         // Brakes are not on - so the IntMotor is running.
         //==========================================================
@@ -808,14 +803,22 @@ ISR(TIMER1_COMPA_vect) {
                 motor_state[motor_id].current = 0;  // Prevent retriggering until next time current is read.
                 motor_state[motor_id].stall_triggered = true;
             }
-        } else if (motor_state[motor_id].current > 100) {
-            // The gripper motor is a special case where high curren means that the gripper is gripping
+        } else if (motor_state[motor_id].current > 150) {
+            // The gripper motor is a special case where high current means that the gripper is gripping
             // something. Create gripper pressure on by setting the target position to the currernt
             // position. This will cause the PWM to drop to off, and if the relaxed gripper opens a
             // little, it will turn back on but at a much lower PWM duty cycle.
-            Gripper_StallC = motor_state[motor_id].current;
-            Gripper_StallE = noinit_data.motor[motor_id].encoder;
-            Gripper_StallX++;
+
+            static int gripper_stall_encoder = INT_MAX;
+            static unsigned long gripper_stall_start_ms = 0;
+
+            if (abs(noinit_data.motor[motor_id].encoder - gripper_stall_encoder) > 3) {
+                gripper_stall_encoder = noinit_data.motor[motor_id].encoder;
+                gripper_stall_start_ms = millis();
+            } else if (millis() - gripper_stall_start_ms > 250) {
+                motor_state[motor_id].target_encoder = noinit_data.motor[motor_id].encoder;
+                gripper_stall_start_ms = millis();
+            }
         }
 
         //==========================================================

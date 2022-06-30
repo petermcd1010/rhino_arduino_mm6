@@ -52,7 +52,7 @@ void loop()
     if (previous_check_system_integrity_ok && !check_system_integrity()) {
         previous_check_system_integrity_ok = false;
         sm_set_next_state(sm_state_error_enter);
-        log_writeln(F("ERROR: System integrity check failed."));
+        log_writeln(F("ERROR: System integrity check failed. Reboot or power-cycle system."));
     }
 
     sm_execute();
