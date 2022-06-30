@@ -88,7 +88,6 @@ static bool is_stalled(motor_id_t motor_id, int *stalled_start_encoder, unsigned
 
     if (((ms - *stalled_start_millis) >= stalled_duration_millis)) {
         const int stalled_check_encoder_count = 5;
-        // log_writeln(F("ms:%lu, encoder:%d, stalled_check_start_encoder:%d"), ms, encoder, stalled_start_encoder);
         if (abs(encoder - *stalled_start_encoder) <= stalled_check_encoder_count) {
             log_writeln(F("Calibrating motor %c: Stalled at encoder %d for > %lu ms."), 'A' + motor_id, encoder, stalled_duration_millis);
             ret = true;
@@ -112,7 +111,6 @@ static bool is_gripper(int *gripper_home_center)
     if (((home_forward_on_encoder == INT_MAX) != (home_reverse_on_encoder == INT_MIN)) &&
         ((home_forward_off_encoder == INT_MAX) != (home_reverse_off_encoder == INT_MIN))) {
         int avg = 0;
-        LOG_DEBUG(F("is_gripper: min=%d, max=%d, fon=%d foff=%d ron=%d roff=%d"), min_encoder, max_encoder, home_forward_on_encoder, home_forward_off_encoder, home_reverse_on_encoder, home_reverse_off_encoder);
 
         if (home_forward_on_encoder != INT_MAX)
             avg = home_forward_on_encoder / 2;
@@ -128,8 +126,6 @@ static bool is_gripper(int *gripper_home_center)
             *gripper_home_center = max_encoder;
         else
             *gripper_home_center = min_encoder;
-
-        LOG_DEBUG(F("gripper_home_center = %d"), *gripper_home_center);
 
         return true;
     }
@@ -191,7 +187,7 @@ static void update_status(motor_id_t motor_id)
                 log_write(F("Heading home, "));
         }
 
-        log_writeln(F("encoder %d. current %d"), encoder * config.motor[motor_id].orientation, motor_get_current(motor_id));
+        log_writeln(F("encoder %d."), encoder * config.motor[motor_id].orientation);
         print_ms = millis();
     }
 
@@ -483,7 +479,7 @@ static void calibrate_one_go_home(sm_state_t *state)
             }
 
             log_writeln(F("Calibrating motor %c: Motor arrived at home position (encoder 0)."), 'A' + motor_id);
-            log_writeln(F("Calibrating motor %c: Calibration for motor %c passed."), 'A' + motor_id);
+            log_writeln(F("Calibrating motor %c: Calibration for motor %c passed. *PLEASE SAVE CALIBRATION*"), 'A' + motor_id);
             config_set_motor_home_encoders(motor_id, home_forward_on_encoder, home_forward_off_encoder, home_reverse_on_encoder, home_reverse_off_encoder);
 
             sm_set_next_state(state_calibrate_one_done);

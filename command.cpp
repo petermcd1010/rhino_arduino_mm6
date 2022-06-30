@@ -371,10 +371,10 @@ static void go_home(sm_state_t *state)
         for (int i = 0; i < MOTOR_ID_COUNT; i++) {
             bool enabled = ((enabled_motors & (1 << i)) != 0);
             if (enabled && (!motor_is_home_triggered_debounced((motor_id_t)i)))
-                log_writeln(F("WARNING: Motor %c arrived home, but home switch not triggered.."), 'A' + i);
+                log_writeln(F("WARNING: Motor %c arrived home, but home switch not triggered."), 'A' + i);
         }
 
-        log_writeln(F("Commanded or enabled motors at home position."));
+        log_writeln(F("Go home completed."));
         motor_set_enabled_mask((int)state->data);
         sm_set_next_state(exit_to_state);
     }

@@ -22,10 +22,10 @@ sm_state_t next_state;
 static int enabled_motors_mask = 0;
 static bool reset_prompt = true;
 
-static const char sm_state_motors_off_enter_name[] PROGMEM = "sm motors off enter";
-static const char sm_state_motors_off_execute_name[] PROGMEM = "sm motors off execute";
-static const char sm_state_motors_on_enter_name[] PROGMEM = "sm motors on enter";
-static const char sm_state_motors_on_execute_name[] PROGMEM = "sm motors on execute";
+static const char sm_state_motors_off_enter_name[] PROGMEM = "motors off";
+static const char sm_state_motors_off_execute_name[] PROGMEM = "motors off";
+static const char sm_state_motors_on_enter_name[] PROGMEM = "motors on";
+static const char sm_state_motors_on_execute_name[] PROGMEM = "motors on";
 static const char sm_state_error_name[] PROGMEM = "ERROR";
 
 const sm_state_t sm_state_motors_off_enter = { .run = sm_motors_off_enter, .break_handler = NULL, .process_break_only = false, .name = sm_state_motors_off_enter_name, .data = NULL };
@@ -155,7 +155,14 @@ static void process_all_input()
         reset_prompt = false;
 
         if (strlen(config.robot_name) != 0)
-            log_write(F("%s "), config.robot_name);
+            log_write(F("%s: "), config.robot_name);
+
+        if (current_state.name != NULL) {
+            log_write((const __FlashStringHelper *)current_state.name);
+            log_write(F(" "));
+        } else {
+            log_write(F("Unknown state "));
+        }
 
         for (int i = 0; i < MOTOR_ID_COUNT; i++) {
             if (motor_get_enabled((motor_id_t)i)) {
@@ -168,12 +175,6 @@ static void process_all_input()
             }
         }
 
-#ifdef DEBUG_STATE
-        if (current_state.name != NULL)
-            log_write((const __FlashStringHelper *)current_state.name);
-        else
-            log_write(F("Unknown state"));
-#endif
         log_write(F("> "));
 
         memcpy(&previous_status, &status, sizeof(status_t));
