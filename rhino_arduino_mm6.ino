@@ -35,7 +35,8 @@ static bool check_system_integrity()
                 log_writeln(F("ERROR: motor %c error %d:"), 'A' + i, motor_state[i].error_flags);
                 motor_log_errors((motor_id_t)i);
             }
-            ok = false;
+            if (motor_state[i].error_flags != 0) // See TODO in motor_log_errors about quadrature encoder mistriggers.
+                ok = false;
         }
     }
 

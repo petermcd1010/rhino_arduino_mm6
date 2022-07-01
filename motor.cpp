@@ -157,6 +157,8 @@ bool motor_get_thermal_overload_detected(motor_id_t motor_id)
 
     if (motor_state[motor_id].error_flags & MOTOR_ERROR_FLAG_THERMAL_OVERLOAD_DETECTED)
         return true;
+
+    return false;
 }
 
 bool motor_get_thermal_overload_detected(void)
@@ -392,8 +394,9 @@ void motor_set_speed(motor_id_t motor_id, int speed)
     if (speed == 0) {
         motor_state[motor_id].pwm = 0;
     } else {
-        unsigned int pwm = abs(speed);
-        unsigned int max_pwm = abs(motor_state[motor_id].max_speed);
+        // TODO: Cleanup/refactor speed, max_speed to be 0-100.
+        unsigned int pwm = abs(speed) + motor_min_pwm;
+        unsigned int max_pwm = abs(motor_state[motor_id].max_speed) + motor_min_pwm;
         pwm = (pwm > max_pwm) ? max_pwm : pwm;
         pwm = (pwm < motor_min_pwm) ? motor_min_pwm : pwm;
         motor_state[motor_id].pwm = pwm;
@@ -578,8 +581,12 @@ void motor_log_errors(motor_id_t motor_id)
 
     if (ef & MOTOR_ERROR_FLAG_THERMAL_OVERLOAD_DETECTED)
         log_writeln(F("Motor %c thermal overload detected."), 'A' + motor_id);
-    if (ef & MOTOR_ERROR_FLAG_INVALID_ENCODER_TRANSITION)
+    if (ef & MOTOR_ERROR_FLAG_INVALID_ENCODER_TRANSITION) {
+        // Log these, but clear them for now.
+        // TODO: These shouldn't happen when moving at high speed, but are.
         log_writeln(F("Motor %c invalid quadrature encoder transition."), 'A' + motor_id);
+        motor_state[motor_id].error_flags &= ~MOTOR_ERROR_FLAG_INVALID_ENCODER_TRANSITION;
+    }
     if (ef & MOTOR_ERROR_FLAG_OPPOSITE_DIRECTION)
         log_writeln(F("Motor %c direction opposite of expectation."), 'A' + motor_id);
     if (ef & MOTOR_ERROR_FLAG_UNEXPECTED_HOME_SWITCH_ENCODER)
@@ -803,7 +810,7 @@ ISR(TIMER1_COMPA_vect) {
                 motor_state[motor_id].current = 0;  // Prevent retriggering until next time current is read.
                 motor_state[motor_id].stall_triggered = true;
             }
-        } else if (motor_state[motor_id].current > 150) {
+        } else if (motor_state[motor_id].current > config.motor[motor_id].stall_current_threshold) {
             // The gripper motor is a special case where high current means that the gripper is gripping
             // something. Create gripper pressure on by setting the target position to the currernt
             // position. This will cause the PWM to drop to off, and if the relaxed gripper opens a

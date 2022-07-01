@@ -521,13 +521,13 @@ static void calibrate_one_go_home(sm_state_t *state)
             }
 
             log_writeln(F("Calibrating motor %c: Motor arrived at home position (encoder 0)."), 'A' + motor_id);
-            log_writeln(F("Calibrating motor %c: Calibration for motor %c passed. *WRITE CONFIGURATION*"), 'A' + motor_id, 'A' + motor_id);
+            log_writeln(F("Calibrating motor %c: Calibration for motor %c ** PASSED **. *WRITE CONFIGURATION*"), 'A' + motor_id, 'A' + motor_id);
             config_set_motor_home_encoders(motor_id, home_forward_on_encoder, home_forward_off_encoder, home_reverse_on_encoder, home_reverse_off_encoder);
 
             sm_set_next_state(state_calibrate_one_done);
         }
     } else if (is_stalled(motor_id, &stalled_start_encoder, &stalled_start_millis, 5 * 1000)) {
-        log_writeln(F("Calibrating motor %c: Motor is stalled at encoder %d. Calibration for motor %c failed."), 'A' + motor_id, encoder, 'A' + motor_id);
+        log_writeln(F("Calibrating motor %c: Motor is stalled at encoder %d. Calibration for motor %c ** FAILED **."), 'A' + motor_id, encoder, 'A' + motor_id);
         sm_set_next_state(state_calibrate_one_failed);
     }
 }
@@ -545,7 +545,7 @@ static void calibrate_one_failed(sm_state_t *state)
                 home_forward_off_encoder,
                 home_reverse_on_encoder,
                 home_reverse_off_encoder);
-    log_writeln(F("Calibrating motor %c: Calibration for motor %c failed."), 'A' + motor_id, 'A' + motor_id);
+    log_writeln(F("Calibrating motor %c: Calibration for motor %c ** FAILED **."), 'A' + motor_id, 'A' + motor_id);
 
     if ((ntimes_found_min_encoder > 0) && (ntimes_found_max_encoder > 0)) {
         sm_set_next_state(state_calibrate_one_failed_center);
@@ -572,7 +572,7 @@ static void calibrate_one_failed_center(sm_state_t *state)
         log_writeln(F("Calibrating motor %c: Motor arrived at midpoint %d between min and max encoders."), 'A' + motor_id, midpoint);
         sm_set_next_state(state_calibrate_one_done);
     } else if (is_stalled(motor_id, &stalled_start_encoder, &stalled_start_millis, 5 * 1000)) {
-        log_writeln(F("Calibrating motor %c: Motor stalled attempting to move to midpoint %d between min and max encoders. Centering for motor %c failed."), 'A' + motor_id, midpoint, 'A' + motor_id);
+        log_writeln(F("Calibrating motor %c: Motor stalled attempting to move to midpoint %d between min and max encoders. Centering for motor %c ** FAILED **."), 'A' + motor_id, midpoint, 'A' + motor_id);
         sm_set_next_state(state_calibrate_one_done);
     }
 }
