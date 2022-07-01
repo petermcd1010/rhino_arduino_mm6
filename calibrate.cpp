@@ -354,7 +354,7 @@ static void calibrate_one_forward(sm_state_t *state)
                 log_writeln(F("Calibrating motor %c: Forward direction, encoder %d, forward home switch on."), 'A' + motor_id, motor_get_encoder(motor_id));
             } else {
                 // Erase previously found forward_off encoder values.
-                log_writeln(F("Calibrating motor %c: Forward direction, encoder %d, forward home switch on, erasing previous forward home switch off."), 'A' + motor_id, motor_get_encoder(motor_id));
+                log_writeln(F("Calibrating motor %c: Forward direction, encoder %d, forward home switch on, forgetting previous forward home switch off."), 'A' + motor_id, motor_get_encoder(motor_id));
                 home_forward_off_encoder = INT_MAX;
                 motor_state[motor_id].home_forward_off_encoder = INT_MAX;
             }
@@ -432,7 +432,7 @@ static void calibrate_one_reverse(sm_state_t *state)
                 log_writeln(F("Calibrating motor %c: Reverse direction, encoder %d, reverse home switch on."), 'A' + motor_id, motor_get_encoder(motor_id));
             } else {
                 // Erase previously found home_reverse_off_encoder values.
-                log_writeln(F("Calibrating motor %c: Reverse direction, encoder %d, reverse home switch on, erasing previous reverse home switch off."), 'A' + motor_id, motor_get_encoder(motor_id));
+                log_writeln(F("Calibrating motor %c: Reverse direction, encoder %d, reverse home switch on, forgetting previous reverse home switch off."), 'A' + motor_id, motor_get_encoder(motor_id));
                 home_reverse_off_encoder = INT_MIN;
                 motor_state[motor_id].home_reverse_off_encoder = INT_MIN;
             }
@@ -513,15 +513,15 @@ static void calibrate_one_go_home(sm_state_t *state)
             }
 
             if (is_gripper) {
-                log_writeln(F("Calibrating motor %c: Configuring gripper to motor %c. *PLEASE WRITE CONFIGURATION*"), 'A' + motor_id, 'A' + motor_id);
+                log_writeln(F("Calibrating motor %c: Configuring gripper to motor %c. *WRITE CONFIGURATION*"), 'A' + motor_id, 'A' + motor_id);
                 prev_gripper_motor_id = motor_id;  // config_one_done calls config_set_gripper_motor_id(prev_gripper_motor_id).
             } else if (prev_gripper_motor_id == motor_id) {
-                log_writeln(F("Calibrating motor %c: Gripper was set to motor %c. Setting gripper as not configured. *PLEASE WRITE CONFIGURATION*"), 'A' + motor_id, 'A' + motor_id);
+                log_writeln(F("Calibrating motor %c: Gripper was set to motor %c. Setting gripper as not configured. *WRITE CONFIGURATION*"), 'A' + motor_id, 'A' + motor_id);
                 prev_gripper_motor_id = MOTOR_ID_COUNT;  // config_one_done calls config_set_gripper_motor_id(prev_gripper_motor_id).
             }
 
             log_writeln(F("Calibrating motor %c: Motor arrived at home position (encoder 0)."), 'A' + motor_id);
-            log_writeln(F("Calibrating motor %c: Calibration for motor %c passed. *PLEASE WRITE CONFIGURATION*"), 'A' + motor_id, 'A' + motor_id);
+            log_writeln(F("Calibrating motor %c: Calibration for motor %c passed. *WRITE CONFIGURATION*"), 'A' + motor_id, 'A' + motor_id);
             config_set_motor_home_encoders(motor_id, home_forward_on_encoder, home_forward_off_encoder, home_reverse_on_encoder, home_reverse_off_encoder);
 
             sm_set_next_state(state_calibrate_one_done);

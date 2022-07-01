@@ -24,7 +24,7 @@ static void extended_menu_config_robot_id(void)
         log_writeln(F("."));
     }
     log_writeln(F("Select new robot ID, or press [RETURN] to keep current robot ID."));
-    log_write(F("> "));
+    log_write(F(">"));
 }
 
 static void extended_menu_config_robot_serial(void)
@@ -32,7 +32,7 @@ static void extended_menu_config_robot_serial(void)
     log_writeln(F(""));
     log_writeln(F("Current robot serial is '%s'."), config.robot_serial);
     log_writeln(F("Enter new robot serial, or press [RETURN] to keep current serial."));
-    log_write(F("> "));
+    log_write(F(">"));
 }
 
 static void extended_menu_config_robot_name(void)
@@ -40,14 +40,14 @@ static void extended_menu_config_robot_name(void)
     log_writeln(F(""));
     log_writeln(F("Current robot name is '%s'."), config.robot_name);
     log_writeln(F("Enter new robot name shorter than %d characters, or press [RETURN] to keep current name."), CONFIG_ROBOT_NAME_NBYTES);
-    log_write(F("> "));
+    log_write(F(">"));
 }
 
 static void extended_menu_factory_reset(void)
 {
     log_writeln(F(""));
     log_writeln(F("Type 'RESET' in all capital letters to clear the EEPROM and reboot the system or <CTRL+C> to exit."));
-    log_write(F("> "));
+    log_write(F(">"));
 }
 
 static void extended_menu_reboot(void)
