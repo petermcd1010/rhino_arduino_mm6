@@ -434,7 +434,7 @@ bool motor_is_home_triggered_debounced(motor_id_t motor_id)
 static void half_wiggle(motor_id_t motor_id, int speed)
 {
     assert((motor_id >= 0) && (motor_id < MOTOR_ID_COUNT));
-    const int delay_ms = 50;
+    const int delay_ms = 100;
 
     motor_set_speed(motor_id, speed);
     log_write(F("on, "));

@@ -362,7 +362,7 @@ static void go_home(sm_state_t *state)
     if (all_home) {
         for (int i = 0; i < MOTOR_ID_COUNT; i++) {
             bool enabled = ((enabled_motors & (1 << i)) != 0);
-            if (enabled && (!motor_is_home_triggered_debounced((motor_id_t)i)))
+            if (enabled && (config.gripper_motor_id != i) && (!motor_is_home_triggered_debounced((motor_id_t)i)))
                 log_writeln(F("WARNING: Motor %c arrived home, but home switch not triggered."), 'A' + i);
         }
 
