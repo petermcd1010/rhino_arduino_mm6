@@ -272,7 +272,9 @@ void sm_init(void)
         config_clear();
     } else {
         log_writeln(F("Read %d bytes of configuration data from Arduino EEPROM. Configuration is valid."), sizeof(config_t));
-        log_writeln(F("Configured for '%s'."), config_robot_name_by_id[config.robot_id]);
+        log_write(F("Configured for '"));
+        log_write((const __FlashStringHelper *)config_robot_name_by_id[config.robot_id]);
+        log_writeln(F("'."));
     }
 
     bool self_test_success = run_self_test();
