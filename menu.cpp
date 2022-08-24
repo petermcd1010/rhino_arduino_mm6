@@ -194,21 +194,22 @@ static const char CM_X[] PROGMEM = "exit calibration menu";
 static const char CH_X[] PROGMEM = "-- Exit calibration menu.";
 
 const menu_item_t calibration_menu[] = {
-    { '1', MM_1,    NULL, NULL,      false, command_print_config,              MH_1    },
-    { '0', MM_0,    NULL, NULL,      false, command_config_write,              MH_0    },
-    { 'C', CM_C,    NULL, NULL,      true,  command_calibrate_home_and_limits, CH_C    },
-    { 'E', MM_E,    NULL, NULL,      true,  command_set_enabled_motors,        MH_E    },
-    { 'H', MM_H,    NULL, NULL,      true,  command_go_home,                   MH_H    },
-    { 'M', MM_M,    NULL, NULL,      true,  command_print_motor_status,        MH_M    },
+    { '1', MM_1,    NULL,                 NULL,      false, command_print_config,              MH_1    },
+    { '0', MM_0,    NULL,                 NULL,      false, command_config_write,              MH_0    },
+    { 'B', MM_B,    extended_menu_reboot, NULL,      true,  command_reboot,                    MH_B    },
+    { 'C', CM_C,    NULL,                 NULL,      true,  command_calibrate_home_and_limits, CH_C    },
+    { 'E', MM_E,    NULL,                 NULL,      true,  command_set_enabled_motors,        MH_E    },
+    { 'H', MM_H,    NULL,                 NULL,      true,  command_go_home,                   MH_H    },
+    { 'M', MM_M,    NULL,                 NULL,      true,  command_print_motor_status,        MH_M    },
     // { 'N', MM_N,    NULL, NULL,      true,  command_set_motor_angle,           MH_N    },   // TODO.
-    { 'O', MM_O,    NULL, NULL,      false, command_open_gripper,              MH_O    },
-    { 'P', MM_P,    NULL, NULL,      true,  command_set_motor_encoder,         MH_P    },
-    { 'T', MM_T,    NULL, NULL,      true,  command_test_motors,               MH_T    },
-    { 'V', MM_V,    NULL, NULL,      false, command_close_gripper,             MH_V    },
-    { 'W', CM_W,    NULL, NULL,      true,  command_calibrate_home,            CH_W    },
-    { 'X', CM_X,    NULL, main_menu, false, NULL,                              CH_X    },
-    { '!', MM_BANG, NULL, NULL,      false, command_emergency_stop,            MH_BANG },
-    { '?', MM_HELP, NULL, NULL,      false, command_print_help,                MH_HELP },
+    { 'O', MM_O,    NULL,                 NULL,      false, command_open_gripper,              MH_O    },
+    { 'P', MM_P,    NULL,                 NULL,      true,  command_set_motor_encoder,         MH_P    },
+    { 'T', MM_T,    NULL,                 NULL,      true,  command_test_motors,               MH_T    },
+    { 'V', MM_V,    NULL,                 NULL,      false, command_close_gripper,             MH_V    },
+    { 'W', CM_W,    NULL,                 NULL,      true,  command_calibrate_home,            CH_W    },
+    { 'X', CM_X,    NULL,                 main_menu, false, NULL,                              CH_X    },
+    { '!', MM_BANG, NULL,                 NULL,      false, command_emergency_stop,            MH_BANG },
+    { '?', MM_HELP, NULL,                 NULL,      false, command_print_help,                MH_HELP },
     { 0 }  // Terminate menus with an entry filled with zeros.
 };
 
