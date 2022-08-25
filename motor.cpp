@@ -437,15 +437,16 @@ bool motor_is_home_triggered_debounced(motor_id_t motor_id)
 static void half_wiggle(motor_id_t motor_id, int speed)
 {
     assert((motor_id >= 0) && (motor_id < MOTOR_ID_COUNT));
-    const int delay_ms = 25;
+    const int move_delay_ms = 25;
+    const int stop_delay_ms = 75;
 
     motor_set_speed(motor_id, speed);
     log_write(F("on, "));
-    delay(delay_ms);  // Short Delay to allow the motor to move.
+    delay(move_delay_ms);  // Short Delay to allow the motor to move.
 
     motor_set_speed(motor_id, 0);
     log_write(F("off. "));
-    delay(delay_ms);  // Short Delay to allow the motor to stop.
+    delay(stop_delay_ms);  // Short Delay to allow the motor to stop.
 }
 
 const int motor_test_speed = 255 - motor_min_pwm;
@@ -477,7 +478,6 @@ bool motor_test(motor_id_t motor_id)
 {
     assert((motor_id >= 0) && (motor_id < MOTOR_ID_COUNT));
 
-    bool was_enabled = motor_get_enabled(motor_id);
     int forward_delta = 0;
     int reverse_delta = 0;
 
@@ -486,7 +486,10 @@ bool motor_test(motor_id_t motor_id)
         delay(250);  // Wait for motor to come to rest if it's moving.
     }
 
-    motor_set_enabled(motor_id, true);
+    // Disable all motors other than the one we are testing, as enabling other motors
+    // increases probability of this test being flakey.
+    int prev_motor_enabled_mask = motor_get_enabled_mask();
+    motor_set_enabled_mask(1 << motor_id);
 
     wiggle(motor_id, &forward_delta, &reverse_delta);
 
@@ -501,12 +504,13 @@ bool motor_test(motor_id_t motor_id)
             motor_set_speed(motor_id, motor_test_speed);
         }
 
-        delay(1000);
+        delay(250);
 
         wiggle(motor_id, &forward_delta, &reverse_delta);
     }
 
-    motor_set_enabled(motor_id, was_enabled);
+    motor_set_enabled(motor_id, false);
+    motor_set_enabled_mask(prev_motor_enabled_mask);
 
     const __FlashStringHelper *pfailure_message = NULL;
 

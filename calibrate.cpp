@@ -222,7 +222,7 @@ void calibrate_home_switch(int in_motor_ids_mask, int in_max_speed_percent)
 
     calibrate_limits = false;
     motor_ids_mask = in_motor_ids_mask;
-    motor_id = 0;
+    motor_id = (motor_id_t)0;
     max_speed_percent = in_max_speed_percent;
     exit_motor_ids_mask = motor_get_enabled_mask();
     exit_to_state = sm_get_state();
@@ -264,7 +264,8 @@ static void calibrate_one_enter(sm_state_t *state)
     min_encoder = INT_MIN;
     max_encoder = INT_MAX;
 
-    motor_set_enabled(motor_id, true);
+    motor_set_enabled_mask(1 << motor_id);  // Enable only the motor being calibrated.
+    motor_set_home_encoder(motor_id, motor_get_encoder(motor_id));
 
     prev_gripper_motor_id = config.gripper_motor_id;
     config_set_gripper_motor_id((motor_id_t)MOTOR_ID_COUNT);  // Set to no motor.
@@ -564,15 +565,16 @@ static void calibrate_one_failed_center(sm_state_t *state)
     int midpoint = min_encoder / 2 + max_encoder / 2;
 
     if (motor_get_target_encoder(motor_id) != midpoint) {
+        log_writeln(F("Calibrating motor %c: Commanding motor to midpoint between min and max encoders (encoder %d) to mitigate failed calibration."), 'A' + motor_id, midpoint);
         stalled_start_millis = millis();
         motor_set_target_encoder(motor_id, midpoint);
     }
 
     if (motor_get_encoder(motor_id) == midpoint) {
-        log_writeln(F("Calibrating motor %c: Motor arrived at midpoint %d between min and max encoders."), 'A' + motor_id, midpoint);
+        log_writeln(F("Calibrating motor %c: Arrived at midpoint between min and max encoders (encoder %d)."), 'A' + motor_id, midpoint);
         sm_set_next_state(state_calibrate_one_done);
     } else if (is_stalled(motor_id, &stalled_start_encoder, &stalled_start_millis, 5 * 1000)) {
-        log_writeln(F("Calibrating motor %c: Motor stalled attempting to move to midpoint %d between min and max encoders. Centering for motor %c ** FAILED **."), 'A' + motor_id, midpoint, 'A' + motor_id);
+        log_writeln(F("Calibrating motor %c: Stalled on way to midpoint between min and max encoders (encoder %d). ** FAILED **."), 'A' + motor_id, midpoint);
         sm_set_next_state(state_calibrate_one_done);
     }
 }
@@ -581,6 +583,9 @@ static void calibrate_one_done(sm_state_t *state)
 {
     assert(state);
     assert((motor_id >= MOTOR_ID_A) && (motor_id < MOTOR_ID_COUNT));
+
+    motor_set_enabled(motor_id, false);
+
     update_status(motor_id);
 
     motor_state[motor_id].home_forward_on_encoder = INT_MAX;
@@ -590,6 +595,7 @@ static void calibrate_one_done(sm_state_t *state)
 
     config_set_gripper_motor_id((motor_id_t)prev_gripper_motor_id);  // TODO: Fix motor will remain configed as MOTOR_ID_COUNT if CTRL+C during calibration.
     motor_set_max_speed_percent(motor_id, prev_max_speed_percent);
+
     motor_id = (motor_id_t)((int)motor_id + 1);
 
     sm_set_next_state(state_calibrate_all);
