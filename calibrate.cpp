@@ -8,6 +8,7 @@
 #include "config.h"
 #include "log.h"
 #include "motor.h"
+#include "motor_test.h"
 #include "sm.h"
 
 static int exit_motor_ids_mask = 0;

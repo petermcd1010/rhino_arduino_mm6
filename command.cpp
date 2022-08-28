@@ -11,6 +11,7 @@
 #include "log.h"
 #include "menu.h"
 #include "motor.h"
+#include "motor_test.h"
 #include "parse.h"
 #include "sm.h"
 #include "waypoint.h"
@@ -625,11 +626,9 @@ int command_test_motors(char *args, size_t args_nbytes)
             log_writeln(F("No motors enabled. Skipping test."));
             return nbytes;
         }
-        motor_test_enabled();
+        motor_test_mask(motor_get_enabled_mask());
     } else {
-        motor_set_enabled_mask(motor_ids_mask);
-        motor_test_enabled();
-        motor_set_enabled_mask(old_motor_ids_mask);
+        motor_test_mask(motor_ids_mask);
     }
 
     return nbytes;
