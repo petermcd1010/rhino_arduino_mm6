@@ -7,6 +7,27 @@
 #include "log.h"
 #include "motor.h"
 #include "motor_test.h"
+#include "sm.h"
+
+static void half_wiggle_state(sm_state_t *state);
+static void break_handler(sm_state_t *state);
+
+static const char state_half_wiggle_name[] PROGMEM = "calibrate all";
+static const sm_state_t state_half_wiggle = { .run = half_wiggle_state, .break_handler = break_handler, .process_break_only = true, .name = state_half_wiggle_name, .data = NULL };
+
+
+static void exit_sm(void)
+{
+    // motor_id = (motor_id_t)-1;
+    // motor_set_enabled_mask(0);  // Stop motors that may be moving.
+    // motor_set_enabled_mask(exit_motor_ids_mask);  // Re-enable motors enabled at start.
+    // sm_set_next_state(exit_to_state);
+}
+
+static void half_wiggle_state(sm_state_t *state)
+{
+
+}
 
 static void half_wiggle(motor_id_t motor_id, int speed)
 {
@@ -139,4 +160,11 @@ void motor_test_mask(int motor_ids_mask)
     motor_set_enabled_mask(exit_motor_ids_mask);  // Re-enable motors enabled at start.
 
     log_writeln(F("Done testing motors."));
+}
+
+static void break_handler(sm_state_t *state)
+{
+    assert(state);
+    log_writeln(F("Break detected. Stopping calibration."));
+    exit_sm();
 }
