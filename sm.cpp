@@ -157,6 +157,9 @@ static void process_all_input()
         if (strlen(config.robot_name) != 0)
             log_write(F("%s: "), config.robot_name);
 
+        if (config_modified())
+            log_write(F("*CONFIG MODIFIED* "));
+
         if (current_state.name != NULL) {
             // Don't print 'motors on', as it's redundant with the motor_name and encoder outputs in the for loop below.
             if ((current_state.run != sm_motors_on_enter) && (current_state.run != sm_motors_on_execute)) {

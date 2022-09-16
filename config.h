@@ -60,6 +60,7 @@ void config_get_waypoint_eeprom_region(int *base_address, int *nbytes);
 bool config_read(void);
 bool config_write(void);
 bool config_check(void);
+bool config_modified(void);
 void config_clear(void);
 void config_set_robot_id(config_robot_id_t robot_id);
 void config_set_robot_serial(char robot_serial[CONFIG_ROBOT_SERIAL_NBYTES]);

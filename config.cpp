@@ -40,6 +40,7 @@ static const int config_version = 1;
 static const int config_magic = 0x5678FEAD;
 
 config_t config = {};
+static bool modified = false;
 
 void config_get_waypoint_eeprom_region(int *base_address, int *nbytes)
 {
@@ -83,6 +84,7 @@ bool config_write()
         return false;
 
     EEPROM.put(config_base_address, config);  // Doesn't return success/failure indiction.
+    modified = false;
     return true;
 }
 
@@ -163,6 +165,11 @@ bool config_check()
     return ret;
 }
 
+bool config_modified()
+{
+    return modified;
+}
+
 void config_clear()
 {
     memset(&config, 0, sizeof(config_t));
@@ -180,6 +187,8 @@ void config_clear()
     }
     config.gripper_motor_id = MOTOR_ID_COUNT;
     config_sign();
+
+    modified = true;
 }
 
 void config_set_robot_id(config_robot_id_t robot_id)
@@ -190,6 +199,8 @@ void config_set_robot_id(config_robot_id_t robot_id)
     assert(config_check());
     config.robot_id = robot_id;
     config_sign();
+
+    modified = true;
 }
 
 void config_set_robot_serial(char robot_serial[CONFIG_ROBOT_SERIAL_NBYTES])
@@ -199,6 +210,8 @@ void config_set_robot_serial(char robot_serial[CONFIG_ROBOT_SERIAL_NBYTES])
     assert(config_check());
     memcpy(config.robot_serial, robot_serial, CONFIG_ROBOT_SERIAL_NBYTES);
     config_sign();
+
+    modified = true;
 }
 
 void config_set_robot_name(char robot_name[CONFIG_ROBOT_NAME_NBYTES])
@@ -208,6 +221,8 @@ void config_set_robot_name(char robot_name[CONFIG_ROBOT_NAME_NBYTES])
     assert(config_check());
     memcpy(config.robot_name, robot_name, CONFIG_ROBOT_NAME_NBYTES);
     config_sign();
+
+    modified = true;
 }
 
 void config_set_motor_orientation(motor_id_t motor_id, motor_orientation_t motor_orientation)
@@ -219,6 +234,8 @@ void config_set_motor_orientation(motor_id_t motor_id, motor_orientation_t motor
     assert(config_check());
     config.motor[motor_id].orientation = motor_orientation;
     config_sign();
+
+    modified = true;
 }
 
 void config_set_motor_forward_polarity(motor_id_t motor_id, int high_or_low)
@@ -229,6 +246,8 @@ void config_set_motor_forward_polarity(motor_id_t motor_id, int high_or_low)
     assert(config_check());
     config.motor[motor_id].forward_polarity = high_or_low;
     config_sign();
+
+    modified = true;
 }
 
 void config_set_motor_angle_offsets(int B, int C, int D, int E, int F)
@@ -244,6 +263,8 @@ void config_set_motor_angle_offsets(int B, int C, int D, int E, int F)
               config.motor[MOTOR_ID_B].angle_offset,
               config.motor[MOTOR_ID_B].angle_offset,
               config.motor[MOTOR_ID_B].angle_offset);
+
+    modified = true;
 }
 
 void config_set_motor_min_max_encoders(motor_id_t motor_id, int min_encoder, int max_encoder)
@@ -252,6 +273,8 @@ void config_set_motor_min_max_encoders(motor_id_t motor_id, int min_encoder, int
     config.motor[motor_id].min_encoder = min_encoder;
     config.motor[motor_id].max_encoder = max_encoder;
     config_sign();
+
+    modified = true;
 }
 
 void config_set_motor_home_encoders(motor_id_t motor_id, int home_forward_on_encoder, int home_forward_off_encoder, int home_reverse_on_encoder, int home_reverse_off_encoder)
@@ -262,6 +285,8 @@ void config_set_motor_home_encoders(motor_id_t motor_id, int home_forward_on_enc
     config.motor[motor_id].home_reverse_on_encoder = home_reverse_on_encoder;
     config.motor[motor_id].home_reverse_off_encoder = home_reverse_off_encoder;
     config_sign();
+
+    modified = true;
 }
 
 void config_set_motor_stall_current_threshold(motor_id_t motor_id, int stall_current_threshold)
@@ -269,6 +294,8 @@ void config_set_motor_stall_current_threshold(motor_id_t motor_id, int stall_cur
     assert(motor_id >= 0 && motor_id < MOTOR_ID_COUNT);
     config.motor[motor_id].stall_current_threshold = stall_current_threshold;
     config_sign();
+
+    modified = true;
 }
 
 void config_set_gripper_motor_id(motor_id_t motor_id)
@@ -278,6 +305,8 @@ void config_set_gripper_motor_id(motor_id_t motor_id)
 
     config.gripper_motor_id = motor_id;
     config_sign();
+
+    modified = true;
 }
 
 void config_print()
