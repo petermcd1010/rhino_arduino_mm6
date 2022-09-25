@@ -17,6 +17,9 @@ typedef enum {
     MOTOR_ID_COUNT,
 } motor_id_t;
 
+// Sum of all powers of 2 of an n-bit number is 2^n-1.
+#define MOTOR_IDS_MASK ((1 << MOTOR_ID_COUNT) - 1)
+
 typedef enum {
     MOTOR_PROGRESS_AT_TARGET = 0,
     MOTOR_PROGRESS_BESIDE_TARGET,  // Within 1 click.
@@ -26,11 +29,12 @@ typedef enum {
 } motor_progress_t;
 
 typedef enum {
-    MOTOR_ERROR_FLAG_USER_FLAG                      = 1 << 0, // Hacky way to indicate the state machine is in ERROR, so LED blinks accordingly.
-    MOTOR_ERROR_FLAG_THERMAL_OVERLOAD_DETECTED      = 1 << 1,
-    MOTOR_ERROR_FLAG_INVALID_ENCODER_TRANSITION     = 1 << 2, // only 0->1->3->2 and 0->2->3->1 are valid.
-    MOTOR_ERROR_FLAG_OPPOSITE_DIRECTION             = 1 << 3,
-    MOTOR_ERROR_FLAG_UNEXPECTED_HOME_SWITCH_ENCODER = 1 << 4,
+    MOTOR_ERROR_FLAG_USER_FLAG                                   = 1 << 0, // Hacky way to indicate the state machine is in ERROR, so LED blinks accordingly.
+    MOTOR_ERROR_FLAG_THERMAL_OVERLOAD_DETECTED                   = 1 << 1,
+    MOTOR_ERROR_FLAG_INVALID_ENCODER_TRANSITION                  = 1 << 2, // only 0->1->3->2 and 0->2->3->1 are valid.
+    MOTOR_ERROR_FLAG_OPPOSITE_DIRECTION                          = 1 << 3,
+    MOTOR_ERROR_FLAG_UNEXPECTED_HOME_SWITCH_ENCODER              = 1 << 4,
+    MOTOR_ERROR_FLAG_UNEXPECTED_STALL_CURRENT_THRESHOLD_EXCEEDED = 1 << 5,
 } motor_error_flag_t;
 
 // Mechanical orientation based on motor installation side.

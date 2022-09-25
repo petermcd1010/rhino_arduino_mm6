@@ -16,7 +16,7 @@ typedef struct {
     unsigned short out_pwm;            // Digital.
     unsigned short out_brake;          // Digital. LOW = disable brake. HIGH = enable brake.
     unsigned short in_current;         // Analog. 377uA/A. What's the resistance?
-    unsigned short in_thermal_overload;    // Digital. Becomes active at 145C. Chip shuts off at 170C.
+    unsigned short in_thermal_overload;  // Digital. Becomes active at 145C. Chip shuts off at 170C.
     unsigned short in_home_switch;     // Digital. LOW = home switch triggered. HIGH = home switch not triggered.
     unsigned short in_quadrature_encoder_a;  // Digital.
     unsigned short in_quadrature_encoder_b;  // Digital.
@@ -82,7 +82,7 @@ static void check_noinit_data(void)
     }
 }
 
-static void motor_init(motor_id_t motor_id)
+static void init_motor(motor_id_t motor_id)
 {
     assert((motor_id >= 0) && (motor_id < MOTOR_ID_COUNT));
 
@@ -93,8 +93,9 @@ static void motor_init(motor_id_t motor_id)
     digitalWrite(motor_pinout[motor_id].out_direction, config.motor[motor_id].forward_polarity);
 
     // Configure inputs.
-    pinMode(motor_pinout[motor_id].in_home_switch, INPUT_PULLUP);
+    pinMode(motor_pinout[motor_id].in_current, INPUT);
     pinMode(motor_pinout[motor_id].in_thermal_overload, INPUT_PULLUP);
+    pinMode(motor_pinout[motor_id].in_home_switch, INPUT_PULLUP);
     pinMode(motor_pinout[motor_id].in_quadrature_encoder_a, INPUT_PULLUP);
     pinMode(motor_pinout[motor_id].in_quadrature_encoder_b, INPUT_PULLUP);
 
@@ -118,7 +119,7 @@ void motor_init_all(void)
 {
     check_noinit_data();
     for (int i = 0; i < MOTOR_ID_COUNT; i++) {
-        motor_init((motor_id_t)i);
+        init_motor((motor_id_t)i);
     }
 
     // Timer setup: Allows preceise timed measurements of the quadrature encoder.
@@ -183,7 +184,11 @@ int motor_get_current(motor_id_t motor_id)
     assert((motor_id >= 0) && (motor_id < MOTOR_ID_COUNT));
 
     // LMD18200 datasheet says 377uA/A. What's the resistance?
-    return analogRead(motor_pinout[motor_id].in_current);  // 0 - 1023.
+    int a = analogRead(motor_pinout[motor_id].in_current);  // 0 - 1023.
+
+    pinMode(motor_pinout[motor_id].in_current, INPUT);
+
+    return a;
 }
 
 bool motor_stall_triggered(motor_id_t motor_id)
@@ -278,12 +283,6 @@ void motor_set_home_encoder(motor_id_t motor_id, int home_encoder)
 void motor_set_target_encoder(motor_id_t motor_id, int encoder)
 {
     assert((motor_id >= 0) && (motor_id < MOTOR_ID_COUNT));
-
-    // TODO: assert valid encoder?
-    if (!motor_get_enabled(motor_id)) {
-        LOG_ERROR(F("Motor %c not enabled."), 'A' + motor_id);
-        return;
-    }
 
     if (motor_get_target_encoder(motor_id) == encoder)
         return;
@@ -470,17 +469,21 @@ void motor_log_errors(motor_id_t motor_id)
         return;
 
     if (ef & MOTOR_ERROR_FLAG_THERMAL_OVERLOAD_DETECTED)
-        log_writeln(F("Motor %c thermal overload detected."), 'A' + motor_id);
+        log_writeln(F("ERROR: Motor %c thermal overload detected."), 'A' + motor_id);
     if (ef & MOTOR_ERROR_FLAG_INVALID_ENCODER_TRANSITION) {
         // Log these, but clear them for now.
         // TODO: These shouldn't happen when moving at high speed, but are.
-        log_writeln(F("Motor %c invalid quadrature encoder transition."), 'A' + motor_id);
+        log_writeln(F("ERROR: Motor %c invalid quadrature encoder transition."), 'A' + motor_id);
         motor_state[motor_id].error_flags &= ~MOTOR_ERROR_FLAG_INVALID_ENCODER_TRANSITION;
     }
     if (ef & MOTOR_ERROR_FLAG_OPPOSITE_DIRECTION)
-        log_writeln(F("Motor %c direction opposite of expectation."), 'A' + motor_id);
+        log_writeln(F("ERROR: Motor %c direction opposite of expectation."), 'A' + motor_id);
     if (ef & MOTOR_ERROR_FLAG_UNEXPECTED_HOME_SWITCH_ENCODER)
-        log_writeln(F("Motor %c unexpected home switch encoder."), 'A' + motor_id);
+        log_writeln(F("ERROR: Motor %c unexpected home switch encoder."), 'A' + motor_id);
+    if (ef & MOTOR_ERROR_FLAG_UNEXPECTED_STALL_CURRENT_THRESHOLD_EXCEEDED) {
+        log_writeln(F("ERROR: Motor %c unexpected stall current threshold exceeded (motor %c not moving)."), 'A' + motor_id, 'A' + motor_id);
+        motor_state[motor_id].error_flags &= ~MOTOR_ERROR_FLAG_UNEXPECTED_STALL_CURRENT_THRESHOLD_EXCEEDED;
+    }
 }
 
 static void maybe_blink_led(void)
@@ -685,36 +688,38 @@ ISR(TIMER1_COMPA_vect) {
         // apply tension on whatever it is gripping.
         //==========================================================
 
-        if (motor_id != config.gripper_motor_id) {
-            // For Motors other than the gripper, High Current means
-            // that the motor is in a stall situation. To unstall,
-            // the target position is set back a bit from the
-            // current position.
+        if (motor_state[motor_id].current > config.motor[motor_id].stall_current_threshold) {
+            if (motor_state[motor_id].target_encoder == noinit_data.motor[motor_id].encoder) {
+                motor_state[motor_id].error_flags |= MOTOR_ERROR_FLAG_UNEXPECTED_STALL_CURRENT_THRESHOLD_EXCEEDED;
+            } else if (motor_id != config.gripper_motor_id) {
+                // For Motors other than the gripper, High Current means
+                // that the motor is in a stall situation. To unstall,
+                // the target position is set back a bit from the
+                // current position.
+                const int destall_delta = 50;
 
-            const int destall_delta = 50;
-            if (motor_state[motor_id].current > config.motor[motor_id].stall_current_threshold) {
                 if (motor_state[motor_id].previous_direction == 1)
                     motor_state[motor_id].target_encoder = noinit_data.motor[motor_id].encoder - destall_delta;
                 else if (motor_state[motor_id].previous_direction == -1)
                     motor_state[motor_id].target_encoder = noinit_data.motor[motor_id].encoder + destall_delta;
                 motor_state[motor_id].current = 0;  // Prevent retriggering until next time current is read.
                 motor_state[motor_id].stall_triggered = true;
-            }
-        } else if (motor_state[motor_id].current > config.motor[motor_id].stall_current_threshold) {
-            // The gripper motor is a special case where high current means that the gripper is gripping
-            // something. Create gripper pressure on by setting the target position to the currernt
-            // position. This will cause the PWM to drop to off, and if the relaxed gripper opens a
-            // little, it will turn back on but at a much lower PWM duty cycle.
+            } else if (motor_state[motor_id].current > config.motor[motor_id].stall_current_threshold) {
+                // The gripper motor is a special case where high current means that the gripper is gripping
+                // something. Create gripper pressure on by setting the target position to the currernt
+                // position. This will cause the PWM to drop to off, and if the relaxed gripper opens a
+                // little, it will turn back on but at a much lower PWM duty cycle.
 
-            static int gripper_stall_encoder = INT_MAX;
-            static unsigned long gripper_stall_start_ms = 0;
+                static int gripper_stall_encoder = INT_MAX;
+                static unsigned long gripper_stall_start_ms = 0;
 
-            if (abs(noinit_data.motor[motor_id].encoder - gripper_stall_encoder) > 3) {
-                gripper_stall_encoder = noinit_data.motor[motor_id].encoder;
-                gripper_stall_start_ms = millis();
-            } else if (millis() - gripper_stall_start_ms > 250) {
-                motor_state[motor_id].target_encoder = noinit_data.motor[motor_id].encoder;
-                gripper_stall_start_ms = millis();
+                if (abs(noinit_data.motor[motor_id].encoder - gripper_stall_encoder) > 3) {
+                    gripper_stall_encoder = noinit_data.motor[motor_id].encoder;
+                    gripper_stall_start_ms = millis();
+                } else if (millis() - gripper_stall_start_ms > 250) {
+                    motor_state[motor_id].target_encoder = noinit_data.motor[motor_id].encoder;
+                    gripper_stall_start_ms = millis();
+                }
             }
         }
 

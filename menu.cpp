@@ -13,7 +13,7 @@ static const int menu_item_max_name_nbytes = 40;
 
 static void extended_menu_config_robot_id(void)
 {
-    log_writeln(F(""));
+    log_writeln();
     log_write(F("Current robot ID: "));
     log_write((const __FlashStringHelper *)config_robot_name_by_id[config.robot_id]);
     log_writeln(F("."));
@@ -29,7 +29,7 @@ static void extended_menu_config_robot_id(void)
 
 static void extended_menu_config_robot_serial(void)
 {
-    log_writeln(F(""));
+    log_writeln();
     log_writeln(F("Current robot serial is '%s'."), config.robot_serial);
     log_writeln(F("Enter new robot serial, or press [RETURN] to keep current serial."));
     log_write(F(">"));
@@ -37,7 +37,7 @@ static void extended_menu_config_robot_serial(void)
 
 static void extended_menu_config_robot_name(void)
 {
-    log_writeln(F(""));
+    log_writeln();
     log_writeln(F("Current robot name is '%s'."), config.robot_name);
     log_writeln(F("Enter new robot name shorter than %d characters, or press [RETURN] to keep current name."), CONFIG_ROBOT_NAME_NBYTES);
     log_write(F(">"));
@@ -45,21 +45,21 @@ static void extended_menu_config_robot_name(void)
 
 static void extended_menu_factory_reset(void)
 {
-    log_writeln(F(""));
+    log_writeln();
     log_writeln(F("Type 'RESET' in all capital letters to clear the EEPROM and reboot the system or <CTRL+C> to exit."));
     log_write(F(">"));
 }
 
 static void extended_menu_reboot(void)
 {
-    log_writeln(F(""));
+    log_writeln();
     log_writeln(F("Type 'REBOOT' in all capital letters to reboot the system or <CTRL+C> to exit."));
     log_write(F(">"));
 }
 
 static void extended_menu_append_waypoint(void)
 {
-    log_writeln(F(""));
+    log_writeln();
     log_writeln(F("A <ENTER> -- Append waypoint to move motors to current positions."));
     log_writeln(F("B <ENTER> -- Append waypoint to move motors to within 1 encoder value of current positions."));
     log_writeln(F("C <ENTER> -- Append waypoint to move motors to within 30 encoder values of current positions."));
@@ -76,7 +76,7 @@ static void extended_menu_append_waypoint(void)
 
 static void extended_menu_insert_waypoint(void)
 {
-    log_writeln(F(""));
+    log_writeln();
     log_writeln(F("step A <ENTER> -- Insert waypoint before step to move motors to current positions."));
     log_writeln(F("step B <ENTER> -- Insert waypoint before step to move motors to within 1 encoder value of current positions."));
     log_writeln(F("step C <ENTER> -- Insert waypoint before step to move motors to within 30 encoder values of current positions."));
@@ -93,7 +93,7 @@ static void extended_menu_insert_waypoint(void)
 
 static void extended_menu_set_waypoint(void)
 {
-    log_writeln(F(""));
+    log_writeln();
     log_writeln(F("step A <ENTER> -- Set waypoint step to move motors to exactly current positions."));
     log_writeln(F("step B <ENTER> -- Set waypoint step to move motors to within 1 encoder value of current positions."));
     log_writeln(F("step C <ENTER> -- Set waypoint step to move motors to within 30 encoder values of current positions."));

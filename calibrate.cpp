@@ -33,6 +33,7 @@ static int min_encoder = 0;
 static int max_encoder = 0;
 
 static void calibrate_all(sm_state_t *state);
+static void test_one_enter(sm_state_t *state);
 static void calibrate_one_enter(sm_state_t *state);
 static void calibrate_one_reverse_then_forward(sm_state_t *state);
 static void calibrate_one_forward(sm_state_t *state);
@@ -41,9 +42,11 @@ static void calibrate_one_go_home(sm_state_t *state);
 static void calibrate_one_failed(sm_state_t *state);
 static void calibrate_one_failed_center(sm_state_t *state);
 static void calibrate_one_done(sm_state_t *state);
+static void exit_sm(void);
 static void break_handler(sm_state_t *state);
 
 static const char state_calibrate_all_name[] PROGMEM = "calibrate all";
+static const char state_test_one_enter_name[] PROGMEM = "test one enter";
 static const char state_calibrate_one_enter_name[] PROGMEM = "calibrate one enter";
 static const char state_calibrate_one_forward_name[] PROGMEM = "calibrate one forward";
 static const char state_calibrate_one_reverse_then_forward_name[] PROGMEM = "calibrate one reverse then forward";
@@ -54,6 +57,7 @@ static const char state_calibrate_one_failed_center_name[] PROGMEM = "calibrate 
 static const char state_calibrate_one_done_name[] PROGMEM = "calibrate one done";
 
 static const sm_state_t state_calibrate_all = { .run = calibrate_all, .break_handler = break_handler, .process_break_only = true, .name = state_calibrate_all_name, .data = NULL };
+static const sm_state_t state_test_one_enter = { .run = test_one_enter, .break_handler = break_handler, .process_break_only = true, .name = state_test_one_enter_name, .data = NULL };
 static const sm_state_t state_calibrate_one_enter = { .run = calibrate_one_enter, .break_handler = break_handler, .process_break_only = true, .name = state_calibrate_one_enter_name, .data = NULL };
 static const sm_state_t state_calibrate_one_forward = { .run = calibrate_one_forward, .break_handler = break_handler, .process_break_only = true, .name = state_calibrate_one_forward_name, .data = NULL };
 static const sm_state_t state_calibrate_one_reverse_then_forward = { .run = calibrate_one_reverse_then_forward, .break_handler = break_handler, .process_break_only = true, .name = state_calibrate_one_reverse_then_forward_name, .data = NULL };
@@ -166,14 +170,6 @@ static bool cant_find_home_switch(void)
         return false;
 }
 
-static void exit_sm(void)
-{
-    motor_id = (motor_id_t)-1;
-    motor_set_enabled_mask(0);  // Stop motors that may be moving.
-    motor_set_enabled_mask(exit_motor_ids_mask);  // Re-enable motors enabled at start.
-    sm_set_next_state(exit_to_state);
-}
-
 static void update_status(motor_id_t motor_id)
 {
     assert((motor_id >= MOTOR_ID_A) && (motor_id < MOTOR_ID_COUNT));
@@ -203,49 +199,41 @@ static void update_status(motor_id_t motor_id)
     bool triggered = motor_is_home_triggered_debounced(motor_id);
 }
 
-void calibrate_home_switch_and_limits(int in_motor_ids_mask, int in_max_speed_percent)
-{
-    assert(in_motor_ids_mask >= 0);
-
-    calibrate_limits = true;
-    motor_ids_mask = in_motor_ids_mask;
-    motor_id = 0;
-    max_speed_percent = in_max_speed_percent;
-    exit_motor_ids_mask = motor_get_enabled_mask();
-    exit_to_state = sm_get_state();
-
-    sm_set_next_state(state_calibrate_all);
-}
-
-void calibrate_home_switch(int in_motor_ids_mask, int in_max_speed_percent)
-{
-    assert(in_motor_ids_mask >= 0);
-
-    calibrate_limits = false;
-    motor_ids_mask = in_motor_ids_mask;
-    motor_id = (motor_id_t)0;
-    max_speed_percent = in_max_speed_percent;
-    exit_motor_ids_mask = motor_get_enabled_mask();
-    exit_to_state = sm_get_state();
-
-    sm_set_next_state(state_calibrate_all);
-}
-
 static void calibrate_all(sm_state_t *state)
 {
     assert(state);
-    // Sum of all powers of 2 of an n-bit number is 2^n-1.
-    static int max_motor_ids_mask = (1 << MOTOR_ID_COUNT) - 1;
-
-    assert((motor_ids_mask >= 0) && (motor_ids_mask <= max_motor_ids_mask));
+    assert((motor_ids_mask >= 0) && (motor_ids_mask <= MOTOR_IDS_MASK));
 
     if (motor_ids_mask & (1 << motor_id))
-        sm_set_next_state(state_calibrate_one_enter);
+        sm_set_next_state(state_test_one_enter);
     else
         motor_id = (motor_id_t)((int)motor_id + 1);
 
     if (motor_id >= MOTOR_ID_COUNT)
         exit_sm();
+}
+
+static void test_one_enter(sm_state_t *state)
+{
+    assert(state);
+
+    static bool test_started = false;
+
+    if (!test_started) {
+        test_started = true;
+        log_writeln(F("Calibrating motor %c: Running initial motor test and checking motor polarity."), 'A' + motor_id);
+        motor_test(motor_id, sm_get_state());
+    } else {
+        test_started = false;
+        log_write(F("Calibrating motor %c: Initial motor test "), 'A' + motor_id);
+        if (!motor_test_passed(motor_id)) {
+            log_writeln(F("** FAILED **. Canceling motor %c calibration."), 'A' + motor_id);
+            sm_set_next_state(state_calibrate_one_done);
+        } else {
+            log_writeln(F("passed."));
+            sm_set_next_state(state_calibrate_one_enter);
+        }
+    }
 }
 
 static void calibrate_one_enter(sm_state_t *state)
@@ -270,12 +258,6 @@ static void calibrate_one_enter(sm_state_t *state)
 
     prev_gripper_motor_id = config.gripper_motor_id;
     config_set_gripper_motor_id((motor_id_t)MOTOR_ID_COUNT);  // Set to no motor.
-
-    log_writeln(F("Calibrating motor %c: Running initial motor test and checking motor polarity."), 'A' + motor_id);
-    if (!motor_test(motor_id)) {
-        sm_set_next_state(state_calibrate_one_failed);
-        return;
-    }
 
     prev_max_speed_percent = motor_get_max_speed_percent(motor_id);
     motor_set_max_speed_percent(motor_id, max_speed_percent);
@@ -600,6 +582,42 @@ static void calibrate_one_done(sm_state_t *state)
     motor_id = (motor_id_t)((int)motor_id + 1);
 
     sm_set_next_state(state_calibrate_all);
+}
+
+void calibrate_home_switch_and_limits(int in_motor_ids_mask, int in_max_speed_percent)
+{
+    assert((in_motor_ids_mask >= 0) && (in_motor_ids_mask <= MOTOR_IDS_MASK));
+
+    calibrate_limits = true;
+    motor_ids_mask = in_motor_ids_mask;
+    motor_id = 0;
+    max_speed_percent = in_max_speed_percent;
+    exit_motor_ids_mask = motor_get_enabled_mask();
+    exit_to_state = sm_get_state();
+
+    sm_set_next_state(state_calibrate_all);
+}
+
+void calibrate_home_switch(int in_motor_ids_mask, int in_max_speed_percent)
+{
+    assert((in_motor_ids_mask >= 0) && (in_motor_ids_mask <= MOTOR_IDS_MASK));
+
+    calibrate_limits = false;
+    motor_ids_mask = in_motor_ids_mask;
+    motor_id = (motor_id_t)0;
+    max_speed_percent = in_max_speed_percent;
+    exit_motor_ids_mask = motor_get_enabled_mask();
+    exit_to_state = sm_get_state();
+
+    sm_set_next_state(state_calibrate_all);
+}
+
+static void exit_sm(void)
+{
+    motor_id = (motor_id_t)-1;
+    motor_set_enabled_mask(0);  // Stop motors that may be moving.
+    motor_set_enabled_mask(exit_motor_ids_mask);  // Re-enable motors enabled at start.
+    sm_set_next_state(exit_to_state);
 }
 
 static void break_handler(sm_state_t *state)

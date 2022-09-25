@@ -626,10 +626,10 @@ int command_test_motors(char *args, size_t args_nbytes)
             log_writeln(F("No motors enabled. Skipping test."));
             return nbytes;
         }
-        motor_test_mask(motor_get_enabled_mask());
-    } else {
-        motor_test_mask(motor_ids_mask);
+        motor_ids_mask = motor_get_enabled_mask();
     }
+
+    motor_test_mask(motor_ids_mask, sm_get_state());
 
     return nbytes;
 

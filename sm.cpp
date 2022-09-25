@@ -147,7 +147,7 @@ static void process_all_input()
          status_updated &&
          (current_time_millis - previous_status_time_millis > 250))) {
         if (status_updated && !reset_prompt)
-            log_writeln(F(""));
+            log_writeln();
 
         prev_menu_item = NULL;
         command_args_nbytes = 0;
@@ -170,14 +170,14 @@ static void process_all_input()
             log_write(F("Unknown state "));
         }
 
-        for (int i = 0; i < MOTOR_ID_COUNT; i++) {
-            if (motor_get_enabled((motor_id_t)i)) {
+        for (int motor_id = 0; motor_id < MOTOR_ID_COUNT; motor_id++) {
+            if (motor_get_enabled((motor_id_t)motor_id)) {
                 // TODO: Print angle when it makes sense.
                 // char angle_str[15];
                 // dtostrf(status.motor[i].angle, 3, 1, angle_str);
-                char motor_name = (status.motor[i].switch_triggered ? 'A' : 'a') + i;
-
-                log_write(F("%c:%d "), motor_name, status.motor[i].encoder);
+                char motor_name = (status.motor[motor_id].switch_triggered ? 'A' : 'a') + motor_id;
+                log_write(F("%c:%d "), motor_name, status.motor[motor_id].encoder);
+                // log_write(F("%c:e=%d:c=%d "), motor_name, status.motor[motor_id].encoder, motor_state[motor_id].current);
             }
         }
 
@@ -197,7 +197,7 @@ static void process_all_input()
                 current_state.break_handler(&current_state);
         } else if (!have_command) {
             if (input_char == ASCII_RETURN) {
-                log_writeln(F(""));
+                log_writeln();
                 reset_prompt = true;
             } else if ((input_char == ASCII_BACKSPACE) || (input_char == ASCII_DELETE)) {
                 log_write(F("\9"));  // Emit ASCII bell (flashes screen on some terminals)
@@ -221,7 +221,7 @@ static void process_all_input()
         } else {
             assert(prev_menu_item);
             if ((input_char == '\n') || (input_char == '\r')) {
-                log_writeln(F(""));
+                log_writeln();
                 command_args[command_args_nbytes] = '\0';
 
                 // Eat whitespace at start of arguments.
@@ -251,7 +251,7 @@ static void process_all_input()
                 log_write(F("%c"), input_char);
                 command_args[command_args_nbytes++] = input_char;
             } else {
-                log_writeln(F(""));
+                log_writeln();
                 log_writeln(F("ERROR: Too many characters in input buffer."));
                 reset_prompt = true;
             }
@@ -345,8 +345,8 @@ void sm_motors_off_enter(sm_state_t *state)
     assert(state);
     motor_disable_all();
 
-    for (int i = 0; i < MOTOR_ID_COUNT; i++) {
-        motor_set_enabled((motor_id_t)i, false);
+    for (int motor_id = 0; motor_id < MOTOR_ID_COUNT; motor_id++) {
+        motor_set_enabled((motor_id_t)motor_id, false);
     }
 
     sm_set_next_state(sm_state_motors_off_execute);
@@ -363,10 +363,10 @@ void sm_motors_on_enter(sm_state_t *state)
 
     sm_set_next_state(sm_state_motors_on_execute);
 
-    for (int i = 0; i < MOTOR_ID_COUNT; i++) {
-        bool enabled = enabled_motors_mask & (1 << i);
-        if (motor_get_enabled((motor_id_t)i) != enabled)
-            motor_set_enabled((motor_id_t)i, enabled);
+    for (int motor_id = 0; motor_id < MOTOR_ID_COUNT; motor_id++) {
+        bool enabled = enabled_motors_mask & (1 << motor_id);
+        if (motor_get_enabled((motor_id_t)motor_id) != enabled)
+            motor_set_enabled((motor_id_t)motor_id, enabled);
     }
 }
 
