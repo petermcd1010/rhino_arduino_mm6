@@ -10,8 +10,7 @@
 #include "motor_test.h"
 #include "sm.h"
 
-static void half_wiggle_start(sm_state_t *state);
-static void half_wiggle_wait(sm_state_t *state);
+static void half_wiggle(sm_state_t *state);
 static void half_wiggle_wait_stop(sm_state_t *state);
 static void test_one(sm_state_t *state);
 static void test_one_exit(sm_state_t *state);
@@ -20,16 +19,14 @@ static void test_mask(sm_state_t *state);
 static void exit_sm(void);
 static void break_handler(sm_state_t *state);
 
-static const char state_half_wiggle_start_name[] PROGMEM = "half_wiggle_start";
-static const char state_half_wiggle_wait_name[] PROGMEM = "half_wiggle_wait";
+static const char state_half_wiggle_name[] PROGMEM = "half_wiggle";
 static const char state_half_wiggle_wait_stop_name[] PROGMEM = "half_wiggle_wait_stop";
 static const char state_motor_test_one_name[] PROGMEM = "test_one";
 static const char state_motor_test_one_exit_name[] PROGMEM = "test_one_exit";
 static const char state_stop_moving_motor_name[] PROGMEM = "stop_moving_motor";
 static const char state_motor_test_mask_name[] PROGMEM = "test_mask";
 
-static const sm_state_t state_half_wiggle_start = { .run = half_wiggle_start, .break_handler = break_handler, .process_break_only = true, .name = state_half_wiggle_start_name, .data = NULL };
-static const sm_state_t state_half_wiggle_wait = { .run = half_wiggle_wait, .break_handler = break_handler, .process_break_only = true, .name = state_half_wiggle_wait_name, .data = NULL };
+static const sm_state_t state_half_wiggle = { .run = half_wiggle, .break_handler = break_handler, .process_break_only = true, .name = state_half_wiggle_name, .data = NULL };
 static const sm_state_t state_half_wiggle_wait_stop = { .run = half_wiggle_wait_stop, .break_handler = break_handler, .process_break_only = true, .name = state_half_wiggle_wait_stop_name, .data = NULL };
 static const sm_state_t state_test_one = { .run = test_one, .break_handler = break_handler, .process_break_only = true, .name = state_motor_test_one_name, .data = NULL };
 static const sm_state_t state_test_one_exit = { .run = test_one_exit, .break_handler = break_handler, .process_break_only = true, .name = state_motor_test_one_exit_name, .data = NULL };
@@ -48,29 +45,22 @@ static int half_wiggle_speed;
 static int half_wiggle_start_encoder;
 static unsigned long half_wiggle_start_ms;
 
-static void half_wiggle_start(sm_state_t *state)
+static void half_wiggle(sm_state_t *state)
 {
     assert(state);
     assert((motor_id >= 0) && (motor_id < MOTOR_ID_COUNT));
     assert(half_wiggle_speed != 0);
 
-    half_wiggle_start_encoder = motor_get_encoder(motor_id);
-    motor_set_speed(motor_id, half_wiggle_speed);
-    half_wiggle_start_ms = millis();
-    log_write(F("on"));
-
-    sm_set_next_state(state_half_wiggle_wait);
-}
-
-static void half_wiggle_wait(sm_state_t *state)
-{
-    assert(state);
-    assert((motor_id >= 0) && (motor_id < MOTOR_ID_COUNT));
-
     const int desired_encoder_delta = 10;
     const int timeout_ms = 500;
 
-    if (abs(motor_get_encoder(motor_id) - half_wiggle_start_encoder) > desired_encoder_delta) {
+    if (half_wiggle_start_ms == 0) {
+        // Initialize when half_wiggle_start_ms == 0;
+        half_wiggle_start_ms = millis();
+        half_wiggle_start_encoder = motor_get_encoder(motor_id);
+        motor_set_speed(motor_id, half_wiggle_speed);
+        log_write(F("on"));
+    } else if (abs(motor_get_encoder(motor_id) - half_wiggle_start_encoder) > desired_encoder_delta) {
         motor_set_speed(motor_id, 0);
         motor_set_enabled(motor_id, false);
         log_write(F(", off,"));
@@ -87,15 +77,8 @@ static void half_wiggle_wait_stop(sm_state_t *state)
     assert(state);
     assert((motor_id >= 0) && (motor_id < MOTOR_ID_COUNT));
 
-    static int prev_encoder = INT_MAX;
-
-    if (motor_get_encoder(motor_id) != prev_encoder)
-        prev_encoder = motor_get_encoder(motor_id);
-
-    if (!motor_is_moving(motor_id)) {
-        prev_encoder = INT_MAX;
+    if (!motor_is_moving(motor_id))
         sm_set_next_state(state_test_one);
-    }
 }
 
 static void test_one(sm_state_t *state)
@@ -108,17 +91,19 @@ static void test_one(sm_state_t *state)
 
     motor_set_enabled(motor_id, true);
 
+    half_wiggle_start_ms = 0;  // Set to 0 so half_wiggle initializes.
+
     if (half_wiggle_speed == 0) {
         half_wiggle_speed = speed;
         retried_forward = false;
         log_write(F("  %c: Forward "), 'A' + motor_id);
-        sm_set_next_state(state_half_wiggle_start);
+        sm_set_next_state(state_half_wiggle);
     } else if (half_wiggle_speed > 0) {
         forward_delta = motor_get_encoder(motor_id) - half_wiggle_start_encoder;
         log_write(F(" (%d encoders), "), forward_delta);
         half_wiggle_speed = -speed;
         log_write(F("reverse "));
-        sm_set_next_state(state_half_wiggle_start);
+        sm_set_next_state(state_half_wiggle);
     } else {
         reverse_delta = motor_get_encoder(motor_id) - half_wiggle_start_encoder;
         log_write(F(" (%d encoders)"), reverse_delta);
@@ -130,7 +115,7 @@ static void test_one(sm_state_t *state)
             half_wiggle_speed = speed;
             retried_forward = true;
             log_write(F(", retry forward, "));
-            sm_set_next_state(state_half_wiggle_start);
+            sm_set_next_state(state_half_wiggle);
         } else {
             sm_set_next_state(state_test_one_exit);
         }
