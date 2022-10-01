@@ -341,6 +341,8 @@ static void go_home_break_handler(sm_state_t *state)
     sm_set_next_state(exit_to_state);
 }
 
+static int old_motor_ids_mask;
+
 static void go_home(sm_state_t *state)
 {
     assert(state);
@@ -368,7 +370,7 @@ static void go_home(sm_state_t *state)
         }
 
         log_writeln(F("Go home completed."));
-        motor_set_enabled_mask((int)state->data);
+        motor_set_enabled_mask(old_motor_ids_mask);
         sm_set_next_state(exit_to_state);
     }
 }
@@ -376,7 +378,6 @@ static void go_home(sm_state_t *state)
 int command_go_home(char *args, size_t args_nbytes)
 {
     assert(args);
-    int old_motor_ids_mask = 0;
     int motor_ids_mask = 0;
     char *p = args;
     size_t nbytes = parse_motor_ids(p, args_nbytes, &motor_ids_mask);
@@ -398,7 +399,7 @@ int command_go_home(char *args, size_t args_nbytes)
     assert(exit_to_state.run != go_home);
 
     static const char state_go_home_name[] PROGMEM = "go home";
-    sm_state_t s = { .run = go_home, .break_handler = go_home_break_handler, .process_break_only = true, .name = state_go_home_name, .data = (void *)old_motor_ids_mask };
+    sm_state_t s = { .run = go_home, .break_handler = go_home_break_handler, .process_break_only = true, .name = state_go_home_name };
 
     sm_set_next_state(s);
 
@@ -539,7 +540,7 @@ int command_poll_pins(char *args, size_t args_nbytes)
     exit_to_state = sm_get_state();
 
     static const char state_poll_pins_name[] PROGMEM = "poll pins";
-    const sm_state_t s = { .run = poll_pins, .break_handler = poll_pins_break_handler, .process_break_only = true, .name = state_poll_pins_name, .data = NULL };
+    const sm_state_t s = { .run = poll_pins, .break_handler = poll_pins_break_handler, .process_break_only = true, .name = state_poll_pins_name };
 
     sm_set_next_state(s);
 

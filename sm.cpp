@@ -28,12 +28,12 @@ static const char sm_state_motors_on_enter_name[] PROGMEM = "motors on enter";
 static const char sm_state_motors_on_execute_name[] PROGMEM = "motors on execute";
 static const char sm_state_error_name[] PROGMEM = "ERROR";
 
-const sm_state_t sm_state_motors_off_enter = { .run = sm_motors_off_enter, .break_handler = NULL, .process_break_only = false, .name = sm_state_motors_off_enter_name, .data = NULL };
-const sm_state_t sm_state_motors_off_execute = { .run = sm_motors_off_execute, .break_handler = NULL, .process_break_only = false, .name = sm_state_motors_off_execute_name, .data = NULL };
-const sm_state_t sm_state_motors_on_enter = { .run = sm_motors_on_enter, .break_handler = NULL, .process_break_only = false, .name = sm_state_motors_on_enter_name, .data = NULL };
-const sm_state_t sm_state_motors_on_execute = { .run = sm_motors_on_execute, .break_handler = NULL, .process_break_only = false, .name = sm_state_motors_on_execute_name, .data = NULL };
-const sm_state_t sm_state_error_enter = { .run = sm_error_enter, .break_handler = NULL, .process_break_only = false, .name = sm_state_error_name, .data = NULL };
-const sm_state_t sm_state_error_execute = { .run = sm_error_execute, .break_handler = NULL, .process_break_only = false, .name = sm_state_error_name, .data = NULL };
+const sm_state_t sm_state_motors_off_enter = { .run = sm_motors_off_enter, .break_handler = NULL, .process_break_only = false, .name = sm_state_motors_off_enter_name };
+const sm_state_t sm_state_motors_off_execute = { .run = sm_motors_off_execute, .break_handler = NULL, .process_break_only = false, .name = sm_state_motors_off_execute_name };
+const sm_state_t sm_state_motors_on_enter = { .run = sm_motors_on_enter, .break_handler = NULL, .process_break_only = false, .name = sm_state_motors_on_enter_name };
+const sm_state_t sm_state_motors_on_execute = { .run = sm_motors_on_execute, .break_handler = NULL, .process_break_only = false, .name = sm_state_motors_on_execute_name };
+const sm_state_t sm_state_error_enter = { .run = sm_error_enter, .break_handler = NULL, .process_break_only = false, .name = sm_state_error_name };
+const sm_state_t sm_state_error_execute = { .run = sm_error_execute, .break_handler = NULL, .process_break_only = false, .name = sm_state_error_name };
 
 /*
  * Self-test functions.
@@ -177,7 +177,6 @@ static void process_all_input()
                 // dtostrf(status.motor[i].angle, 3, 1, angle_str);
                 char motor_name = (status.motor[motor_id].switch_triggered ? 'A' : 'a') + motor_id;
                 log_write(F("%c:%d "), motor_name, status.motor[motor_id].encoder);
-                // log_write(F("%c:e=%d:c=%d "), motor_name, status.motor[motor_id].encoder, motor_state[motor_id].current);
             }
         }
 

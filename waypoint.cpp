@@ -30,9 +30,9 @@ static const char state_waypoint_start_name[] PROGMEM = "waypoint_start";
 static const char state_waypoint_run_name[] PROGMEM = "waypoint_stop";
 static const char state_waypoint_stop_name[] PROGMEM = "waypoint_run";
 
-static const sm_state_t state_waypoint_start = { .run = start, .break_handler = break_handler, .process_break_only = true, .name = state_waypoint_start_name, .data = NULL };
-static const sm_state_t state_waypoint_run = { .run = run, .break_handler = break_handler, .process_break_only = true, .name = state_waypoint_run_name, .data = NULL };
-static const sm_state_t state_waypoint_stop = { .run = stop, .break_handler = break_handler, .process_break_only = true, .name = state_waypoint_stop_name, .data = NULL };
+static const sm_state_t state_waypoint_start = { .run = start, .break_handler = break_handler, .process_break_only = true, .name = state_waypoint_start_name };
+static const sm_state_t state_waypoint_run = { .run = run, .break_handler = break_handler, .process_break_only = true, .name = state_waypoint_run_name };
+static const sm_state_t state_waypoint_stop = { .run = stop, .break_handler = break_handler, .process_break_only = true, .name = state_waypoint_stop_name };
 
 
 int waypoint_get_max_count(void)

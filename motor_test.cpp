@@ -26,12 +26,12 @@ static const char state_motor_test_one_exit_name[] PROGMEM = "test_one_exit";
 static const char state_stop_moving_motor_name[] PROGMEM = "stop_moving_motor";
 static const char state_motor_test_mask_name[] PROGMEM = "test_mask";
 
-static const sm_state_t state_half_wiggle = { .run = half_wiggle, .break_handler = break_handler, .process_break_only = true, .name = state_half_wiggle_name, .data = NULL };
-static const sm_state_t state_half_wiggle_wait_stop = { .run = half_wiggle_wait_stop, .break_handler = break_handler, .process_break_only = true, .name = state_half_wiggle_wait_stop_name, .data = NULL };
-static const sm_state_t state_test_one = { .run = test_one, .break_handler = break_handler, .process_break_only = true, .name = state_motor_test_one_name, .data = NULL };
-static const sm_state_t state_test_one_exit = { .run = test_one_exit, .break_handler = break_handler, .process_break_only = true, .name = state_motor_test_one_exit_name, .data = NULL };
-static const sm_state_t state_stop_moving_motor = { .run = stop_moving_motor, .break_handler = break_handler, .process_break_only = true, .name = state_stop_moving_motor_name, .data = NULL };
-static const sm_state_t state_test_mask = { .run = test_mask, .break_handler = break_handler, .process_break_only = true, .name = state_motor_test_mask_name, .data = NULL };
+static const sm_state_t state_half_wiggle = { .run = half_wiggle, .break_handler = break_handler, .process_break_only = true, .name = state_half_wiggle_name };
+static const sm_state_t state_half_wiggle_wait_stop = { .run = half_wiggle_wait_stop, .break_handler = break_handler, .process_break_only = true, .name = state_half_wiggle_wait_stop_name };
+static const sm_state_t state_test_one = { .run = test_one, .break_handler = break_handler, .process_break_only = true, .name = state_motor_test_one_name };
+static const sm_state_t state_test_one_exit = { .run = test_one_exit, .break_handler = break_handler, .process_break_only = true, .name = state_motor_test_one_exit_name };
+static const sm_state_t state_stop_moving_motor = { .run = stop_moving_motor, .break_handler = break_handler, .process_break_only = true, .name = state_stop_moving_motor_name };
+static const sm_state_t state_test_mask = { .run = test_mask, .break_handler = break_handler, .process_break_only = true, .name = state_motor_test_mask_name };
 
 static int exit_motor_ids_mask;
 static sm_state_t exit_to_state;  // Transition to this state when done running test.

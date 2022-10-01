@@ -56,16 +56,16 @@ static const char state_calibrate_one_failed_name[] PROGMEM = "calibrate one fai
 static const char state_calibrate_one_failed_center_name[] PROGMEM = "calibrate one failed center";
 static const char state_calibrate_one_done_name[] PROGMEM = "calibrate one done";
 
-static const sm_state_t state_calibrate_all = { .run = calibrate_all, .break_handler = break_handler, .process_break_only = true, .name = state_calibrate_all_name, .data = NULL };
-static const sm_state_t state_test_one_enter = { .run = test_one_enter, .break_handler = break_handler, .process_break_only = true, .name = state_test_one_enter_name, .data = NULL };
-static const sm_state_t state_calibrate_one_enter = { .run = calibrate_one_enter, .break_handler = break_handler, .process_break_only = true, .name = state_calibrate_one_enter_name, .data = NULL };
-static const sm_state_t state_calibrate_one_forward = { .run = calibrate_one_forward, .break_handler = break_handler, .process_break_only = true, .name = state_calibrate_one_forward_name, .data = NULL };
-static const sm_state_t state_calibrate_one_reverse_then_forward = { .run = calibrate_one_reverse_then_forward, .break_handler = break_handler, .process_break_only = true, .name = state_calibrate_one_reverse_then_forward_name, .data = NULL };
-static const sm_state_t state_calibrate_one_reverse = { .run = calibrate_one_reverse, .break_handler = break_handler, .process_break_only = true, .name = state_calibrate_one_reverse_name, .data = NULL };
-static const sm_state_t state_calibrate_one_go_home = { .run = calibrate_one_go_home, .break_handler = break_handler, .process_break_only = true, .name = state_calibrate_one_go_home_name, .data = NULL };
-static const sm_state_t state_calibrate_one_failed_center = { .run = calibrate_one_failed_center, .break_handler = break_handler, .process_break_only = true, .name = state_calibrate_one_failed_center_name, .data = NULL };
-static const sm_state_t state_calibrate_one_failed = { .run = calibrate_one_failed, .break_handler = break_handler, .process_break_only = true, .name = state_calibrate_one_failed_name, .data = NULL };
-static const sm_state_t state_calibrate_one_done = { .run = calibrate_one_done, .break_handler = break_handler, .process_break_only = true, .name = state_calibrate_one_done_name, .data = NULL };
+static const sm_state_t state_calibrate_all = { .run = calibrate_all, .break_handler = break_handler, .process_break_only = true, .name = state_calibrate_all_name };
+static const sm_state_t state_test_one_enter = { .run = test_one_enter, .break_handler = break_handler, .process_break_only = true, .name = state_test_one_enter_name };
+static const sm_state_t state_calibrate_one_enter = { .run = calibrate_one_enter, .break_handler = break_handler, .process_break_only = true, .name = state_calibrate_one_enter_name };
+static const sm_state_t state_calibrate_one_forward = { .run = calibrate_one_forward, .break_handler = break_handler, .process_break_only = true, .name = state_calibrate_one_forward_name };
+static const sm_state_t state_calibrate_one_reverse_then_forward = { .run = calibrate_one_reverse_then_forward, .break_handler = break_handler, .process_break_only = true, .name = state_calibrate_one_reverse_then_forward_name };
+static const sm_state_t state_calibrate_one_reverse = { .run = calibrate_one_reverse, .break_handler = break_handler, .process_break_only = true, .name = state_calibrate_one_reverse_name };
+static const sm_state_t state_calibrate_one_go_home = { .run = calibrate_one_go_home, .break_handler = break_handler, .process_break_only = true, .name = state_calibrate_one_go_home_name };
+static const sm_state_t state_calibrate_one_failed_center = { .run = calibrate_one_failed_center, .break_handler = break_handler, .process_break_only = true, .name = state_calibrate_one_failed_center_name };
+static const sm_state_t state_calibrate_one_failed = { .run = calibrate_one_failed, .break_handler = break_handler, .process_break_only = true, .name = state_calibrate_one_failed_name };
+static const sm_state_t state_calibrate_one_done = { .run = calibrate_one_done, .break_handler = break_handler, .process_break_only = true, .name = state_calibrate_one_done_name };
 
 static void transition_to_calibrate_one_reverse_then_forward(void);
 static void transition_to_calibrate_one_forward(void);

@@ -11,7 +11,6 @@ typedef struct _sm_state_t {
     void (*break_handler)(struct _sm_state_t *state);  // May be NULL.
     bool                process_break_only; // When true, only processes CTRL+C.
     const PROGMEM char *name;
-    void *              data;
 } sm_state_t;
 
 extern const sm_state_t sm_state_error_enter;
