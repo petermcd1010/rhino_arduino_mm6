@@ -3,9 +3,7 @@
  * See the LICENSE file in the root directory of this project for copyright and licensing details.
  */
 
-#include <avr/interrupt.h>
 #include <avr/sleep.h>
-#include <stdlib.h>
 #include <EEPROM.h>
 #include "hardware.h"
 #include "log.h"
@@ -13,10 +11,13 @@
 
 static const int OPRLED = 13;
 static const int SPEAKER = A15;
-static const int BUTTON = A14;
 
-static const int header_pins[] = { A15, A14, A13, A12, 53, 49, 48, 41 };
+static const int header_pins[] = { SPEAKER, A14, A13, A12, 53, 49, 48, 41 };
 #define NUM_HEADER_PINS (sizeof(header_pins) / sizeof(header_pins[0]))
+
+static volatile bool pin_is_button[NUM_HEADER_PINS] = { false };
+static volatile uint8_t pin_vals[NUM_HEADER_PINS] = { 0 };
+static volatile unsigned long prev_transition_millis[NUM_HEADER_PINS] = { 0 };
 
 void hardware_init(void)
 {
@@ -24,7 +25,6 @@ void hardware_init(void)
     hardware_set_led_enabled(false);
     pinMode(SPEAKER, OUTPUT);  // Speaker wired to mm6 expansion header '01'
     hardware_set_speaker_enabled(false);
-    pinMode(BUTTON, INPUT);  // External button wired to mm6 expansion header '02'
 }
 
 void hardware_erase_eeprom(void)
@@ -88,10 +88,6 @@ int hardware_get_num_header_pins()
     return NUM_HEADER_PINS;
 }
 
-static volatile bool pin_is_button[NUM_HEADER_PINS] = { false };
-static volatile uint8_t pin_vals[NUM_HEADER_PINS] = { 0 };
-static volatile unsigned long prev_transition_millis[NUM_HEADER_PINS] = { 0 };
-
 bool hardware_get_header_pin_pressed(int pin_index)
 {
     assert(pin_index >= 0);
@@ -115,6 +111,7 @@ bool hardware_get_header_pin_pressed(int pin_index)
 
 void hardware_debounce_buttons()
 {
+    // Called from motor ISR.
     for (int pin_index = 0; pin_index < NUM_HEADER_PINS; pin_index++) {
         if (pin_is_button[pin_index]) {
             int val = digitalRead(header_pins[pin_index]);
