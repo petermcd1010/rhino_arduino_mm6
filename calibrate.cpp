@@ -14,6 +14,7 @@
 static int exit_motor_ids_mask = 0;
 static sm_state_t exit_to_state = { 0 };  // Transition to this state when done running waypoints.
 static bool calibrate_limits = false;
+static int passing_motor_ids_mask = 0;
 static int motor_ids_mask = 0;
 static motor_id_t motor_id = (motor_id_t)-1;
 static int prev_max_speed_percent = 0;
@@ -507,7 +508,7 @@ static void calibrate_one_go_home(sm_state_t *state)
             log_writeln(F("Calibrating motor %c: Motor arrived at home position (encoder 0)."), 'A' + motor_id);
             log_writeln(F("Calibrating motor %c: Calibration for motor %c ** PASSED **. *WRITE CONFIGURATION*"), 'A' + motor_id, 'A' + motor_id);
             config_set_motor_home_encoders(motor_id, home_forward_on_encoder, home_forward_off_encoder, home_reverse_on_encoder, home_reverse_off_encoder);
-
+            passing_motor_ids_mask |= (1 << motor_id);
             sm_set_next_state(state_calibrate_one_done);
         }
     } else if (is_stalled(motor_id, &stalled_start_encoder, &stalled_start_millis, 5 * 1000)) {
@@ -584,13 +585,60 @@ static void calibrate_one_done(sm_state_t *state)
     sm_set_next_state(state_calibrate_all);
 }
 
+static void print_summary(void)
+{
+    if (motor_ids_mask == 0)
+        return;
+
+    log_writeln(F("Calibration summary:"));
+    for (int motor_id = 0; motor_id < MOTOR_ID_COUNT; motor_id++) {
+        if (motor_ids_mask & (1 << motor_id)) {
+            log_write(F("  Motor %c: "), 'A' + motor_id);
+            if ((passing_motor_ids_mask & (1 << motor_id)) == 0) {
+                log_writeln(F("** FAILED **."));
+                continue;
+            }
+
+            config_motor_t *motor = &config.motor[motor_id];
+            log_writeln(F("** PASSED **. Encoder min=%d, max=%d, home switch forward_on=%d, forward_off=%d, reverse_on=%d, reverse_off=%d."),
+                        motor->min_encoder,
+                        motor->max_encoder,
+                        motor->home_forward_on_encoder,
+                        motor->home_forward_off_encoder,
+                        motor->home_reverse_on_encoder,
+                        motor->home_reverse_off_encoder);
+        }
+    }
+    if ((config.gripper_motor_id < 0) || (config.gripper_motor_id >= MOTOR_ID_COUNT))
+        log_writeln(F("  Gripper motor: Not configured."));
+    else
+        log_writeln(F("  Gripper motor: %c"), 'A' + config.gripper_motor_id);
+}
+
+static void exit_sm(void)
+{
+    motor_id = (motor_id_t)-1;
+    motor_set_enabled_mask(0);  // Stop motors that may be moving.
+    motor_set_enabled_mask(exit_motor_ids_mask);  // Re-enable motors enabled at start.
+    print_summary();
+    sm_set_next_state(exit_to_state);
+}
+
+static void break_handler(sm_state_t *state)
+{
+    assert(state);
+    log_writeln(F("Break detected. Stopping calibration."));
+    exit_sm();
+}
+
 void calibrate_home_switch_and_limits(int in_motor_ids_mask, int in_max_speed_percent)
 {
     assert((in_motor_ids_mask >= 0) && (in_motor_ids_mask <= MOTOR_IDS_MASK));
 
     calibrate_limits = true;
     motor_ids_mask = in_motor_ids_mask;
-    motor_id = 0;
+    passing_motor_ids_mask = 0;
+    motor_id = (motor_id_t)0;
     max_speed_percent = in_max_speed_percent;
     exit_motor_ids_mask = motor_get_enabled_mask();
     exit_to_state = sm_get_state();
@@ -604,6 +652,7 @@ void calibrate_home_switch(int in_motor_ids_mask, int in_max_speed_percent)
 
     calibrate_limits = false;
     motor_ids_mask = in_motor_ids_mask;
+    passing_motor_ids_mask = 0;
     motor_id = (motor_id_t)0;
     max_speed_percent = in_max_speed_percent;
     exit_motor_ids_mask = motor_get_enabled_mask();
@@ -612,17 +661,3 @@ void calibrate_home_switch(int in_motor_ids_mask, int in_max_speed_percent)
     sm_set_next_state(state_calibrate_all);
 }
 
-static void exit_sm(void)
-{
-    motor_id = (motor_id_t)-1;
-    motor_set_enabled_mask(0);  // Stop motors that may be moving.
-    motor_set_enabled_mask(exit_motor_ids_mask);  // Re-enable motors enabled at start.
-    sm_set_next_state(exit_to_state);
-}
-
-static void break_handler(sm_state_t *state)
-{
-    assert(state);
-    log_writeln(F("Break detected. Stopping calibration."));
-    exit_sm();
-}
