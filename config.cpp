@@ -17,8 +17,9 @@ static const char name_xr_2[] PROGMEM = "Rhino XR-2 6-axis arm";
 static const char name_xr_3[] PROGMEM = "Rhino XR-3 6-axis arm";
 static const char name_xr_4[] PROGMEM = "Rhino XR-4 6-axis arm";
 static const char name_scara[] PROGMEM = "Rhino SCARA 5-axis arm";
-static const char name_linear[] PROGMEM = "Rhino linear slide table";
-static const char name_xy[] PROGMEM = "Rhino XY slide table";
+static const char name_linear[] PROGMEM = "Rhino linear slide base";
+static const char name_xy[] PROGMEM = "Rhino XY slide base";
+static const char name_rotary[] PROGMEM = "Rhino rotary carousel";
 static const char name_tilt[] PROGMEM = "Rhino tilt carousel";
 static const char name_conveyor[] PROGMEM = "Rhino conveyor belt";
 
@@ -31,6 +32,7 @@ const char * const config_robot_name_by_id[CONFIG_ROBOT_ID_COUNT] = {
     name_scara,
     name_linear,
     name_xy,
+    name_rotary,
     name_tilt,
     name_conveyor,
 };
