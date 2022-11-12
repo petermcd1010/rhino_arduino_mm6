@@ -311,6 +311,34 @@ void config_set_gripper_motor_id(motor_id_t motor_id)
     modified = true;
 }
 
+int config_get_gripper_open_encoder(void)
+{
+    motor_id_t motor_id = config.gripper_motor_id;
+
+    assert(motor_id >= 0 && motor_id < MOTOR_ID_COUNT);
+
+    int home_center_encoder = config.motor[motor_id].home_forward_on_encoder;
+    int open_encoder = 0;
+
+    if (abs(config.motor[motor_id].min_encoder - home_center_encoder) < abs(abs(config.motor[motor_id].max_encoder - home_center_encoder)))
+        open_encoder = config.motor[motor_id].max_encoder;
+    else
+        open_encoder = config.motor[motor_id].min_encoder;
+
+    log_writeln(F("config_get_gripper_open_encoder %d"), open_encoder);
+    return open_encoder;
+}
+
+int config_get_gripper_close_encoder(void)
+{
+    motor_id_t motor_id = config.gripper_motor_id;
+
+    assert(motor_id >= 0 && motor_id < MOTOR_ID_COUNT);
+
+    log_writeln(F("config_get_gripper_close_encoder %d"), config.motor[motor_id].home_forward_on_encoder);
+    return config.motor[motor_id].home_forward_on_encoder;
+}
+
 void config_print()
 {
     if (!config_check())

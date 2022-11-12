@@ -211,7 +211,7 @@ static void exit_sm(void)
     motor_set_enabled_mask(0);  // Stop motors that may be moving.
     motor_set_enabled_mask(exit_motor_ids_mask);  // Re-enable motors enabled at start.
     sm_set_next_state(exit_to_state);
-    log_writeln(F("Done testing motors."));
+    log_writeln(F("Motor test completed."));
 }
 
 static void break_handler(sm_state_t *state)

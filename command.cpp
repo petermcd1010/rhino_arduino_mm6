@@ -655,7 +655,7 @@ int command_open_gripper(char *args, size_t args_nbytes)
         return args_nbytes;
     }
 
-    motor_set_target_encoder(gripper_motor_id, config.motor[gripper_motor_id].max_encoder);
+    motor_set_target_encoder(gripper_motor_id, config_get_gripper_open_encoder());
 
     return args_nbytes;
 }
@@ -677,7 +677,7 @@ int command_close_gripper(char *args, size_t args_nbytes)
         return args_nbytes;
     }
 
-    motor_set_target_encoder(gripper_motor_id, config.motor[gripper_motor_id].min_encoder);
+    motor_set_target_encoder(gripper_motor_id, config_get_gripper_close_encoder());
 
     return args_nbytes;
 }

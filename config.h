@@ -73,5 +73,7 @@ void config_set_motor_min_max_encoders(motor_id_t motor_id, int min_encoder, int
 void config_set_motor_home_encoders(motor_id_t motor_id, int home_forward_on_encoder, int home_forward_off_encoder, int home_reverse_on_encoder, int home_reverse_off_encoder);
 void config_set_motor_stall_current_threshold(motor_id_t motor_id, int stall_current_threshold);
 void config_set_gripper_motor_id(motor_id_t motor_id);
+int config_get_gripper_open_encoder(void);
+int config_get_gripper_close_encoder(void);
 void config_print(void);
 bool config_test(void);
