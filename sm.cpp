@@ -107,7 +107,7 @@ static void process_break_only()
             reset_prompt = true;
             log_writeln(F("<CTRL+C>"));
             if (current_state.break_handler)
-                current_state.break_handler(&current_state);
+                current_state.break_handler();
         } else {
             if (current_state.break_handler)
                 log_writeln(F("Invalid input. Press <CTRL+C> to break."));
@@ -193,7 +193,7 @@ static void process_all_input()
             reset_prompt = true;
             log_writeln(F("<CTRL+C>"));
             if (current_state.break_handler)
-                current_state.break_handler(&current_state);
+                current_state.break_handler();
         } else if (!have_command) {
             if (input_char == ASCII_RETURN) {
                 log_writeln();
@@ -331,7 +331,7 @@ void sm_execute(void)
     }
 
     assert(current_state.run);
-    current_state.run(&current_state);
+    current_state.run();
 
     if (current_state.process_break_only)
         process_break_only();
@@ -339,9 +339,8 @@ void sm_execute(void)
         process_all_input();
 }
 
-void sm_motors_off_enter(sm_state_t *state)
+void sm_motors_off_enter(void)
 {
-    assert(state);
     motor_disable_all();
 
     for (int motor_id = 0; motor_id < MOTOR_ID_COUNT; motor_id++) {
@@ -351,15 +350,12 @@ void sm_motors_off_enter(sm_state_t *state)
     sm_set_next_state(sm_state_motors_off_execute);
 }
 
-void sm_motors_off_execute(sm_state_t *state)
+void sm_motors_off_execute(void)
 {
-    assert(state);
 }
 
-void sm_motors_on_enter(sm_state_t *state)
+void sm_motors_on_enter(void)
 {
-    assert(state);
-
     sm_set_next_state(sm_state_motors_on_execute);
 
     for (int motor_id = 0; motor_id < MOTOR_ID_COUNT; motor_id++) {
@@ -369,20 +365,17 @@ void sm_motors_on_enter(sm_state_t *state)
     }
 }
 
-void sm_motors_on_execute(sm_state_t *state)
+void sm_motors_on_execute(void)
 {
-    assert(state);
 }
 
-void sm_motors_on_exit(sm_state_t *state)
+void sm_motors_on_exit(void)
 {
-    assert(state);
     // motor_disable_all();
 }
 
-void sm_error_enter(sm_state_t *state)
+void sm_error_enter(void)
 {
-    assert(state);
     next_state = { 0 };
 
     motor_disable_all();
@@ -391,9 +384,8 @@ void sm_error_enter(sm_state_t *state)
     sm_set_next_state(sm_state_error_execute);
 }
 
-void sm_error_execute(sm_state_t *state)
+void sm_error_execute(void)
 {
-    assert(state);
 }
 
 int sm_get_enabled_motors_mask(void)

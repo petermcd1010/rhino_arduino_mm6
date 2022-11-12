@@ -10,14 +10,14 @@
 #include "motor_test.h"
 #include "sm.h"
 
-static void half_wiggle(sm_state_t *state);
-static void half_wiggle_wait_stop(sm_state_t *state);
-static void test_one(sm_state_t *state);
-static void test_one_exit(sm_state_t *state);
-static void stop_moving_motor(sm_state_t *state);
-static void test_mask(sm_state_t *state);
+static void half_wiggle(void);
+static void half_wiggle_wait_stop(void);
+static void test_one(void);
+static void test_one_exit(void);
+static void stop_moving_motor(void);
+static void test_mask(void);
 static void exit_sm(void);
-static void break_handler(sm_state_t *state);
+static void break_handler(void);
 
 static const char state_half_wiggle_name[] PROGMEM = "half_wiggle";
 static const char state_half_wiggle_wait_stop_name[] PROGMEM = "half_wiggle_wait_stop";
@@ -45,9 +45,8 @@ static int half_wiggle_speed;
 static int half_wiggle_start_encoder;
 static unsigned long half_wiggle_start_ms;
 
-static void half_wiggle(sm_state_t *state)
+static void half_wiggle(void)
 {
-    assert(state);
     assert((motor_id >= 0) && (motor_id < MOTOR_ID_COUNT));
     assert(half_wiggle_speed != 0);
 
@@ -72,18 +71,16 @@ static void half_wiggle(sm_state_t *state)
     }
 }
 
-static void half_wiggle_wait_stop(sm_state_t *state)
+static void half_wiggle_wait_stop(void)
 {
-    assert(state);
     assert((motor_id >= 0) && (motor_id < MOTOR_ID_COUNT));
 
     if (!motor_is_moving(motor_id))
         sm_set_next_state(state_test_one);
 }
 
-static void test_one(sm_state_t *state)
+static void test_one(void)
 {
-    assert(state);
     assert((motor_id >= 0) && (motor_id < MOTOR_ID_COUNT));
 
     static const int speed = 200;  // 255 - motor_min_pwm.
@@ -122,9 +119,8 @@ static void test_one(sm_state_t *state)
     }
 }
 
-static void test_one_exit(sm_state_t *state)
+static void test_one_exit(void)
 {
-    assert(state);
     assert((motor_id >= 0) && (motor_id < MOTOR_ID_COUNT));
 
     motor_set_home_encoder(motor_id, -prev_encoder);
@@ -157,9 +153,8 @@ static void test_one_exit(sm_state_t *state)
     sm_set_next_state(state_test_mask);
 }
 
-static void stop_moving_motor(sm_state_t *state)
+static void stop_moving_motor(void)
 {
-    assert(state);
     assert((motor_id >= 0) && (motor_id < MOTOR_ID_COUNT));
 
     motor_set_enabled(motor_id, false);
@@ -169,9 +164,8 @@ static void stop_moving_motor(sm_state_t *state)
     }
 }
 
-static void test_mask(sm_state_t *state)
+static void test_mask(void)
 {
-    assert(state);
     assert((motor_id >= 0) && (motor_id < MOTOR_ID_COUNT + 1));
     assert((motor_ids_mask >= 0) && (motor_ids_mask <= MOTOR_IDS_MASK));
 
@@ -214,9 +208,8 @@ static void exit_sm(void)
     log_writeln(F("Motor test completed."));
 }
 
-static void break_handler(sm_state_t *state)
+static void break_handler(void)
 {
-    assert(state);
     log_writeln(F("Break detected. Stopping calibration."));
     exit_sm();
 }

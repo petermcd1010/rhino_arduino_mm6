@@ -333,7 +333,7 @@ error:
     return nbytes;
 }
 
-static void go_home_break_handler(sm_state_t *state)
+static void go_home_break_handler(void)
 {
     log_writeln(F("Break detected. Stopping motors."));
 
@@ -343,9 +343,8 @@ static void go_home_break_handler(sm_state_t *state)
 
 static int old_motor_ids_mask;
 
-static void go_home(sm_state_t *state)
+static void go_home(void)
 {
-    assert(state);
     bool all_home = true;
 
     // TODO: Signal failure if motors stall.
@@ -498,9 +497,8 @@ error:
     return -1;
 }
 
-static void poll_pins_break_handler(sm_state_t *state)
+static void poll_pins_break_handler(void)
 {
-    assert(state);
     log_writeln(F("Break detected. Stopping polling of header pins."));
 
     sm_set_next_state(exit_to_state);
@@ -510,10 +508,8 @@ static void poll_pins_break_handler(sm_state_t *state)
     }
 }
 
-static void poll_pins(sm_state_t *state)
+static void poll_pins(void)
 {
-    assert(state);
-
     int npins = hardware_get_num_header_pins();
 
     for (int i = 0; i < npins; i++) {

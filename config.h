@@ -52,7 +52,7 @@ typedef struct __attribute__((packed)) {
     char robot_serial[CONFIG_ROBOT_SERIAL_NBYTES];  // To help user confirm board/robot match.
     char robot_name[CONFIG_ROBOT_NAME_NBYTES];  // Optional robot name for user.
     config_motor_t motor[MOTOR_ID_COUNT];
-    uint8_t gripper_motor_id;
+    uint8_t gripper_motor_id;  // MOTOR_ID_COUNT if not set.
 } config_t;
 
 extern config_t config;

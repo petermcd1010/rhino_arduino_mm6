@@ -24,27 +24,27 @@ static uint8_t prev_gripper_motor_id = MOTOR_ID_COUNT;
 static bool is_gripper = false;
 static int stalled_start_encoder = 0;
 static unsigned long stalled_start_millis = 0;
-static int home_forward_on_encoder = 0;
+static int home_forward_on_encoder = 0;  // Home switch transition from off to on heading in the positive direction.
 static int home_forward_off_encoder = 0;
-static int home_reverse_on_encoder = 0;
+static int home_reverse_on_encoder = 0;  // Home switch transition from off to on heading in the negative direction.
 static int home_reverse_off_encoder = 0;
-static int ntimes_found_min_encoder = 0;
+static int ntimes_found_min_encoder = 0;  // Used to check if a home switch was never detected.
 static int ntimes_found_max_encoder = 0;
-static int min_encoder = 0;
-static int max_encoder = 0;
+static int min_encoder = 0;  // Limit found heading in the negative direction.
+static int max_encoder = 0;  // Limit found heading in the positive direction.
 
-static void calibrate_all(sm_state_t *state);
-static void test_one_enter(sm_state_t *state);
-static void calibrate_one_enter(sm_state_t *state);
-static void calibrate_one_reverse_then_forward(sm_state_t *state);
-static void calibrate_one_forward(sm_state_t *state);
-static void calibrate_one_reverse(sm_state_t *state);
-static void calibrate_one_go_home(sm_state_t *state);
-static void calibrate_one_failed(sm_state_t *state);
-static void calibrate_one_failed_center(sm_state_t *state);
-static void calibrate_one_done(sm_state_t *state);
+static void calibrate_all(void);
+static void test_one_enter(void);
+static void calibrate_one_enter(void);
+static void calibrate_one_reverse_then_forward(void);
+static void calibrate_one_forward(void);
+static void calibrate_one_reverse(void);
+static void calibrate_one_go_home(void);
+static void calibrate_one_failed(void);
+static void calibrate_one_failed_goto_center(void);
+static void calibrate_one_done(void);
 static void exit_sm(void);
-static void break_handler(sm_state_t *state);
+static void break_handler(void);
 
 static const char state_calibrate_all_name[] PROGMEM = "calibrate all";
 static const char state_test_one_enter_name[] PROGMEM = "test one enter";
@@ -53,8 +53,8 @@ static const char state_calibrate_one_forward_name[] PROGMEM = "calibrate one fo
 static const char state_calibrate_one_reverse_then_forward_name[] PROGMEM = "calibrate one reverse then forward";
 static const char state_calibrate_one_reverse_name[] PROGMEM = "calibrate one reverse";
 static const char state_calibrate_one_go_home_name[] PROGMEM = "calibrate one go home";
+static const char state_calibrate_one_failed_goto_center_name[] PROGMEM = "calibrate one failed goto center";
 static const char state_calibrate_one_failed_name[] PROGMEM = "calibrate one failed";
-static const char state_calibrate_one_failed_center_name[] PROGMEM = "calibrate one failed center";
 static const char state_calibrate_one_done_name[] PROGMEM = "calibrate one done";
 
 static const sm_state_t state_calibrate_all = { .run = calibrate_all, .break_handler = break_handler, .process_break_only = true, .name = state_calibrate_all_name };
@@ -64,7 +64,7 @@ static const sm_state_t state_calibrate_one_forward = { .run = calibrate_one_for
 static const sm_state_t state_calibrate_one_reverse_then_forward = { .run = calibrate_one_reverse_then_forward, .break_handler = break_handler, .process_break_only = true, .name = state_calibrate_one_reverse_then_forward_name };
 static const sm_state_t state_calibrate_one_reverse = { .run = calibrate_one_reverse, .break_handler = break_handler, .process_break_only = true, .name = state_calibrate_one_reverse_name };
 static const sm_state_t state_calibrate_one_go_home = { .run = calibrate_one_go_home, .break_handler = break_handler, .process_break_only = true, .name = state_calibrate_one_go_home_name };
-static const sm_state_t state_calibrate_one_failed_center = { .run = calibrate_one_failed_center, .break_handler = break_handler, .process_break_only = true, .name = state_calibrate_one_failed_center_name };
+static const sm_state_t state_calibrate_one_failed_goto_center = { .run = calibrate_one_failed_goto_center, .break_handler = break_handler, .process_break_only = true, .name = state_calibrate_one_failed_goto_center_name };
 static const sm_state_t state_calibrate_one_failed = { .run = calibrate_one_failed, .break_handler = break_handler, .process_break_only = true, .name = state_calibrate_one_failed_name };
 static const sm_state_t state_calibrate_one_done = { .run = calibrate_one_done, .break_handler = break_handler, .process_break_only = true, .name = state_calibrate_one_done_name };
 
@@ -72,48 +72,49 @@ static void transition_to_calibrate_one_reverse_then_forward(void);
 static void transition_to_calibrate_one_forward(void);
 static void transition_to_calibrate_one_reverse(void);
 
+static bool reset_stall_detection(void)
+{
+    stalled_start_encoder = 0;
+    stalled_start_millis = millis();
+}
 
-static bool is_stalled(motor_id_t motor_id, int *stalled_start_encoder, unsigned long *stalled_start_millis, unsigned long stalled_duration_millis)
+static bool is_stalled(unsigned long stalled_duration_millis)
 {
     assert((motor_id >= MOTOR_ID_A) && (motor_id < MOTOR_ID_COUNT));
-    assert(stalled_start_encoder);
-    assert(stalled_start_millis);
 
     static unsigned long trigger_millis = 0;
-
-    bool ret = false;
-    int encoder = motor_get_encoder(motor_id);
     unsigned long ms = millis();
 
     if (motor_stall_triggered(motor_id)) {
         motor_clear_stall(motor_id);
-        if ((ms - trigger_millis) >= 500) {
-            log_writeln(F("Calibrating motor %c: Exceeded stall current threshold %d."), 'A' + motor_id, config.motor[motor_id].stall_current_threshold);
+        const int stall_detect_millis = 250;
+        if ((ms - trigger_millis) >= stall_detect_millis) {
+            log_writeln(F("Calibrating motor %c: Exceeded stall current threshold %d for %dms."), 'A' + motor_id, config.motor[motor_id].stall_current_threshold, stall_detect_millis);
             trigger_millis = ms;
             return true;
         }
     }
 
-    if (((ms - *stalled_start_millis) >= stalled_duration_millis)) {
-        const int stalled_check_encoder_count = 5;
-        if (abs(encoder - *stalled_start_encoder) <= stalled_check_encoder_count) {
+    if (((ms - stalled_start_millis) >= stalled_duration_millis)) {
+        const int stalled_check_encoder_count = 5;  // Manually determined through experimentation.
+        int encoder = motor_get_encoder(motor_id);
+        if (abs(encoder - stalled_start_encoder) <= stalled_check_encoder_count) {
             log_writeln(F("Calibrating motor %c: Stalled at encoder %d for > %lu ms."), 'A' + motor_id, encoder, stalled_duration_millis);
-            ret = true;
+            return true;
         }
-        *stalled_start_encoder = encoder;
-        *stalled_start_millis = ms;
+        stalled_start_encoder = encoder;
+        stalled_start_millis = ms;
     }
 
-    return ret;
+    return false;
 }
 
 static bool is_gripper_and_get_home_center(int *gripper_home_center)
 {
     assert(gripper_home_center);
 
-    if ((max_encoder == INT_MAX) ||
-        (min_encoder == INT_MIN))
-        return false;
+    if ((min_encoder == INT_MIN) || (max_encoder == INT_MAX))
+        return false;                  // Can't be a gripper if there's neither a min nor max encoder.
 
     // The gripper will have two or three (but not four) switch transitions:
     //    forward_on_encoder will have triggered.
@@ -151,13 +152,6 @@ static bool found_all_positions(void)
 {
     static unsigned long ms = 0;
 
-#if 0
-    if (millis() - ms > 1000) {
-        log_writeln(F("  fon=%d, foff=%d, ron=%d, roff=%d, min=%d, max=%d"), home_forward_on_encoder, home_forward_off_encoder, home_reverse_on_encoder, home_reverse_off_encoder, min_encoder, max_encoder);
-        ms = millis();
-    }
-#endif
-
     if ((home_forward_on_encoder == INT_MAX) ||
         (home_forward_off_encoder == INT_MAX) ||
         (home_reverse_on_encoder == INT_MIN) ||
@@ -174,8 +168,8 @@ static bool found_all_positions(void)
 
 static bool cant_find_home_switch(void)
 {
-    if ((ntimes_found_max_encoder >= 2) || (ntimes_found_min_encoder >= 2))
-        return true;
+    if ((ntimes_found_min_encoder >= 2) || (ntimes_found_max_encoder >= 2))
+        return true;                   // Never found a switch between the min and max encoders.
     else
         return false;
 }
@@ -184,10 +178,9 @@ static void update_status(motor_id_t motor_id)
 {
     assert((motor_id >= MOTOR_ID_A) && (motor_id < MOTOR_ID_COUNT));
 
-    static unsigned long print_ms = 0;
-    static bool prev_triggered = motor_is_home_triggered_debounced(motor_id);
+    static unsigned long prev_print_ms = 0;
 
-    if ((motor_state[motor_id].pid_perror != 0) && (millis() - print_ms > 1000)) {
+    if ((motor_state[motor_id].pid_perror != 0) && (millis() - prev_print_ms > 1000)) {
         log_write(F("Calibrating motor %c: "), 'A' + motor_id);
         int encoder = motor_get_encoder(motor_id);
         int target_encoder = motor_get_target_encoder(motor_id);
@@ -196,36 +189,33 @@ static void update_status(motor_id_t motor_id)
         } else if (target_encoder == INT_MIN) {
             log_write(F("Reverse direction, "));
         } else if (target_encoder == 0) {
-            if (encoder == 0)
-                log_write(F("At home, "));
-            else
+            if (encoder != 0)
                 log_write(F("Heading home, "));
+            else
+                log_write(F("At home, "));
         }
 
         log_writeln(F("encoder %d."), encoder * config.motor[motor_id].orientation);
-        print_ms = millis();
+        prev_print_ms = millis();
     }
-
-    bool triggered = motor_is_home_triggered_debounced(motor_id);
 }
 
-static void calibrate_all(sm_state_t *state)
+static void calibrate_all(void)
 {
-    assert(state);
     assert((motor_ids_mask >= 0) && (motor_ids_mask <= MOTOR_IDS_MASK));
 
     if (motor_ids_mask & (1 << motor_id))
         sm_set_next_state(state_test_one_enter);
     else
-        motor_id = (motor_id_t)((int)motor_id + 1);
+        motor_id = (motor_id_t)(motor_id + 1);
 
     if (motor_id >= MOTOR_ID_COUNT)
         exit_sm();
 }
 
-static void test_one_enter(sm_state_t *state)
+static void test_one_enter(void)
 {
-    assert(state);
+    // Transitions to motor_test state machine, and then back to this state when the motor_test has completed.
 
     static bool test_started = false;
 
@@ -246,14 +236,12 @@ static void test_one_enter(sm_state_t *state)
     }
 }
 
-static void calibrate_one_enter(sm_state_t *state)
+static void calibrate_one_enter(void)
 {
-    assert(state);
     assert((motor_id >= MOTOR_ID_A) && (motor_id < MOTOR_ID_COUNT));
 
+    reset_stall_detection();
     is_gripper = false;
-    stalled_start_encoder = 0;
-    stalled_start_millis = millis();
     home_forward_on_encoder = INT_MAX;
     home_forward_off_encoder = INT_MAX;
     home_reverse_on_encoder = INT_MIN;
@@ -263,7 +251,8 @@ static void calibrate_one_enter(sm_state_t *state)
     min_encoder = INT_MIN;
     max_encoder = INT_MAX;
 
-    motor_set_enabled_mask(1 << motor_id);  // Enable only the motor being calibrated.
+    // Enable only the motor under calbiration, because other motors may draw current if they have problems.
+    motor_set_enabled_mask(1 << motor_id);
     motor_set_home_encoder(motor_id, motor_get_encoder(motor_id));
 
     prev_gripper_motor_id = config.gripper_motor_id;
@@ -285,17 +274,15 @@ static void transition_to_calibrate_one_reverse_then_forward(void)
 {
     assert((motor_id >= MOTOR_ID_A) && (motor_id < MOTOR_ID_COUNT));
 
-    stalled_start_encoder = 0;
-    stalled_start_millis = millis();
+    reset_stall_detection();
     motor_state[motor_id].home_reverse_on_encoder = INT_MIN;
     motor_state[motor_id].home_reverse_off_encoder = INT_MIN;
 
     sm_set_next_state(state_calibrate_one_reverse_then_forward);
 }
 
-static void calibrate_one_reverse_then_forward(sm_state_t *state)
+static void calibrate_one_reverse_then_forward(void)
 {
-    assert(state);
     assert((motor_id >= MOTOR_ID_A) && (motor_id < MOTOR_ID_COUNT));
 
     motor_set_target_encoder(motor_id, INT_MIN);  // Stall detection in motor.cpp may change target. Make sure it's INT_MIN.
@@ -309,10 +296,10 @@ static void calibrate_one_reverse_then_forward(sm_state_t *state)
     if (motor_state[motor_id].home_reverse_on_encoder != INT_MIN) {
         motor_state[motor_id].home_reverse_on_encoder = INT_MIN;
         log_writeln(F("Calibrating motor %c: Reverse direction, encoder %d, unexpected second reverse on home switch. Ignoring."), 'A' + motor_id, motor_get_encoder(motor_id));
-    } else if (is_stalled(motor_id, &stalled_start_encoder, &stalled_start_millis, 500)) {
-        max_encoder = motor_get_encoder(motor_id);
-        log_writeln(F("Calibrating motor %c: Forward backing up, encoder %d, motor stalled. Setting max encoder to %d"), 'A' + motor_id, max_encoder, max_encoder);
-        stalled_start_millis = millis();
+    } else if (is_stalled(500)) {
+        max_encoder = stalled_start_encoder;  // Set to stalled_start_encoder because it may not be able to command to present encoder when moving slowly.
+        log_writeln(F("Calibrating motor %c: Forward backing up, encoder %d, motor stalled. Setting max encoder to stall start encoder %d"), 'A' + motor_id, motor_get_encoder(motor_id), max_encoder);
+        reset_stall_detection();
         sm_set_next_state(state_calibrate_one_failed);
     }
 }
@@ -321,17 +308,15 @@ static void transition_to_calibrate_one_forward(void)
 {
     assert((motor_id >= MOTOR_ID_A) && (motor_id < MOTOR_ID_COUNT));
 
-    stalled_start_encoder = 0;
-    stalled_start_millis = millis();
     motor_state[motor_id].home_forward_on_encoder = INT_MAX;
     motor_state[motor_id].home_forward_off_encoder = INT_MAX;
 
+    reset_stall_detection();
     sm_set_next_state(state_calibrate_one_forward);
 }
 
-static void calibrate_one_forward(sm_state_t *state)
+static void calibrate_one_forward(void)
 {
-    assert(state);
     assert((motor_id >= MOTOR_ID_A) && (motor_id < MOTOR_ID_COUNT));
 
     int gripper_home_center = 0;
@@ -380,16 +365,15 @@ static void calibrate_one_forward(sm_state_t *state)
     } else if (!calibrate_limits && (home_forward_on_encoder != INT_MAX) && (home_forward_off_encoder != INT_MAX)) {
         // Not finding limits and found both the forward on and forward off encoders, so turn around.
         transition_to_calibrate_one_reverse();
-    } else if (is_stalled(motor_id, &stalled_start_encoder, &stalled_start_millis, 500)) {
+    } else if (is_stalled(500)) {
         if (is_gripper_and_get_home_center(&gripper_home_center)) {
             log_writeln(F("Calibrating motor %c: Forward direction, encoder %d, gripper found. Setting home encoder to %d (home switch opposite)."), 'A' + motor_id, motor_get_encoder(motor_id), gripper_home_center);
             is_gripper = true;
             home_forward_on_encoder = home_forward_off_encoder = home_reverse_on_encoder = home_reverse_off_encoder = gripper_home_center;
             sm_set_next_state(state_calibrate_one_go_home);
         } else {
-            max_encoder = motor_get_encoder(motor_id);
-            log_writeln(F("Calibrating motor %c: Forward direction, encoder %d, motor stalled. Setting max encoder to %d. Reversing direction."), 'A' + motor_id, max_encoder, max_encoder);
-            stalled_start_millis = millis();
+            max_encoder = stalled_start_encoder;  // Set to stalled_start_encoder because it may not be able to command to present encoder when moving slowly.
+            log_writeln(F("Calibrating motor %c: Forward direction, encoder %d, motor stalled. Setting max encoder to %d. Reversing direction."), 'A' + motor_id, motor_get_encoder(motor_id), max_encoder);
             ntimes_found_max_encoder++;
             transition_to_calibrate_one_reverse();
         }
@@ -400,17 +384,15 @@ static void transition_to_calibrate_one_reverse()
 {
     assert((motor_id >= MOTOR_ID_A) && (motor_id < MOTOR_ID_COUNT));
 
-    stalled_start_encoder = 0;
-    stalled_start_millis = millis();
+    reset_stall_detection();
     motor_state[motor_id].home_reverse_on_encoder = INT_MIN;
     motor_state[motor_id].home_reverse_off_encoder = INT_MIN;
 
     sm_set_next_state(state_calibrate_one_reverse);
 }
 
-static void calibrate_one_reverse(sm_state_t *state)
+static void calibrate_one_reverse(void)
 {
-    assert(state);
     assert((motor_id >= MOTOR_ID_A) && (motor_id < MOTOR_ID_COUNT));
 
     int gripper_home_center = 0;
@@ -458,30 +440,28 @@ static void calibrate_one_reverse(sm_state_t *state)
         sm_set_next_state(state_calibrate_one_failed);
     } else if (!calibrate_limits && (home_reverse_on_encoder != INT_MIN) && (home_reverse_off_encoder != INT_MIN)) {
         transition_to_calibrate_one_forward();
-    } else if (is_stalled(motor_id, &stalled_start_encoder, &stalled_start_millis, 500)) {
+    } else if (is_stalled(500)) {
         if (is_gripper_and_get_home_center(&gripper_home_center)) {
             log_writeln(F("Calibrating motor %c: Reverse direction, encoder %d, gripper found. Setting home encoder to %d (home switch opposite)."), 'A' + motor_id, motor_get_encoder(motor_id), gripper_home_center);
             is_gripper = true;
             home_forward_on_encoder = home_forward_off_encoder = home_reverse_on_encoder = home_reverse_off_encoder = gripper_home_center;
             sm_set_next_state(state_calibrate_one_go_home);
         } else {
-            min_encoder = stalled_start_encoder;
-            log_writeln(F("Calibrating motor %c: Reverse direction, encoder %d, motor stalled. Setting min encoder to %d. Reversing direction."), 'A' + motor_id, min_encoder, min_encoder);
-            stalled_start_millis = millis();
+            min_encoder = stalled_start_encoder;  // Set to stalled_start_encoder because it may not be able to command to present encoder when moving slowly.
+            log_writeln(F("Calibrating motor %c: Reverse direction, encoder %d, motor stalled. Setting min encoder to %d. Reversing direction."), 'A' + motor_id, motor_get_encoder(motor_id), min_encoder);
             ntimes_found_min_encoder++;
             transition_to_calibrate_one_forward();
         }
     }
 }
 
-static void calibrate_one_go_home(sm_state_t *state)
+static void calibrate_one_go_home(void)
 {
-    assert(state);
     assert((motor_id >= MOTOR_ID_A) && (motor_id < MOTOR_ID_COUNT));
     update_status(motor_id);
 
     if (motor_get_target_encoder(motor_id) != 0) {
-        stalled_start_millis = millis();
+        reset_stall_detection();
 
         // Divide by 4 before adding, to avoid integer rollover.
         int midpoint = home_forward_on_encoder / 4 + home_forward_off_encoder / 4 + home_reverse_on_encoder / 4 + home_reverse_off_encoder / 4;
@@ -524,19 +504,18 @@ static void calibrate_one_go_home(sm_state_t *state)
             passing_motor_ids_mask |= (1 << motor_id);
             sm_set_next_state(state_calibrate_one_done);
         }
-    } else if (is_stalled(motor_id, &stalled_start_encoder, &stalled_start_millis, 5 * 1000)) {
+    } else if (is_stalled(5 * 1000)) {
         log_writeln(F("Calibrating motor %c: Motor is stalled at encoder %d. Calibration for motor %c ** FAILED **."), 'A' + motor_id, encoder, 'A' + motor_id);
         sm_set_next_state(state_calibrate_one_failed);
     }
 }
 
-static void calibrate_one_failed(sm_state_t *state)
+static void calibrate_one_failed(void)
 {
-    assert(state);
     assert((motor_id >= MOTOR_ID_A) && (motor_id < MOTOR_ID_COUNT));
     update_status(motor_id);
 
-    stalled_start_millis = millis();
+    reset_stall_detection();
     log_writeln(F("Calibrating motor %c: Could not find home switch: forward_on=%d, forward_off=%d, reverse_on=%d, reverse_off=%d)."),
                 'A' + motor_id,
                 home_forward_on_encoder,
@@ -546,16 +525,15 @@ static void calibrate_one_failed(sm_state_t *state)
     log_writeln(F("Calibrating motor %c: Calibration for motor %c ** FAILED **."), 'A' + motor_id, 'A' + motor_id);
 
     if ((ntimes_found_min_encoder > 0) && (ntimes_found_max_encoder > 0)) {
-        sm_set_next_state(state_calibrate_one_failed_center);
+        sm_set_next_state(state_calibrate_one_failed_goto_center);
     } else {
         motor_set_enabled(motor_id, false);
         sm_set_next_state(state_calibrate_one_done);
     }
 }
 
-static void calibrate_one_failed_center(sm_state_t *state)
+static void calibrate_one_failed_goto_center(void)
 {
-    assert(state);
     assert((motor_id >= MOTOR_ID_A) && (motor_id < MOTOR_ID_COUNT));
     update_status(motor_id);
 
@@ -563,22 +541,21 @@ static void calibrate_one_failed_center(sm_state_t *state)
 
     if (motor_get_target_encoder(motor_id) != midpoint) {
         log_writeln(F("Calibrating motor %c: Commanding motor to midpoint between min and max encoders (encoder %d) to mitigate failed calibration."), 'A' + motor_id, midpoint);
-        stalled_start_millis = millis();
+        reset_stall_detection();
         motor_set_target_encoder(motor_id, midpoint);
     }
 
     if (motor_get_encoder(motor_id) == midpoint) {
         log_writeln(F("Calibrating motor %c: Arrived at midpoint between min and max encoders (encoder %d)."), 'A' + motor_id, midpoint);
         sm_set_next_state(state_calibrate_one_done);
-    } else if (is_stalled(motor_id, &stalled_start_encoder, &stalled_start_millis, 5 * 1000)) {
+    } else if (is_stalled(5 * 1000)) {
         log_writeln(F("Calibrating motor %c: Stalled on way to midpoint between min and max encoders (encoder %d). ** FAILED **."), 'A' + motor_id, midpoint);
         sm_set_next_state(state_calibrate_one_done);
     }
 }
 
-static void calibrate_one_done(sm_state_t *state)
+static void calibrate_one_done(void)
 {
-    assert(state);
     assert((motor_id >= MOTOR_ID_A) && (motor_id < MOTOR_ID_COUNT));
 
     motor_set_enabled(motor_id, false);
@@ -637,39 +614,33 @@ static void exit_sm(void)
     sm_set_next_state(exit_to_state);
 }
 
-static void break_handler(sm_state_t *state)
+static void break_handler(void)
 {
-    assert(state);
     log_writeln(F("Break detected. Stopping calibration."));
     exit_sm();
 }
 
-void calibrate_home_switch_and_limits(int in_motor_ids_mask, int in_max_speed_percent)
+static void prepare_to_calibrate(int in_motor_ids_mask, int in_max_speed_percent)
 {
     assert((in_motor_ids_mask >= 0) && (in_motor_ids_mask <= MOTOR_IDS_MASK));
 
-    calibrate_limits = true;
     motor_ids_mask = in_motor_ids_mask;
     passing_motor_ids_mask = 0;
     motor_id = (motor_id_t)0;
     max_speed_percent = in_max_speed_percent;
     exit_motor_ids_mask = motor_get_enabled_mask();
     exit_to_state = sm_get_state();
-
     sm_set_next_state(state_calibrate_all);
+}
+
+void calibrate_home_switch_and_limits(int in_motor_ids_mask, int in_max_speed_percent)
+{
+    calibrate_limits = true;
+    prepare_to_calibrate(in_motor_ids_mask, in_max_speed_percent);
 }
 
 void calibrate_home_switch(int in_motor_ids_mask, int in_max_speed_percent)
 {
-    assert((in_motor_ids_mask >= 0) && (in_motor_ids_mask <= MOTOR_IDS_MASK));
-
     calibrate_limits = false;
-    motor_ids_mask = in_motor_ids_mask;
-    passing_motor_ids_mask = 0;
-    motor_id = (motor_id_t)0;
-    max_speed_percent = in_max_speed_percent;
-    exit_motor_ids_mask = motor_get_enabled_mask();
-    exit_to_state = sm_get_state();
-
-    sm_set_next_state(state_calibrate_all);
+    prepare_to_calibrate(in_motor_ids_mask, in_max_speed_percent);
 }
