@@ -460,6 +460,8 @@ int command_set_motor_angle(char *args, size_t args_nbytes)
 {
     assert(args);
 
+    sm_set_display_mode(SM_DISPLAY_MODE_ANGLE);
+
     motor_id_t motor_id = MOTOR_ID_A;
     char *p = args;
     size_t nbytes = parse_motor_id(p, args_nbytes, &motor_id);
@@ -471,9 +473,9 @@ int command_set_motor_angle(char *args, size_t args_nbytes)
 
     float angle = motor_get_angle(motor_id);
 
-    nbytes = parse_motor_angle_or_encoder(p, args_nbytes, &angle);
+    nbytes = parse_motor_position(p, args_nbytes, &angle);
     if (nbytes == 0)
-        return -1;                     // parse_motor_angle_or_encoder will emit message if error.
+        return -1;                     // parse_motor_position will emit message if error.
     args_nbytes -= nbytes;
     p += nbytes;
 
@@ -487,6 +489,95 @@ int command_set_motor_angle(char *args, size_t args_nbytes)
     if (motor_get_enabled(motor_id)) {
         log_writeln(F("Move Motor %c to an angle of %s degrees."), 'A' + motor_id, angle_str);
         motor_set_target_angle(motor_id, angle);
+    } else {
+        log_writeln(F("ERROR: Motor %c not enabled."), 'A' + motor_id);
+        // TODO: error state?
+    }
+    return p - args;
+
+error:
+    return -1;
+}
+
+int command_set_motor_encoder(char *args, size_t args_nbytes)
+{
+    assert(args);
+
+    sm_set_display_mode(SM_DISPLAY_MODE_ENCODER);
+
+    motor_id_t motor_id = MOTOR_ID_A;
+    char *p = args;
+    size_t nbytes = parse_motor_id(p, args_nbytes, &motor_id);
+
+    if (nbytes == 0)
+        return -1;                     // parse_motor_id will emit message if error.
+    args_nbytes -= nbytes;
+    p += nbytes;
+
+    float encoder = motor_get_encoder(motor_id);
+
+    nbytes = parse_motor_position(p, args_nbytes, &encoder);
+    if (nbytes == 0)
+        return -1;
+    args_nbytes -= nbytes;
+    p += nbytes;
+
+    if (args_nbytes > 0)
+        return -1;
+
+    char encoder_str[15] = {};
+
+    dtostrf(encoder, 3, 2, encoder_str);
+
+    if (motor_get_enabled(motor_id)) {
+        log_writeln(F("Move Motor %c to encoder %s."), 'A' + motor_id, encoder_str);
+        motor_set_target_encoder(motor_id, encoder);
+    } else {
+        log_writeln(F("ERROR: Motor %c not enabled."), 'A' + motor_id);
+        // TODO: error state?
+    }
+
+    return p - args;
+}
+
+int command_set_motor_percent(char *args, size_t args_nbytes)
+{
+    assert(args);
+
+    sm_set_display_mode(SM_DISPLAY_MODE_PERCENT);
+
+    motor_id_t motor_id = MOTOR_ID_A;
+    char *p = args;
+    size_t nbytes = parse_motor_id(p, args_nbytes, &motor_id);
+
+    if (nbytes == 0)
+        return -1;                     // parse_motor_id will emit message if error.
+    args_nbytes -= nbytes;
+    p += nbytes;
+
+    float percent = motor_get_percent(motor_id);
+
+    nbytes = parse_motor_position(p, args_nbytes, &percent);
+    if (nbytes == 0)
+        return -1;                     // parse_motor_position will emit message if error.
+    args_nbytes -= nbytes;
+    p += nbytes;
+
+    if (args_nbytes > 0)
+        return -1;
+
+    if ((percent < 0.0) || (percent > 100.0)) {
+        log_writeln(F("Clamping motor position %d%% to [0.0, 100.0]"), (int)percent);
+        percent = fmax(0.0, fmin(100.0, percent));
+    }
+
+    char percent_str[15] = {};
+
+    dtostrf(percent, 3, 2, percent_str);
+
+    if (motor_get_enabled(motor_id)) {
+        log_writeln(F("Move Motor %c to %s%%."), 'A' + motor_id, percent_str);
+        motor_set_target_percent(motor_id, percent);
     } else {
         log_writeln(F("ERROR: Motor %c not enabled."), 'A' + motor_id);
         // TODO: error state?
@@ -539,45 +630,6 @@ int command_poll_pins(char *args, size_t args_nbytes)
     const sm_state_t s = { .run = poll_pins, .break_handler = poll_pins_break_handler, .process_break_only = true, .name = state_poll_pins_name };
 
     sm_set_next_state(s);
-
-    return p - args;
-}
-
-int command_set_motor_encoder(char *args, size_t args_nbytes)
-{
-    assert(args);
-
-    motor_id_t motor_id = MOTOR_ID_A;
-    char *p = args;
-    size_t nbytes = parse_motor_id(p, args_nbytes, &motor_id);
-
-    if (nbytes == 0)
-        return -1;                     // parse_motor_id will emit message if error.
-    args_nbytes -= nbytes;
-    p += nbytes;
-
-    float encoder = motor_get_encoder(motor_id);
-
-    nbytes = parse_motor_angle_or_encoder(p, args_nbytes, &encoder);
-    if (nbytes == 0)
-        return -1;
-    args_nbytes -= nbytes;
-    p += nbytes;
-
-    if (args_nbytes > 0)
-        return -1;
-
-    char encoder_str[15] = {};
-
-    dtostrf(encoder, 3, 2, encoder_str);
-
-    if (motor_get_enabled(motor_id)) {
-        log_writeln(F("Move Motor %c to encoder %s."), 'A' + motor_id, encoder_str);
-        motor_set_target_encoder(motor_id, encoder);
-    } else {
-        log_writeln(F("ERROR: Motor %c not enabled."), 'A' + motor_id);
-        // TODO: error state?
-    }
 
     return p - args;
 }

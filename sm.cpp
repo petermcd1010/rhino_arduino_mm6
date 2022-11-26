@@ -21,6 +21,7 @@ sm_state_t next_state;
 
 static int enabled_motors_mask = 0;
 static bool reset_prompt = true;
+static sm_display_mode display_mode = SM_DISPLAY_MODE_ENCODER;
 
 static const char sm_state_motors_off_enter_name[] PROGMEM = "motors off";  // Keep as 'motors off', so the prompt isn't confusing to the user.
 static const char sm_state_motors_off_execute_name[] PROGMEM = "motors off";
@@ -117,21 +118,12 @@ static void process_break_only()
     }
 }
 
-static void process_all_input()
+static void maybe_print_command_prompt(menu_item_t const **prev_menu_item, int *command_args_nbytes, bool *have_command)
 {
-    const char ASCII_CTRL_C = 3;
-    const char ASCII_BACKSPACE = 8;
-    const char ASCII_BELL = 9;
-    const char ASCII_RETURN = 13;
-    const char ASCII_DELETE = 127;
-    const int command_args_max_nbytes = 64;
-    static char command_args[command_args_max_nbytes] = {};
-    static int command_args_nbytes = 0;
-    static menu_item_t const *prev_menu_item = NULL;
-    static bool have_command = false;
-
-    bool status_updated = false;
     static status_t previous_status = { 0 };
+    static unsigned long previous_status_time_millis = 0;
+    unsigned long current_time_millis = millis();
+    bool status_updated = false;
     status_t status;
 
     gather_status(&status);
@@ -139,19 +131,17 @@ static void process_all_input()
     if (memcmp(&previous_status, &status, sizeof(status_t)) != 0)
         status_updated = true;
 
-    static unsigned long previous_status_time_millis = 0;
-    unsigned long current_time_millis = millis();
-
     if (reset_prompt ||
-        (!prev_menu_item &&
+        (!*prev_menu_item &&
          status_updated &&
          (current_time_millis - previous_status_time_millis > 250))) {
+
         if (status_updated && !reset_prompt)
             log_writeln();
 
-        prev_menu_item = NULL;
-        command_args_nbytes = 0;
-        have_command = false;
+        *prev_menu_item = NULL;
+        *command_args_nbytes = 0;
+        *have_command = false;
         reset_prompt = false;
 
         if (strlen(config.robot_name) != 0)
@@ -170,13 +160,26 @@ static void process_all_input()
             log_write(F("Unknown state "));
         }
 
+        if (display_mode == SM_DISPLAY_MODE_ENCODER)
+            log_write(F("enc "));
+        else if (display_mode == SM_DISPLAY_MODE_ANGLE)
+            log_write(F("deg "));
+        else if (display_mode == SM_DISPLAY_MODE_PERCENT)
+            log_write(F("pct "));
+
         for (int motor_id = 0; motor_id < MOTOR_ID_COUNT; motor_id++) {
             if (motor_get_enabled((motor_id_t)motor_id)) {
-                // TODO: Print angle when it makes sense.
-                // char angle_str[15];
-                // dtostrf(status.motor[i].angle, 3, 1, angle_str);
+                char str[15];
                 char motor_name = (status.motor[motor_id].switch_triggered ? 'A' : 'a') + motor_id;
-                log_write(F("%c:%d "), motor_name, status.motor[motor_id].encoder);
+                if (display_mode == SM_DISPLAY_MODE_ENCODER) {
+                    log_write(F("%c:%d "), motor_name, motor_get_encoder(motor_id));
+                } else if (display_mode == SM_DISPLAY_MODE_ANGLE) {
+                    dtostrf(motor_get_angle(motor_id), 3, 1, str);
+                    log_write(F("%c:%s "), motor_name, str);
+                } else if (display_mode == SM_DISPLAY_MODE_PERCENT) {
+                    dtostrf(motor_get_percent(motor_id), 3, 2, str);
+                    log_write(F("%c:%s "), motor_name, str);
+                }
             }
         }
 
@@ -185,6 +188,22 @@ static void process_all_input()
         memcpy(&previous_status, &status, sizeof(status_t));
         previous_status_time_millis = current_time_millis;
     }
+}
+
+static void process_all_input()
+{
+    const char ASCII_CTRL_C = 3;
+    const char ASCII_BACKSPACE = 8;
+    const char ASCII_BELL = 9;
+    const char ASCII_RETURN = 13;
+    const char ASCII_DELETE = 127;
+    const int command_args_max_nbytes = 64;
+    static char command_args[command_args_max_nbytes] = {};
+    static int command_args_nbytes = 0;
+    static menu_item_t const *prev_menu_item = NULL;
+    static bool have_command = false;
+
+    maybe_print_command_prompt(&prev_menu_item, &command_args_nbytes, &have_command);
 
     if (Serial.available()) {
         char input_char = Serial.read();
@@ -396,4 +415,9 @@ int sm_get_enabled_motors_mask(void)
 void sm_set_enabled_motors_mask(int mask)
 {
     enabled_motors_mask = mask;
+}
+
+void sm_set_display_mode(sm_display_mode in_display_mode)
+{
+    display_mode = in_display_mode;
 }

@@ -280,51 +280,6 @@ void motor_set_home_encoder(motor_id_t motor_id, int home_encoder)
     motor_state[motor_id].target_encoder -= home_encoder;
 }
 
-void motor_set_target_encoder(motor_id_t motor_id, int encoder)
-{
-    assert((motor_id >= 0) && (motor_id < MOTOR_ID_COUNT));
-
-    if (motor_get_target_encoder(motor_id) == encoder)
-        return;
-
-    motor_state[motor_id].target_encoder = encoder * config.motor[motor_id].orientation;
-    motor_state[motor_id].progress = MOTOR_PROGRESS_ON_WAY_TO_TARGET;
-    motor_state[motor_id].encoders_per_second = 0;
-}
-
-int motor_get_target_encoder(motor_id_t motor_id)
-{
-    assert((motor_id >= 0) && (motor_id < MOTOR_ID_COUNT));
-
-    return motor_state[motor_id].target_encoder * config.motor[motor_id].orientation;
-}
-
-int motor_get_encoder(motor_id_t motor_id)
-{
-    assert((motor_id >= 0) && (motor_id < MOTOR_ID_COUNT));
-    if (!motor_get_enabled(motor_id))
-        return 0;
-
-    return noinit_data.motor[motor_id].encoder * config.motor[motor_id].orientation;
-}
-
-bool motor_is_moving(motor_id_t motor_id)
-{
-    if (!motor_get_enabled(motor_id))
-        return false;
-
-    return motor_state[motor_id].target_encoder != noinit_data.motor[motor_id].encoder;
-}
-
-void motor_print_encoders(void)
-{
-    log_writeln(F("Current Positions: "));
-    for (int i = 0; i < MOTOR_ID_COUNT; i++) {
-        log_write(F("%c=%d%c"), 'A' + i, motor_get_encoder((motor_id_t)i), (i < MOTOR_ID_COUNT - 1) ? ',' : ' ');
-    }
-    log_writeln();
-}
-
 float motor_get_encoder_steps_per_degree(motor_id_t motor_id)
 {
     assert((motor_id >= 0) && (motor_id < MOTOR_ID_COUNT));
@@ -354,11 +309,46 @@ float motor_get_encoder_steps_per_degree(motor_id_t motor_id)
     assert(false);
 }
 
+int motor_get_encoder(motor_id_t motor_id)
+{
+    assert((motor_id >= 0) && (motor_id < MOTOR_ID_COUNT));
+    if (!motor_get_enabled(motor_id))
+        return 0;
+
+    return noinit_data.motor[motor_id].encoder * config.motor[motor_id].orientation;
+}
+
+void motor_set_target_encoder(motor_id_t motor_id, int encoder)
+{
+    assert((motor_id >= 0) && (motor_id < MOTOR_ID_COUNT));
+
+    if (motor_get_target_encoder(motor_id) == encoder)
+        return;
+
+    motor_state[motor_id].target_encoder = encoder * config.motor[motor_id].orientation;
+    motor_state[motor_id].progress = MOTOR_PROGRESS_ON_WAY_TO_TARGET;
+    motor_state[motor_id].encoders_per_second = 0;
+}
+
+int motor_get_target_encoder(motor_id_t motor_id)
+{
+    assert((motor_id >= 0) && (motor_id < MOTOR_ID_COUNT));
+
+    return motor_state[motor_id].target_encoder * config.motor[motor_id].orientation;
+}
+
 int motor_angle_to_encoder(motor_id_t motor_id, float angle)
 {
     assert((motor_id >= 0) && (motor_id < MOTOR_ID_COUNT));
 
     return (angle * motor_get_encoder_steps_per_degree(motor_id)) + config.motor[motor_id].angle_offset;
+}
+
+float motor_get_angle(motor_id_t motor_id)
+{
+    assert((motor_id >= 0) && (motor_id < MOTOR_ID_COUNT));
+
+    return (motor_get_encoder(motor_id) - config.motor[motor_id].angle_offset) / motor_get_encoder_steps_per_degree(motor_id);
 }
 
 void motor_set_target_angle(motor_id_t motor_id, float angle)
@@ -371,11 +361,31 @@ void motor_set_target_angle(motor_id_t motor_id, float angle)
     motor_set_target_encoder(motor_id, encoder);
 }
 
-float motor_get_angle(motor_id_t motor_id)
+float motor_get_percent(motor_id_t motor_id)
 {
     assert((motor_id >= 0) && (motor_id < MOTOR_ID_COUNT));
 
-    return (motor_get_encoder(motor_id) - config.motor[motor_id].angle_offset) / motor_get_encoder_steps_per_degree(motor_id);
+    float percent = ((motor_get_encoder(motor_id) - config.motor[motor_id].min_encoder) * 100.0) / (config.motor[motor_id].max_encoder - config.motor[motor_id].min_encoder);
+
+    return fmax(0.0, fmin(100.0, percent));  // Paranoid clamp to avoid rounding < 0.0 or > 100.0.
+}
+
+void motor_set_target_percent(motor_id_t motor_id, float percent)
+{
+    assert((motor_id >= 0) && (motor_id < MOTOR_ID_COUNT));
+    assert((percent >= 0) && (percent <= 100.0));
+
+    int encoder = config.motor[motor_id].min_encoder + (config.motor[motor_id].max_encoder - config.motor[motor_id].min_encoder) * percent / 100.0;
+
+    motor_set_target_encoder(motor_id, encoder);
+}
+
+bool motor_is_moving(motor_id_t motor_id)
+{
+    if (!motor_get_enabled(motor_id))
+        return false;
+
+    return motor_state[motor_id].target_encoder != noinit_data.motor[motor_id].encoder;
 }
 
 void motor_set_speed(motor_id_t motor_id, int speed)

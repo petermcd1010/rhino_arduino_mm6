@@ -149,6 +149,8 @@ static const char MM_W[] PROGMEM = "waypoints menu";
 static const char MH_W[] PROGMEM = "-- Edit and execute waypoints.";
 static const char MM_Z[] PROGMEM = "poll header pins";
 static const char MH_Z[] PROGMEM = "-- Poll header pins for changes in polarity. Useful for debugging buttons.";
+static const char MM_PCT[] PROGMEM = "set motor percent";
+static const char MH_PCT[] PROGMEM = "motorid percent -- Percent is 0.0 to 100.0, +15, -20, +, -, ++, --.";
 static const char MM_STAR[] PROGMEM = "factory reset";
 static const char MH_STAR[] PROGMEM = "-- Reset system to factory defaults (clears EEPROM, etc). Requires typing 'RESET'.";
 static const char MM_BANG[] PROGMEM = "emergency stop";
@@ -180,6 +182,7 @@ static const menu_item_t main_menu[] = {
     { 'V', MM_V,    NULL,                              NULL,             true,  command_close_gripper,             MH_V    },
     { 'W', MM_W,    NULL,                              waypoint_menu,    false, NULL,                              MH_W    },
     { 'Z', MM_Z,    NULL,                              NULL,             false, command_poll_pins,                 MH_Z    },
+    { '%', MM_PCT,  NULL,                              NULL,             true,  command_set_motor_percent,         MH_PCT  },
     { '*', MM_STAR, extended_menu_factory_reset,       NULL,             true,  command_factory_reset,             MH_STAR },
     { '!', MM_BANG, NULL,                              NULL,             false, command_emergency_stop,            MH_BANG },
     { '?', MM_HELP, NULL,                              NULL,             false, command_print_help,                MH_HELP },
@@ -208,6 +211,7 @@ const menu_item_t calibration_menu[] = {
     { 'V', MM_V,    NULL,                 NULL,      true,  command_close_gripper,             MH_V    },
     { 'W', CM_W,    NULL,                 NULL,      true,  command_calibrate_home,            CH_W    },
     { 'X', CM_X,    NULL,                 main_menu, false, NULL,                              CH_X    },
+    { '%', MM_PCT,  NULL,                 NULL,      true,  command_set_motor_percent,         MH_PCT  },
     { '!', MM_BANG, NULL,                 NULL,      false, command_emergency_stop,            MH_BANG },
     { '?', MM_HELP, NULL,                 NULL,      false, command_print_help,                MH_HELP },
     { 0 }  // Terminate menus with an entry filled with zeros.
@@ -246,6 +250,7 @@ const menu_item_t waypoint_menu[] = {
     { 'W', CM_W,    NULL,                          NULL,      true,  command_calibrate_home,            CH_W    },
     { 'X', WM_X,    NULL,                          main_menu, false, NULL,                              WH_X    },
     { 'Z', MM_Z,    NULL,                          NULL,      false, command_poll_pins,                 MH_Z    },
+    { '%', MM_PCT,  NULL,                          NULL,      true,  command_set_motor_percent,         MH_PCT  },
     { '!', MM_BANG, NULL,                          NULL,      false, command_emergency_stop,            MH_BANG },
     { '?', MM_HELP, NULL,                          NULL,      false, command_print_help,                MH_HELP },
     { 0 }  // Terminate menus with an entry filled with zeros.

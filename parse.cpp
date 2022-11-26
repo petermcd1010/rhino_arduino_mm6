@@ -360,7 +360,7 @@ error:
     return 0;
 }
 
-size_t parse_motor_angle_or_encoder(char *buf, size_t buf_nbytes, float *out_value)
+size_t parse_motor_position(char *buf, size_t buf_nbytes, float *out_value)
 {
     assert(buf);
     assert(out_value);

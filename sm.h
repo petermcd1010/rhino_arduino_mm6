@@ -13,6 +13,12 @@ typedef struct _sm_state_t {
     const PROGMEM char *name;
 } sm_state_t;
 
+typedef enum {
+    SM_DISPLAY_MODE_ENCODER = 0,
+    SM_DISPLAY_MODE_ANGLE,
+    SM_DISPLAY_MODE_PERCENT
+} sm_display_mode;
+
 extern const sm_state_t sm_state_error_enter;
 extern const sm_state_t sm_state_motors_off_enter;
 extern const sm_state_t sm_state_motors_on_enter;
@@ -34,5 +40,6 @@ void sm_error_execute(void);
 
 int sm_get_enabled_motors_mask(void);
 void sm_set_enabled_motors_mask(int mask);
+void sm_set_display_mode(sm_display_mode display_mode);
 
 bool sm_test(void);
