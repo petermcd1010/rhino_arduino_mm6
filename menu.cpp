@@ -54,6 +54,17 @@ static void extended_menu_config_min_max_encoders(void)
     log_write(F(">"));
 }
 
+static void extended_menu_config_home_encoder(void)
+{
+    log_writeln();
+    log_writeln(F("Current min max encoder limits:"));
+    for (int i = 0; i < MOTOR_ID_COUNT; i++) {
+        log_writeln(F("  %c: min %d, max %d"), 'A' + i, config.motor[i].min_encoder, config.motor[i].max_encoder);
+    }
+    log_writeln(F("Enter 'motorid encoder' to set encoder to the home/zero position (this adjusts the min, max limits). Or <CTRL+C> to exit."));
+    log_write(F(">"));
+}
+
 static void extended_menu_factory_reset(void)
 {
     log_writeln();
@@ -131,7 +142,9 @@ static const char MH_4[] PROGMEM = "Print or set robot name.";
 static const char MM_5[] PROGMEM = "reverse motor orientation";
 static const char MH_5[] PROGMEM = "motorid -- Reverse orientation of a motor.";
 static const char MM_6[] PROGMEM = "set motor min max encoder limits";
-static const char MH_6[] PROGMEM = "motorid -- Print or set configured min max encoder limits.";
+static const char MH_6[] PROGMEM = "motorid min max -- Print or set configured min max encoder limits.";
+static const char MM_7[] PROGMEM = "set motor home encoder";
+static const char MH_7[] PROGMEM = "motorid encoder -- Print or set configured home encoder to zero (adjusts min, max).";
 static const char MM_0[] PROGMEM = "write configuration";
 static const char MH_0[] PROGMEM = "-- Write configuration data to EEPROM.";
 static const char MM_B[] PROGMEM = "reboot";
@@ -181,6 +194,7 @@ static const menu_item_t main_menu[] = {
     { '4', MM_4,    extended_menu_config_robot_name,       NULL,             true,  command_config_robot_name,         MH_4    },
     { '5', MM_5,    NULL,                                  NULL,             true,  command_reverse_motor_orientation, MH_5    },
     { '6', MM_6,    extended_menu_config_min_max_encoders, NULL,             true,  command_config_min_max_encoders,   MH_6    },
+    { '7', MM_6,    extended_menu_config_home_encoder,     NULL,             true,  command_config_home_encoder,       MH_7    },
     { '0', MM_0,    NULL,                                  NULL,             false, command_config_write,              MH_0    },
     { 'B', MM_B,    extended_menu_reboot,                  NULL,             true,  command_reboot,                    MH_B    },
     { 'C', MM_C,    NULL,                                  calibration_menu, false, NULL,                              MH_C    },

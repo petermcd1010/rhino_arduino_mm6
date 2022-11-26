@@ -275,6 +275,16 @@ void config_set_motor_min_max_encoders(motor_id_t motor_id, int min_encoder, int
     modified = true;
 }
 
+void config_set_motor_home_encoder(motor_id_t motor_id, int encoder)
+{
+    config.motor[motor_id].is_configured = true;
+    config.motor[motor_id].min_encoder = max(INT_MIN, config.motor[motor_id].min_encoder - encoder);
+    config.motor[motor_id].max_encoder = min(INT_MAX, config.motor[motor_id].max_encoder - encoder);
+    config_sign();
+
+    modified = true;
+};
+
 void config_set_motor_gripper_open_close_encoders(motor_id_t motor_id, int gripper_open_encoder, int gripper_close_encoder)
 {
     assert(motor_id >= 0 && motor_id < MOTOR_ID_COUNT);
