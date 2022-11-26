@@ -364,7 +364,7 @@ static void go_home(void)
     if (all_home) {
         for (int i = 0; i < MOTOR_ID_COUNT; i++) {
             bool enabled = ((enabled_motors & (1 << i)) != 0);
-            if (enabled && (config.gripper_motor_id != i) && (!motor_is_home_triggered_debounced((motor_id_t)i)))
+            if (enabled && (!motor_is_home_triggered_debounced((motor_id_t)i)))
                 log_writeln(F("WARNING: Motor %c arrived home, but home switch not triggered."), 'A' + i);
         }
 
@@ -634,48 +634,86 @@ error:
     return -1;
 }
 
-int command_open_gripper(char *args, size_t args_nbytes)
+static int actuate_gripper(char *args, size_t args_nbytes, bool open)
 {
     assert(args);
-    assert((config.gripper_motor_id >= 0) && (config.gripper_motor_id <= MOTOR_ID_COUNT));  // MOTOR_ID_COUNT means not configured, so is OK.
+    int old_motor_ids_mask = 0;
+    int motor_ids_mask = 0;
+    char *p = args;
+    size_t nbytes = parse_motor_ids(p, args_nbytes, &motor_ids_mask);
 
-    size_t nbytes = parse_whitespace(args, args_nbytes);
+    if ((motor_ids_mask == -1) || (args_nbytes != nbytes))
+        return nbytes;                 // parse_motors_ids prints an error.
 
-    if (nbytes != args_nbytes)
-        return -1;
+    args_nbytes -= nbytes;
+    p += nbytes;
 
-    motor_id_t gripper_motor_id = (motor_id_t)config.gripper_motor_id;
+    if (args_nbytes > 0)
+        goto error;
 
-    if (gripper_motor_id == MOTOR_ID_COUNT) {
-        log_writeln(F("No gripper motor configured. Run calibration and retry."));
-        return args_nbytes;
+    if ((sm_get_state().run != sm_motors_off_execute) &&
+        (sm_get_state().run != sm_motors_on_execute)) {
+        log_writeln(F("ERROR: Motors can not be turned on or off in the current state."));
+        goto error;
     }
 
-    motor_set_target_encoder(gripper_motor_id, config_get_gripper_open_encoder());
+    old_motor_ids_mask = motor_get_enabled_mask();
 
-    return args_nbytes;
+    if (motor_ids_mask == 0) {
+        // No args specified, so test all enabled motors.
+        if (old_motor_ids_mask == 0) {
+            log_write(F("No motors enabled. Skipping gripper "));
+            if (open)
+                log_writeln(F("open."));
+            else
+                log_writeln(F("close."));
+            return nbytes;
+        }
+        motor_ids_mask = motor_get_enabled_mask();
+    }
+
+    for (int i = 0; i < MOTOR_ID_COUNT; i++) {
+        if ((motor_ids_mask & (1 << i)) == 0)
+            continue;
+
+        if (!motor_get_enabled(i)) {
+            log_writeln(F("ERROR: Motor %c not enabled."), 'A' + i);
+            // TODO: error state?
+            continue;
+        }
+
+        if (!config.motor[i].is_gripper) {
+            log_writeln(F("Motor %c is not a gripper. Skipping."), 'A' + i);
+            continue;
+        }
+
+        int encoder = 0;
+        if (open)
+            encoder = config.motor[i].gripper_open_encoder;
+        else
+            encoder = config.motor[i].gripper_close_encoder;
+
+        char encoder_str[15] = {};
+        dtostrf(encoder, 3, 2, encoder_str);
+        log_writeln(F("Move Motor %c to encoder %s."), 'A' + i, encoder_str);
+
+        motor_set_target_encoder(i, encoder);
+    }
+
+    return nbytes;
+
+error:
+    return -1;
+}
+
+int command_open_gripper(char *args, size_t args_nbytes)
+{
+    return actuate_gripper(args, args_nbytes, true);
 }
 
 int command_close_gripper(char *args, size_t args_nbytes)
 {
-    assert(args);
-    assert((config.gripper_motor_id >= 0) && (config.gripper_motor_id <= MOTOR_ID_COUNT));  // MOTOR_ID_COUNT means not configured, so is OK.
-
-    size_t nbytes = parse_whitespace(args, args_nbytes);
-
-    if (nbytes != args_nbytes)
-        return -1;
-
-    motor_id_t gripper_motor_id = (motor_id_t)config.gripper_motor_id;
-
-    if (gripper_motor_id == MOTOR_ID_COUNT) {
-        log_writeln(F("No gripper motor configured. Run calibration and retry."));
-        return args_nbytes;
-    }
-
-    motor_set_target_encoder(gripper_motor_id, config_get_gripper_close_encoder());
-
-    return args_nbytes;
+    return actuate_gripper(args, args_nbytes, false);
 }
 
 int command_print_software_version(char *args, size_t args_nbytes)

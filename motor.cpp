@@ -691,7 +691,7 @@ ISR(TIMER1_COMPA_vect) {
         if (motor_state[motor_id].current > config.motor[motor_id].stall_current_threshold) {
             if (motor_state[motor_id].target_encoder == noinit_data.motor[motor_id].encoder) {
                 motor_state[motor_id].error_flags |= MOTOR_ERROR_FLAG_UNEXPECTED_STALL_CURRENT_THRESHOLD_EXCEEDED;
-            } else if (motor_id != config.gripper_motor_id) {
+            } else if (!config.motor[motor_id].is_gripper) {
                 // For Motors other than the gripper, High Current means
                 // that the motor is in a stall situation. To unstall,
                 // the target position is set back a bit from the

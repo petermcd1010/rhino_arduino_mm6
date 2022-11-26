@@ -159,11 +159,6 @@ bool config_check()
         }
     }
 
-    if ((config.gripper_motor_id < 0) || (config.gripper_motor_id > MOTOR_ID_COUNT)) {
-        log_writeln(F("ERROR: config_check: Invalid gripper motor id."));
-        ret = false;
-    }
-
     return ret;
 }
 
@@ -187,7 +182,6 @@ void config_clear()
         config.motor[i].home_reverse_off_encoder = INT_MIN;
         config.motor[i].stall_current_threshold = 200;
     }
-    config.gripper_motor_id = MOTOR_ID_COUNT;
     config_sign();
 
     modified = true;
@@ -234,6 +228,7 @@ void config_set_motor_orientation(motor_id_t motor_id, motor_orientation_t motor
            (motor_orientation == MOTOR_ORIENTATION_INVERTED));
 
     assert(config_check());
+    config.motor[motor_id].is_configured = true;
     config.motor[motor_id].orientation = motor_orientation;
     config_sign();
 
@@ -246,6 +241,8 @@ void config_set_motor_forward_polarity(motor_id_t motor_id, int high_or_low)
     assert((high_or_low == HIGH) ||
            (high_or_low == LOW));
     assert(config_check());
+
+    config.motor[motor_id].is_configured = true;
     config.motor[motor_id].forward_polarity = high_or_low;
     config_sign();
 
@@ -254,6 +251,7 @@ void config_set_motor_forward_polarity(motor_id_t motor_id, int high_or_low)
 
 void config_set_motor_angle_offsets(int B, int C, int D, int E, int F)
 {
+    // TODO: Remove this?
     config.motor[MOTOR_ID_B].angle_offset = B;
     config.motor[MOTOR_ID_C].angle_offset = C;
     config.motor[MOTOR_ID_D].angle_offset = D;
@@ -272,8 +270,23 @@ void config_set_motor_angle_offsets(int B, int C, int D, int E, int F)
 void config_set_motor_min_max_encoders(motor_id_t motor_id, int min_encoder, int max_encoder)
 {
     assert(motor_id >= 0 && motor_id < MOTOR_ID_COUNT);
+
+    config.motor[motor_id].is_configured = true;
     config.motor[motor_id].min_encoder = min_encoder;
     config.motor[motor_id].max_encoder = max_encoder;
+    config_sign();
+
+    modified = true;
+}
+
+void config_set_motor_gripper_open_close_encoders(motor_id_t motor_id, int gripper_open_encoder, int gripper_close_encoder)
+{
+    assert(motor_id >= 0 && motor_id < MOTOR_ID_COUNT);
+
+    config.motor[motor_id].is_configured = true;
+    config.motor[motor_id].is_gripper = true;
+    config.motor[motor_id].gripper_open_encoder = gripper_open_encoder;
+    config.motor[motor_id].gripper_close_encoder = gripper_close_encoder;
     config_sign();
 
     modified = true;
@@ -282,6 +295,9 @@ void config_set_motor_min_max_encoders(motor_id_t motor_id, int min_encoder, int
 void config_set_motor_home_encoders(motor_id_t motor_id, int home_forward_on_encoder, int home_forward_off_encoder, int home_reverse_on_encoder, int home_reverse_off_encoder)
 {
     assert(motor_id >= 0 && motor_id < MOTOR_ID_COUNT);
+
+    config.motor[motor_id].is_configured = true;
+    config.motor[motor_id].is_gripper = false;
     config.motor[motor_id].home_forward_on_encoder = home_forward_on_encoder;
     config.motor[motor_id].home_forward_off_encoder = home_forward_off_encoder;
     config.motor[motor_id].home_reverse_on_encoder = home_reverse_on_encoder;
@@ -300,43 +316,34 @@ void config_set_motor_stall_current_threshold(motor_id_t motor_id, int stall_cur
     modified = true;
 }
 
-void config_set_gripper_motor_id(motor_id_t motor_id)
+void config_print_one(motor_id_t motor_id)
 {
-    // Allow motor_id == MOTOR_ID_COUNT, so calibration can set no motor as the gripper motor.
-    assert((motor_id >= 0) && (motor_id <= MOTOR_ID_COUNT));
-
-    config.gripper_motor_id = motor_id;
-    config_sign();
-
-    modified = true;
-}
-
-int config_get_gripper_open_encoder(void)
-{
-    motor_id_t motor_id = config.gripper_motor_id;
-
     assert(motor_id >= 0 && motor_id < MOTOR_ID_COUNT);
 
-    int home_center_encoder = config.motor[motor_id].home_forward_on_encoder;
-    int open_encoder = 0;
+    if (!config_check())
+        log_writeln(F("Invalid configuration."));
 
-    if (abs(config.motor[motor_id].min_encoder - home_center_encoder) < abs(abs(config.motor[motor_id].max_encoder - home_center_encoder)))
-        open_encoder = config.motor[motor_id].max_encoder;
+    config_motor_t *motor = &config.motor[motor_id];
+
+    log_write(F("  Motor %c: "), 'A' + motor_id);
+    char str[15] = {};
+
+    if (!motor->is_configured) {
+        log_writeln(F("Not configured. Run calibration."));
+        return;
+    }
+
+    dtostrf(motor->angle_offset, 3, 2, str);
+    log_writeln(F("angle_offset: %s, orientation: %s, polarity: %s, stall current threshold: %d."),
+                str,
+                motor->orientation == MOTOR_ORIENTATION_NOT_INVERTED ? "not inverted" : "inverted",
+                motor->forward_polarity == LOW ? "not reversed" : "reversed",
+                motor->stall_current_threshold);
+    log_write(F("           Encoder min: %d, max: %d, "), motor->min_encoder, motor->max_encoder);
+    if (motor->is_gripper)
+        log_writeln(F("gripper open: %d, close: %d"), motor->gripper_open_encoder, motor->gripper_close_encoder);
     else
-        open_encoder = config.motor[motor_id].min_encoder;
-
-    log_writeln(F("config_get_gripper_open_encoder %d"), open_encoder);
-    return open_encoder;
-}
-
-int config_get_gripper_close_encoder(void)
-{
-    motor_id_t motor_id = config.gripper_motor_id;
-
-    assert(motor_id >= 0 && motor_id < MOTOR_ID_COUNT);
-
-    log_writeln(F("config_get_gripper_close_encoder %d"), config.motor[motor_id].home_forward_on_encoder);
-    return config.motor[motor_id].home_forward_on_encoder;
+        log_writeln(F("home forward on: %d, forward off: %d, reverse on: %d, reverse off: %d."), motor->home_forward_on_encoder, motor->home_forward_off_encoder, motor->home_reverse_on_encoder, motor->home_reverse_off_encoder);
 }
 
 void config_print()
@@ -350,28 +357,9 @@ void config_print()
     log_writeln(F("."));
     log_writeln(F("  Robot serial: '%s'."), config.robot_serial);
     log_writeln(F("  Robot name: '%s'."), config.robot_name);
-    if (config.gripper_motor_id != MOTOR_ID_COUNT)
-        log_writeln(F("  Gripper motor: Motor %c."), 'A' + config.gripper_motor_id);
-    else
-        log_writeln(F("  Gripper motor: Not configured. Run calibration."));
-
-    char str[15] = {};
-
     for (int i = 0; i < MOTOR_ID_COUNT; i++) {
-        config_motor_t *motor = &config.motor[i];
-
-        log_write(F("  Motor %c: "), 'A' + i);
-        dtostrf(motor->angle_offset, 3, 2, str);
-        log_writeln(F("angle_offset: %s, orientation: %s, polarity: %s."),
-                    str,
-                    motor->orientation == MOTOR_ORIENTATION_NOT_INVERTED ? "not inverted" : "inverted",
-                    motor->forward_polarity == LOW ? "not reversed" : "reversed");
-        log_writeln(F("           Min encoder: %d, max encoder: %d."), motor->min_encoder, motor->max_encoder);
-        log_writeln(F("           Home switch forward on encoder: %d, forward off encoder: %d."), motor->home_forward_on_encoder, motor->home_forward_off_encoder);
-        log_writeln(F("           Home switch reverse on encoder: %d, reverse off encoder: %d."), motor->home_reverse_on_encoder, motor->home_reverse_off_encoder);
-        log_writeln(F("           Stall current threshold: %d."), motor->stall_current_threshold);
+        config_print_one(i);
     }
-
     log_writeln(F("  Waypoints: %d of maximum %d waypoints saved."), waypoint_get_used_count(), waypoint_get_max_count());
 }
 
