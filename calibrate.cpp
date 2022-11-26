@@ -19,6 +19,8 @@ static int motor_ids_mask = 0;
 static motor_id_t motor_id = (motor_id_t)-1;
 static int prev_max_speed_percent = 0;
 static int max_speed_percent = 0;
+static int prev_min_encoder = 0;
+static int prev_max_encoder = 0;
 
 static bool is_gripper = false;
 static int stalled_start_encoder = 0;
@@ -227,6 +229,11 @@ static void calibrate_one_enter(void)
 
     reset_stall_detection();
     is_gripper = false;
+
+    prev_min_encoder = config.motor[motor_id].min_encoder;
+    prev_max_encoder = config.motor[motor_id].max_encoder;
+    config_set_motor_min_max_encoders(motor_id, INT_MIN, INT_MAX);
+
     home_forward_on_encoder = INT_MAX;
     home_forward_off_encoder = INT_MAX;
     home_reverse_on_encoder = INT_MIN;
@@ -477,8 +484,6 @@ static void calibrate_one_go_home(void)
                     config_set_motor_gripper_open_close_encoders(motor_id, home_encoder, max_encoder);
                 else
                     config_set_motor_gripper_open_close_encoders(motor_id, home_encoder, min_encoder);
-            } else {
-                config_set_motor_home_encoders(motor_id, home_forward_on_encoder, home_forward_off_encoder, home_reverse_on_encoder, home_reverse_off_encoder);
             }
 
             log_writeln(F("Calibrating motor %c: Motor arrived at home position (encoder 0)."), 'A' + motor_id);
@@ -575,6 +580,9 @@ static void print_summary(void)
 
 static void exit_sm(void)
 {
+    if ((motor_id >= 0) && (motor_id < MOTOR_ID_COUNT))
+        config_set_motor_min_max_encoders(motor_id, prev_min_encoder, prev_max_encoder);
+
     motor_id = (motor_id_t)-1;
     motor_set_enabled_mask(0);  // Stop motors that may be moving.
     motor_set_enabled_mask(exit_motor_ids_mask);  // Re-enable motors enabled at start.

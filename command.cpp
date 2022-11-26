@@ -388,6 +388,11 @@ static void go_home(void)
     for (int i = 0; i < MOTOR_ID_COUNT; i++) {
         bool enabled = ((enabled_motors & (1 << i)) != 0);
         if (enabled) {
+            if (config.motor[i].min_encoder > 0) {
+                log_writeln(F("Motor %c min encoder limit %d > 0. Skipping."), 'A' + i, config.motor[i].min_encoder);
+                continue;
+            }
+
             if (motor_get_target_encoder((motor_id_t)i) != 0)
                 motor_set_target_encoder((motor_id_t)i, 0);
             if (motor_get_encoder((motor_id_t)i) != 0)

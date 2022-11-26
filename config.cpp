@@ -176,10 +176,6 @@ void config_clear()
         config.motor[i].forward_polarity = LOW;  // Correctly-wired polarity is LOW.
         config.motor[i].min_encoder = INT_MIN;
         config.motor[i].max_encoder = INT_MAX;
-        config.motor[i].home_forward_on_encoder = INT_MAX;
-        config.motor[i].home_forward_off_encoder = INT_MAX;
-        config.motor[i].home_reverse_on_encoder = INT_MIN;
-        config.motor[i].home_reverse_off_encoder = INT_MIN;
         config.motor[i].stall_current_threshold = 200;
     }
     config_sign();
@@ -292,21 +288,6 @@ void config_set_motor_gripper_open_close_encoders(motor_id_t motor_id, int gripp
     modified = true;
 }
 
-void config_set_motor_home_encoders(motor_id_t motor_id, int home_forward_on_encoder, int home_forward_off_encoder, int home_reverse_on_encoder, int home_reverse_off_encoder)
-{
-    assert(motor_id >= 0 && motor_id < MOTOR_ID_COUNT);
-
-    config.motor[motor_id].is_configured = true;
-    config.motor[motor_id].is_gripper = false;
-    config.motor[motor_id].home_forward_on_encoder = home_forward_on_encoder;
-    config.motor[motor_id].home_forward_off_encoder = home_forward_off_encoder;
-    config.motor[motor_id].home_reverse_on_encoder = home_reverse_on_encoder;
-    config.motor[motor_id].home_reverse_off_encoder = home_reverse_off_encoder;
-    config_sign();
-
-    modified = true;
-}
-
 void config_set_motor_stall_current_threshold(motor_id_t motor_id, int stall_current_threshold)
 {
     assert(motor_id >= 0 && motor_id < MOTOR_ID_COUNT);
@@ -343,7 +324,7 @@ void config_print_one(motor_id_t motor_id)
     if (motor->is_gripper)
         log_writeln(F("gripper open: %d, close: %d"), motor->gripper_open_encoder, motor->gripper_close_encoder);
     else
-        log_writeln(F("home forward on: %d, forward off: %d, reverse on: %d, reverse off: %d."), motor->home_forward_on_encoder, motor->home_forward_off_encoder, motor->home_reverse_on_encoder, motor->home_reverse_off_encoder);
+        log_writeln();
 }
 
 void config_print()
