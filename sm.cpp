@@ -135,7 +135,6 @@ static void maybe_print_command_prompt(menu_item_t const **prev_menu_item, int *
         (!*prev_menu_item &&
          status_updated &&
          (current_time_millis - previous_status_time_millis > 250))) {
-
         if (status_updated && !reset_prompt)
             log_writeln();
 

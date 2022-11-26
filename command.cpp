@@ -175,6 +175,40 @@ int command_reverse_motor_orientation(char *args, size_t args_nbytes)
     return p - args;
 }
 
+int command_config_min_max_encoders(char *args, size_t args_nbytes)
+{
+    assert(args);
+
+    int min_encoder = 0;
+    int max_encoder = 0;
+
+    motor_id_t motor_id = MOTOR_ID_A;
+    char *p = args;
+    size_t nbytes = parse_motor_id(p, args_nbytes, &motor_id);
+
+    if (nbytes == 0)
+        return -1;                     // parse_motor_id will emit message if error.
+    args_nbytes -= nbytes;
+    p += nbytes;
+
+    nbytes = parse_int(p, args_nbytes, &min_encoder);
+    if (nbytes <= 0)
+        return -1;
+    p += nbytes;
+    args_nbytes -= nbytes;
+
+    nbytes = parse_int(p, args_nbytes, &max_encoder);
+    if (nbytes <= 0)
+        return -1;
+    p += nbytes;
+    args_nbytes -= nbytes;
+
+    config_set_motor_min_max_encoders(motor_id, min_encoder, max_encoder);
+    config_print_one(motor_id);
+
+    return p - args;
+}
+
 int command_config_write(char *args, size_t args_nbytes)
 {
     assert(args);
