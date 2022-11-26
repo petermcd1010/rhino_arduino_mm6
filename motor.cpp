@@ -325,6 +325,8 @@ void motor_set_target_encoder(motor_id_t motor_id, int encoder)
     if (motor_get_target_encoder(motor_id) == encoder)
         return;
 
+    encoder = encoder = max(config.motor[motor_id].min_encoder, min(config.motor[motor_id].max_encoder, encoder));
+
     motor_state[motor_id].target_encoder = encoder * config.motor[motor_id].orientation;
     motor_state[motor_id].progress = MOTOR_PROGRESS_ON_WAY_TO_TARGET;
     motor_state[motor_id].encoders_per_second = 0;

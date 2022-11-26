@@ -559,6 +559,14 @@ int command_set_motor_encoder(char *args, size_t args_nbytes)
     if (args_nbytes > 0)
         return -1;
 
+    int min_encoder = config.motor[motor_id].min_encoder;
+    int max_encoder = config.motor[motor_id].max_encoder;
+
+    if ((encoder < min_encoder) || (encoder > max_encoder)) {
+        log_writeln(F("Clamping motor encoder %d to [%d, %d]"), (int)encoder, min_encoder, max_encoder);
+        encoder = max(min_encoder, min(max_encoder, encoder));
+    }
+
     char encoder_str[15] = {};
 
     dtostrf(encoder, 3, 2, encoder_str);
