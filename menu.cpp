@@ -153,8 +153,8 @@ static const char MM_C[] PROGMEM = "calibration menu";
 static const char MH_C[] PROGMEM = "-- Print, run, and save home switch and motor calibration.";
 static const char MM_E[] PROGMEM = "set enabled motors";
 static const char MH_E[] PROGMEM = "[motorids] -- Enable/disable motors, list (e.g 'abce') or blank to disable all.";
-static const char MM_H[] PROGMEM = "go home";
-static const char MH_H[] PROGMEM = "[motorids] -- Command motors to home position (i.e. 0). Commands enabled motors if none specified.";
+static const char MM_H[] PROGMEM = "go home or open gripper";
+static const char MH_H[] PROGMEM = "[motorids] -- Command motors to home position or gripper open (i.e. 0). Commands enabled motors if none specified.";
 static const char MM_M[] PROGMEM = "print motor status";
 static const char MH_M[] PROGMEM = "[motorids] -- Print motor status, list (e.g. 'abce') or blank for all.";
 static const char MM_N[] PROGMEM = "set motor angle";
@@ -199,10 +199,9 @@ static const menu_item_t main_menu[] = {
     { 'B', MM_B,    extended_menu_reboot,                  NULL,             true,  command_reboot,                    MH_B    },
     { 'C', MM_C,    NULL,                                  calibration_menu, false, NULL,                              MH_C    },
     { 'E', MM_E,    NULL,                                  NULL,             true,  command_set_enabled_motors,        MH_E    },
-    { 'H', MM_H,    NULL,                                  NULL,             true,  command_go_home,                   MH_H    },
+    { 'H', MM_H,    NULL,                                  NULL,             true,  command_go_home_or_open_gripper,   MH_H    },
     { 'M', MM_M,    NULL,                                  NULL,             true,  command_print_motor_status,        MH_M    },
     { 'N', MM_N,    NULL,                                  NULL,             true,  command_set_motor_angle,           MH_N    },
-    { 'O', MM_O,    NULL,                                  NULL,             true,  command_open_gripper,              MH_O    },
     { 'P', MM_P,    NULL,                                  NULL,             true,  command_set_motor_encoder,         MH_P    },
     // { 'Q', MM_Q,    NULL,                              NULL,             true,  command_run_test_sequence,         MH_Q    },  // TODO.
     { 'R', MM_R,    NULL,                                  NULL,             false, command_print_software_version,    MH_R    },
@@ -230,10 +229,9 @@ const menu_item_t calibration_menu[] = {
     { 'B', MM_B,    extended_menu_reboot, NULL,      true,  command_reboot,                    MH_B    },
     { 'C', CM_C,    NULL,                 NULL,      true,  command_calibrate_home_and_limits, CH_C    },
     { 'E', MM_E,    NULL,                 NULL,      true,  command_set_enabled_motors,        MH_E    },
-    { 'H', MM_H,    NULL,                 NULL,      true,  command_go_home,                   MH_H    },
+    { 'H', MM_H,    NULL,                 NULL,      true,  command_go_home_or_open_gripper,   MH_H    },
     { 'M', MM_M,    NULL,                 NULL,      true,  command_print_motor_status,        MH_M    },
     // { 'N', MM_N,    NULL, NULL,      true,  command_set_motor_angle,           MH_N    },   // TODO.
-    { 'O', MM_O,    NULL,                 NULL,      true,  command_open_gripper,              MH_O    },
     { 'P', MM_P,    NULL,                 NULL,      true,  command_set_motor_encoder,         MH_P    },
     { 'T', MM_T,    NULL,                 NULL,      true,  command_test_motors,               MH_T    },
     { 'V', MM_V,    NULL,                 NULL,      true,  command_close_gripper,             MH_V    },
@@ -266,10 +264,9 @@ const menu_item_t waypoint_menu[] = {
     { 'C', CM_C,    NULL,                          NULL,      true,  command_calibrate_home_and_limits, CH_C    },
     { 'D', WM_D,    NULL,                          NULL,      true,  command_waypoint_delete,           WH_D    },
     { 'E', MM_E,    NULL,                          NULL,      true,  command_set_enabled_motors,        MH_E    },
-    { 'H', MM_H,    NULL,                          NULL,      false, command_go_home,                   MH_H    },
+    { 'H', MM_H,    NULL,                          NULL,      false, command_go_home_or_open_gripper,   MH_H    },
     { 'I', WM_I,    extended_menu_insert_waypoint, NULL,      true,  command_waypoint_insert_before,    WH_I    },
     // { 'N', MM_N,    NULL,                          NULL,      true,  command_set_motor_angle,           MH_N    }, // TODO.
-    { 'O', MM_O,    NULL,                          NULL,      true,  command_open_gripper,              MH_O    },
     { 'P', MM_P,    NULL,                          NULL,      true,  command_set_motor_encoder,         MH_P    },
     { 'R', WM_R,    NULL,                          NULL,      false, command_waypoint_run,              WH_R    },
     { 'S', WM_S,    extended_menu_set_waypoint,    NULL,      true,  command_waypoint_set,              WH_S    },

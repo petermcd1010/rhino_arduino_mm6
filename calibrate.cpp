@@ -478,12 +478,12 @@ static void calibrate_one_go_home(void)
             }
             if (is_gripper) {
                 log_writeln(F("Calibrating motor %c: Configuring motor as gripper."), 'A' + motor_id);
-                int home_encoder = home_forward_on_encoder;
+                assert(home_forward_on_encoder == 0);
                 // TODO add comment for difference beween A & B motor encoder readers.
-                if (abs(min_encoder - home_encoder) < abs(max_encoder - home_encoder))
-                    config_set_motor_gripper_open_close_encoders(motor_id, home_encoder, max_encoder);
+                if (abs(min_encoder) < abs(max_encoder))
+                    config_set_motor_gripper_close_encoder(motor_id, max_encoder);
                 else
-                    config_set_motor_gripper_open_close_encoders(motor_id, home_encoder, min_encoder);
+                    config_set_motor_gripper_close_encoder(motor_id, min_encoder);
             }
 
             log_writeln(F("Calibrating motor %c: Motor arrived at home position (encoder 0)."), 'A' + motor_id);

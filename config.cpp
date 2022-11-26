@@ -278,20 +278,25 @@ void config_set_motor_min_max_encoders(motor_id_t motor_id, int min_encoder, int
 void config_set_motor_home_encoder(motor_id_t motor_id, int encoder)
 {
     config.motor[motor_id].is_configured = true;
-    config.motor[motor_id].min_encoder = max(INT_MIN, config.motor[motor_id].min_encoder - encoder);
-    config.motor[motor_id].max_encoder = min(INT_MAX, config.motor[motor_id].max_encoder - encoder);
+    config.motor[motor_id].min_encoder = min(INT_MAX, max(INT_MIN, (long)config.motor[motor_id].min_encoder - encoder));
+    config.motor[motor_id].max_encoder = min(INT_MAX, max(INT_MIN, (long)config.motor[motor_id].max_encoder - encoder));
+
+    if (config.motor[motor_id].is_gripper) {
+        int new_gripper_close_encoder = min(INT_MAX, max(INT_MIN, (long)config.motor[motor_id].gripper_close_encoder - encoder));
+        config_set_motor_gripper_close_encoder(motor_id, new_gripper_close_encoder);
+    }
+
     config_sign();
 
     modified = true;
 };
 
-void config_set_motor_gripper_open_close_encoders(motor_id_t motor_id, int gripper_open_encoder, int gripper_close_encoder)
+void config_set_motor_gripper_close_encoder(motor_id_t motor_id, int gripper_close_encoder)
 {
     assert(motor_id >= 0 && motor_id < MOTOR_ID_COUNT);
 
     config.motor[motor_id].is_configured = true;
     config.motor[motor_id].is_gripper = true;
-    config.motor[motor_id].gripper_open_encoder = gripper_open_encoder;
     config.motor[motor_id].gripper_close_encoder = gripper_close_encoder;
     config_sign();
 
@@ -332,7 +337,7 @@ void config_print_one(motor_id_t motor_id)
                 motor->stall_current_threshold);
     log_write(F("           Encoder min: %d, max: %d, "), motor->min_encoder, motor->max_encoder);
     if (motor->is_gripper)
-        log_writeln(F("gripper open: %d, close: %d"), motor->gripper_open_encoder, motor->gripper_close_encoder);
+        log_writeln(F("gripper close: %d"), motor->gripper_close_encoder);
     else
         log_writeln();
 }

@@ -36,10 +36,7 @@ typedef struct __attribute__((packed)) {
     int min_encoder;  // Minimum encoder limit found during calibration.
     int max_encoder;  // Maximum encoder limit found during calibration.
     bool is_gripper;
-    struct {
-        int gripper_open_encoder;
-        int gripper_close_encoder;
-    };
+    int gripper_close_encoder;
     int stall_current_threshold;  // Threshold to trigger stall condition. Defaults to 200.
 } config_motor_t;
 
@@ -72,7 +69,7 @@ void config_set_motor_forward_polarity(motor_id_t motor_id, int low_or_high);
 void config_set_motor_angle_offsets(int B, int C, int D, int E, int F);
 void config_set_motor_min_max_encoders(motor_id_t motor_id, int min_encoder, int max_encoder);
 void config_set_motor_home_encoder(motor_id_t motor_id, int encoder);  // Sets encoder to zero and adjusts min, max limits.
-void config_set_motor_gripper_open_close_encoders(motor_id_t motor_id, int gripper_open_encoder, int gripper_close_encoder);
+void config_set_motor_gripper_close_encoder(motor_id_t motor_id, int gripper_close_encoder);
 void config_set_motor_stall_current_threshold(motor_id_t motor_id, int stall_current_threshold);
 void config_print_one(motor_id_t motor_id);
 void config_print(void);

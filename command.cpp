@@ -441,7 +441,7 @@ static void go_home(void)
     }
 }
 
-int command_go_home(char *args, size_t args_nbytes)
+int command_go_home_or_open_gripper(char *args, size_t args_nbytes)
 {
     assert(args);
     int motor_ids_mask = 0;
@@ -761,7 +761,7 @@ error:
     return -1;
 }
 
-static int actuate_gripper(char *args, size_t args_nbytes, bool open)
+int command_close_gripper(char *args, size_t args_nbytes)
 {
     assert(args);
     int old_motor_ids_mask = 0;
@@ -789,11 +789,7 @@ static int actuate_gripper(char *args, size_t args_nbytes, bool open)
     if (motor_ids_mask == 0) {
         // No args specified, so test all enabled motors.
         if (old_motor_ids_mask == 0) {
-            log_write(F("No motors enabled. Skipping gripper "));
-            if (open)
-                log_writeln(F("open."));
-            else
-                log_writeln(F("close."));
+            log_write(F("No motors enabled. Skipping gripper close."));
             return nbytes;
         }
         motor_ids_mask = motor_get_enabled_mask();
@@ -814,33 +810,14 @@ static int actuate_gripper(char *args, size_t args_nbytes, bool open)
             continue;
         }
 
-        int encoder = 0;
-        if (open)
-            encoder = config.motor[i].gripper_open_encoder;
-        else
-            encoder = config.motor[i].gripper_close_encoder;
-
-        char encoder_str[15] = {};
-        dtostrf(encoder, 3, 2, encoder_str);
-        log_writeln(F("Move Motor %c to encoder %s."), 'A' + i, encoder_str);
-
-        motor_set_target_encoder(i, encoder);
+        log_writeln(F("Move Motor %c to encoder %d."), 'A' + i, config.motor[i].gripper_close_encoder);
+        motor_set_target_encoder(i, config.motor[i].gripper_close_encoder);
     }
 
     return nbytes;
 
 error:
     return -1;
-}
-
-int command_open_gripper(char *args, size_t args_nbytes)
-{
-    return actuate_gripper(args, args_nbytes, true);
-}
-
-int command_close_gripper(char *args, size_t args_nbytes)
-{
-    return actuate_gripper(args, args_nbytes, false);
 }
 
 int command_print_software_version(char *args, size_t args_nbytes)
