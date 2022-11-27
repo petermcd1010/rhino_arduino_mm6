@@ -194,7 +194,7 @@ static const menu_item_t main_menu[] = {
     { '4', MM_4,    extended_menu_config_robot_name,       NULL,             true,  command_config_robot_name,         MH_4    },
     { '5', MM_5,    NULL,                                  NULL,             true,  command_reverse_motor_orientation, MH_5    },
     { '6', MM_6,    extended_menu_config_min_max_encoders, NULL,             true,  command_config_min_max_encoders,   MH_6    },
-    { '7', MM_6,    extended_menu_config_home_encoder,     NULL,             true,  command_config_home_encoder,       MH_7    },
+    { '7', MM_7,    extended_menu_config_home_encoder,     NULL,             true,  command_config_home_encoder,       MH_7    },
     { '0', MM_0,    NULL,                                  NULL,             false, command_config_write,              MH_0    },
     { 'B', MM_B,    extended_menu_reboot,                  NULL,             true,  command_reboot,                    MH_B    },
     { 'C', MM_C,    NULL,                                  calibration_menu, false, NULL,                              MH_C    },
