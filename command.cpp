@@ -499,21 +499,21 @@ int command_print_motor_status(char *args, size_t args_nbytes)
         log_writeln(F("%c%s: home:%d sta:%d enc:%d tar:%d err:%d spd:%d PWM:%d cur:%d hs:%d,%d,%d,%d->%d angle:%s"),
                     'A' + i,
                     ((motor_get_enabled_mask() & (1 << i)) == 0) ? " [not enabled]" : "",
-                    motor_state[i].home_triggered_debounced,  // home switch.
-                    motor_state[i].progress,  // sta. Report whether or not the Motor has reached the target location.
+                    motor[i].home_triggered_debounced,  // home switch.
+                    motor[i].progress,  // sta. Report whether or not the Motor has reached the target location.
                     /* motor_get_encoder(iMotor), */  // pos.
                     motor_get_encoder((motor_id_t)i) * config.motor[i].orientation,  // enc.
-                    motor_state[i].target_encoder * config.motor[i].orientation,  // tar.
-                    motor_state[i].pid_perror * config.motor[i].orientation,  // err.
-                    motor_state[i].speed * config.motor[i].orientation,  // spd.
-                    /* motor_state[i].target_speed, */  // tspd.
-                    motor_state[i].pwm,
-                    motor_state[i].current,  // cur.
-                    motor_state[i].home_reverse_off_encoder,  // hs.
-                    motor_state[i].home_forward_on_encoder,  // hs.
-                    motor_state[i].home_reverse_on_encoder,  // hs.
-                    motor_state[i].home_forward_off_encoder,  // hs.
-                    (motor_state[i].home_forward_off_encoder + motor_state[i].home_reverse_on_encoder + motor_state[i].home_forward_on_encoder + motor_state[i].home_reverse_off_encoder) / 4,  // hs.
+                    motor[i].target_encoder * config.motor[i].orientation,  // tar.
+                    motor[i].pid_perror * config.motor[i].orientation,  // err.
+                    motor[i].speed * config.motor[i].orientation,  // spd.
+                    /* motor[i].target_speed, */  // tspd.
+                    motor[i].pwm,
+                    motor[i].current,  // cur.
+                    motor[i].home_reverse_off_encoder,  // hs.
+                    motor[i].home_forward_on_encoder,  // hs.
+                    motor[i].home_reverse_on_encoder,  // hs.
+                    motor[i].home_forward_off_encoder,  // hs.
+                    (motor[i].home_forward_off_encoder + motor[i].home_reverse_on_encoder + motor[i].home_forward_on_encoder + motor[i].home_reverse_off_encoder) / 4,  // hs.
                     angle_str);
     }
 

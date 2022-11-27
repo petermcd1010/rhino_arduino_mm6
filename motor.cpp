@@ -31,7 +31,7 @@ static const motor_pinout_t motor_pinout[MOTOR_ID_COUNT] = {
     { 51, 9,  50, A10, 52,  38, 36, 37 }, // Motor F.
 };
 
-motor_state_t motor_state[MOTOR_ID_COUNT] = { 0 };  // Intentionally not static, so can be accessed globally.
+motor_t motor[MOTOR_ID_COUNT] = { 0 };  // Intentionally not static, so can be accessed globally.
 
 // The speed sign bit is used to set the LMD18200 direction pin. So the PWM register accepts 0-255 for + and -.
 static const int motor_min_speed = -255;
@@ -100,17 +100,17 @@ static void init_motor(motor_id_t motor_id)
     pinMode(motor_pinout[motor_id].in_quadrature_encoder_b, INPUT_PULLUP);
 
     for (int motor_id = 0; motor_id < MOTOR_ID_COUNT; motor_id++) {
-        memset(&motor_state[motor_id], 0, sizeof(motor_state_t));
+        memset(&motor[motor_id], 0, sizeof(motor_t));
         // Motor orientation is used to contol which way the motors turn in responce to the Positions.
         //   Each Rhino Robot may have the motor assembled on either side - which winds up reversing the motors direction mechanically.
         //   So the motor orientation is used to correct that.
         //     The values for the Motor orientation are set by the setup.
         //       Since the not-inverted and inverted orientation are used to invert the position the values are 1 or -1
         motor_set_max_speed_percent((motor_id_t)motor_id, 100);
-        motor_state[motor_id].prev_home_triggered = motor_is_home_triggered((motor_id_t)motor_id);
-        motor_state[motor_id].prev_home_triggered_millis = millis();
-        motor_state[motor_id].prev_home_triggered_encoder = INT_MAX;
-        motor_state[motor_id].home_triggered_debounced = motor_state[motor_id].prev_home_triggered;
+        motor[motor_id].prev_home_triggered = motor_is_home_triggered((motor_id_t)motor_id);
+        motor[motor_id].prev_home_triggered_millis = millis();
+        motor[motor_id].prev_home_triggered_encoder = INT_MAX;
+        motor[motor_id].home_triggered_debounced = motor[motor_id].prev_home_triggered;
     }
     motor_set_enabled(motor_id, false);
 }
@@ -118,6 +118,7 @@ static void init_motor(motor_id_t motor_id)
 void motor_init_all(void)
 {
     check_noinit_data();
+
     for (int i = 0; i < MOTOR_ID_COUNT; i++) {
         init_motor((motor_id_t)i);
     }
@@ -156,7 +157,7 @@ bool motor_get_thermal_overload_detected(motor_id_t motor_id)
 {
     assert((motor_id >= 0) && (motor_id < MOTOR_ID_COUNT));
 
-    if (motor_state[motor_id].error_flags & MOTOR_ERROR_FLAG_THERMAL_OVERLOAD_DETECTED)
+    if (motor[motor_id].error_flags & MOTOR_ERROR_FLAG_THERMAL_OVERLOAD_DETECTED)
         return true;
 
     return false;
@@ -176,7 +177,7 @@ void motor_clear_thermal_overload(motor_id_t motor_id)
 {
     assert((motor_id >= 0) && (motor_id < MOTOR_ID_COUNT));
 
-    motor_state[motor_id].error_flags &= ~MOTOR_ERROR_FLAG_THERMAL_OVERLOAD_DETECTED;
+    motor[motor_id].error_flags &= ~MOTOR_ERROR_FLAG_THERMAL_OVERLOAD_DETECTED;
 }
 
 int motor_get_current(motor_id_t motor_id)
@@ -195,15 +196,15 @@ bool motor_stall_triggered(motor_id_t motor_id)
 {
     assert((motor_id >= 0) && (motor_id < MOTOR_ID_COUNT));
 
-    return motor_state[motor_id].stall_triggered;
+    return motor[motor_id].stall_triggered;
 }
 
 void motor_clear_stall(motor_id_t motor_id)
 {
     assert((motor_id >= 0) && (motor_id < MOTOR_ID_COUNT));
 
-    motor_state[motor_id].current = 0;  // Prevent retriggering until next time current is read.
-    motor_state[motor_id].stall_triggered = false;
+    motor[motor_id].current = 0;  // Prevent retriggering until next time current is read.
+    motor[motor_id].stall_triggered = false;
 }
 
 void motor_disable_all(void)
@@ -218,7 +219,7 @@ void motor_set_enabled(motor_id_t motor_id, bool enabled)
 {
     assert((motor_id >= 0) && (motor_id < MOTOR_ID_COUNT));
 
-    if (enabled && motor_state[motor_id].enabled)
+    if (enabled && motor[motor_id].enabled)
         return;
 
     if (enabled) {
@@ -231,18 +232,18 @@ void motor_set_enabled(motor_id_t motor_id, bool enabled)
         enabled_motors_mask &= ~(1 << (int)motor_id);
     }
 
-    motor_state[motor_id].home_triggered_debounced = motor_is_home_triggered(motor_id);
-    motor_state[motor_id].target_encoder = noinit_data.motor[motor_id].encoder;
-    motor_state[motor_id].pid_perror = 0;
-    motor_state[motor_id].pid_dvalue = 0;
-    motor_state[motor_id].enabled = enabled;
+    motor[motor_id].home_triggered_debounced = motor_is_home_triggered(motor_id);
+    motor[motor_id].target_encoder = noinit_data.motor[motor_id].encoder;
+    motor[motor_id].pid_perror = 0;
+    motor[motor_id].pid_dvalue = 0;
+    motor[motor_id].enabled = enabled;
 }
 
 bool motor_get_enabled(motor_id_t motor_id)
 {
     assert((motor_id >= 0) && (motor_id < MOTOR_ID_COUNT));
 
-    return motor_state[motor_id].enabled;
+    return motor[motor_id].enabled;
 }
 
 int motor_get_enabled_mask(void)
@@ -277,7 +278,7 @@ void motor_set_home_encoder(motor_id_t motor_id, int home_encoder)
     assert((motor_id >= 0) && (motor_id < MOTOR_ID_COUNT));
 
     noinit_data.motor[motor_id].encoder -= home_encoder;
-    motor_state[motor_id].target_encoder -= home_encoder;
+    motor[motor_id].target_encoder -= home_encoder;
 }
 
 float motor_get_encoder_steps_per_degree(motor_id_t motor_id)
@@ -327,16 +328,16 @@ void motor_set_target_encoder(motor_id_t motor_id, int encoder)
 
     encoder = encoder = max(config.motor[motor_id].min_encoder, min(config.motor[motor_id].max_encoder, encoder));
 
-    motor_state[motor_id].target_encoder = encoder * config.motor[motor_id].orientation;
-    motor_state[motor_id].progress = MOTOR_PROGRESS_ON_WAY_TO_TARGET;
-    motor_state[motor_id].encoders_per_second = 0;
+    motor[motor_id].target_encoder = encoder * config.motor[motor_id].orientation;
+    motor[motor_id].progress = MOTOR_PROGRESS_ON_WAY_TO_TARGET;
+    motor[motor_id].encoders_per_second = 0;
 }
 
 int motor_get_target_encoder(motor_id_t motor_id)
 {
     assert((motor_id >= 0) && (motor_id < MOTOR_ID_COUNT));
 
-    return motor_state[motor_id].target_encoder * config.motor[motor_id].orientation;
+    return motor[motor_id].target_encoder * config.motor[motor_id].orientation;
 }
 
 int motor_angle_to_encoder(motor_id_t motor_id, float angle)
@@ -387,7 +388,7 @@ bool motor_is_moving(motor_id_t motor_id)
     if (!motor_get_enabled(motor_id))
         return false;
 
-    return motor_state[motor_id].target_encoder != noinit_data.motor[motor_id].encoder;
+    return motor[motor_id].target_encoder != noinit_data.motor[motor_id].encoder;
 }
 
 void motor_set_speed(motor_id_t motor_id, int speed)
@@ -395,27 +396,27 @@ void motor_set_speed(motor_id_t motor_id, int speed)
     assert((motor_id >= 0) && (motor_id < MOTOR_ID_COUNT));
     assert((speed >= motor_min_speed) && (speed <= motor_max_speed));
 
-    if (!motor_state[motor_id].enabled) {
-        motor_state[motor_id].pwm = 0;
+    if (!motor[motor_id].enabled) {
+        motor[motor_id].pwm = 0;
         analogWrite(motor_pinout[motor_id].out_pwm, 0);
         return;
     }
 
     // Convert speed's +/- 255 value to PWM and Direction.
     if (speed == 0) {
-        motor_state[motor_id].pwm = 0;
+        motor[motor_id].pwm = 0;
     } else {
         // TODO: Cleanup/refactor speed, max_speed to be 0-100.
         unsigned int pwm = abs(speed) + motor_min_pwm;
-        unsigned int max_pwm = abs(motor_state[motor_id].max_speed) + motor_min_pwm;
+        unsigned int max_pwm = abs(motor[motor_id].max_speed) + motor_min_pwm;
         pwm = (pwm > max_pwm) ? max_pwm : pwm;
         pwm = (pwm < motor_min_pwm) ? motor_min_pwm : pwm;
-        motor_state[motor_id].pwm = pwm;
+        motor[motor_id].pwm = pwm;
     }
 
     digitalWrite(motor_pinout[motor_id].out_direction, speed >= 0 ? config.motor[motor_id].forward_polarity : !config.motor[motor_id].forward_polarity);
-    analogWrite(motor_pinout[motor_id].out_pwm, motor_state[motor_id].pwm);
-    motor_state[motor_id].speed = speed;
+    analogWrite(motor_pinout[motor_id].out_pwm, motor[motor_id].pwm);
+    motor[motor_id].speed = speed;
 }
 
 void motor_set_max_speed_percent(motor_id_t motor_id, int max_speed_percent)
@@ -423,14 +424,14 @@ void motor_set_max_speed_percent(motor_id_t motor_id, int max_speed_percent)
     assert((motor_id >= 0) && (motor_id < MOTOR_ID_COUNT));
     assert((max_speed_percent >= 0.0f) && (max_speed_percent <= 100.0f));
 
-    motor_state[motor_id].max_speed = (motor_max_speed * max_speed_percent) / 100;
+    motor[motor_id].max_speed = (motor_max_speed * max_speed_percent) / 100;
 }
 
 int motor_get_max_speed_percent(motor_id_t motor_id)
 {
     assert((motor_id >= 0) && (motor_id < MOTOR_ID_COUNT));
 
-    return motor_state[motor_id].max_speed * 100 / motor_max_speed;
+    return motor[motor_id].max_speed * 100 / motor_max_speed;
 }
 
 bool motor_is_home_triggered(motor_id_t motor_id)
@@ -442,7 +443,7 @@ bool motor_is_home_triggered(motor_id_t motor_id)
 bool motor_is_home_triggered_debounced(motor_id_t motor_id)
 {
     assert((motor_id >= 0) && (motor_id < MOTOR_ID_COUNT));
-    return motor_state[motor_id].home_triggered_debounced;
+    return motor[motor_id].home_triggered_debounced;
 }
 
 void motor_dump(motor_id_t motor_id)
@@ -453,29 +454,29 @@ void motor_dump(motor_id_t motor_id)
                 'A' + motor_id,
                 noinit_data.motor[motor_id].encoder,
                 noinit_data.motor[motor_id].previous_quadrature_encoder,
-                motor_state[motor_id].speed,
-                motor_state[motor_id].target_speed,
+                motor[motor_id].speed,
+                motor[motor_id].target_speed,
                 config.motor[motor_id].orientation,
-                motor_state[motor_id].previous_direction,
-                motor_state[motor_id].pid_dvalue,
-                motor_state[motor_id].pid_perror,
-                motor_state[motor_id].target_encoder,
-                motor_state[motor_id].current,
-                motor_state[motor_id].progress);
+                motor[motor_id].previous_direction,
+                motor[motor_id].pid_dvalue,
+                motor[motor_id].pid_perror,
+                motor[motor_id].target_encoder,
+                motor[motor_id].current,
+                motor[motor_id].progress);
 }
 
 void motor_set_user_error(bool enable)
 {
     if (enable)
-        motor_state[0].error_flags |= MOTOR_ERROR_FLAG_USER_FLAG;
+        motor[0].error_flags |= MOTOR_ERROR_FLAG_USER_FLAG;
     else
-        motor_state[0].error_flags &= ~MOTOR_ERROR_FLAG_USER_FLAG;
+        motor[0].error_flags &= ~MOTOR_ERROR_FLAG_USER_FLAG;
 }
 
 void motor_log_errors(motor_id_t motor_id)
 {
     assert((motor_id >= 0) && (motor_id < MOTOR_ID_COUNT));
-    int ef = motor_state[motor_id].error_flags;
+    int ef = motor[motor_id].error_flags;
 
     if (ef == 0)
         return;
@@ -486,7 +487,7 @@ void motor_log_errors(motor_id_t motor_id)
         // Log these, but clear them for now.
         // TODO: These shouldn't happen when moving at high speed, but are.
         log_writeln(F("ERROR: Motor %c invalid quadrature encoder transition."), 'A' + motor_id);
-        motor_state[motor_id].error_flags &= ~MOTOR_ERROR_FLAG_INVALID_ENCODER_TRANSITION;
+        motor[motor_id].error_flags &= ~MOTOR_ERROR_FLAG_INVALID_ENCODER_TRANSITION;
     }
     if (ef & MOTOR_ERROR_FLAG_OPPOSITE_DIRECTION)
         log_writeln(F("ERROR: Motor %c direction opposite of expectation."), 'A' + motor_id);
@@ -494,7 +495,7 @@ void motor_log_errors(motor_id_t motor_id)
         log_writeln(F("ERROR: Motor %c unexpected home switch encoder."), 'A' + motor_id);
     if (ef & MOTOR_ERROR_FLAG_UNEXPECTED_STALL_CURRENT_THRESHOLD_EXCEEDED) {
         log_writeln(F("ERROR: Motor %c unexpected stall current threshold exceeded (motor %c not moving)."), 'A' + motor_id, 'A' + motor_id);
-        motor_state[motor_id].error_flags &= ~MOTOR_ERROR_FLAG_UNEXPECTED_STALL_CURRENT_THRESHOLD_EXCEEDED;
+        motor[motor_id].error_flags &= ~MOTOR_ERROR_FLAG_UNEXPECTED_STALL_CURRENT_THRESHOLD_EXCEEDED;
     }
 }
 
@@ -505,7 +506,7 @@ static void maybe_blink_led(void)
     bool motor_error = false;
 
     for (int i = 0; i < MOTOR_ID_COUNT; i++) {
-        if (motor_state[i].error_flags != 0)
+        if (motor[i].error_flags != 0)
             motor_error = true;
     }
 
@@ -567,22 +568,22 @@ static void check_home_switch(motor_id_t motor_id)
 {
     assert((motor_id >= 0) && (motor_id < MOTOR_ID_COUNT));
 
-    motor_state_t *motor = &motor_state[motor_id];
+    motor_t *m = &motor[motor_id];
 
     bool home_triggered_debounced = motor_is_home_triggered_debounced(motor_id);
     bool home_triggered = motor_is_home_triggered(motor_id);
 
     unsigned const debounce_delay_millis = 50;
 
-    if (home_triggered != motor->prev_home_triggered) {
-        motor->prev_home_triggered = home_triggered;
-        motor->prev_home_triggered_millis = millis();
-        motor->prev_home_triggered_encoder = noinit_data.motor[motor_id].encoder;
+    if (home_triggered != m->prev_home_triggered) {
+        m->prev_home_triggered = home_triggered;
+        m->prev_home_triggered_millis = millis();
+        m->prev_home_triggered_encoder = noinit_data.motor[motor_id].encoder;
     }
 
     // TODO: Tighten debounce timing. Example:
     // https://stackoverflow.com/questions/48434575/switch-debouncing-logic-in-c
-    if ((millis() - motor->prev_home_triggered_millis) > debounce_delay_millis)
+    if ((millis() - m->prev_home_triggered_millis) > debounce_delay_millis)
         home_triggered_debounced = home_triggered;
 
     // See if the home switch has changed from on to off or off to on.
@@ -590,20 +591,20 @@ static void check_home_switch(motor_id_t motor_id)
     //  - The on and off locations when the motor is moving forward.
     //  - The on and off locations when the motor is moving reverse.
 
-    if (home_triggered_debounced != motor->home_triggered_debounced) {
-        int encoder = motor->prev_home_triggered_encoder;
-        if (motor->previous_direction == 1) {
+    if (home_triggered_debounced != m->home_triggered_debounced) {
+        int encoder = m->prev_home_triggered_encoder;
+        if (m->previous_direction == 1) {
             if (home_triggered_debounced)
-                motor->home_forward_on_encoder = encoder;
+                m->home_forward_on_encoder = encoder;
             else
-                motor->home_forward_off_encoder = encoder;
-        } else if (motor->previous_direction == -1) {
+                m->home_forward_off_encoder = encoder;
+        } else if (m->previous_direction == -1) {
             if (home_triggered_debounced)
-                motor->home_reverse_on_encoder = encoder;
+                m->home_reverse_on_encoder = encoder;
             else
-                motor->home_reverse_off_encoder = encoder;
+                m->home_reverse_off_encoder = encoder;
         }
-        motor->home_triggered_debounced = home_triggered_debounced;
+        m->home_triggered_debounced = home_triggered_debounced;
     }
 }
 
@@ -624,47 +625,47 @@ ISR(TIMER1_COMPA_vect) {
 
         if (qe_state == noinit_data.motor[qe_motor_id].previous_quadrature_encoder) {
             // Same state as last time through loop.
-            motor_state[qe_motor_id].pid_dvalue++;
-            if (motor_state[qe_motor_id].pid_dvalue > 10000)
-                motor_state[qe_motor_id].pid_dvalue = 10000;
+            motor[qe_motor_id].pid_dvalue++;
+            if (motor[qe_motor_id].pid_dvalue > 10000)
+                motor[qe_motor_id].pid_dvalue = 10000;
         } else if (qe_state == qe_inc_states[noinit_data.motor[qe_motor_id].previous_quadrature_encoder]) {
             // Quadrature encoder reading indicates moving in positive direction.
-            motor_state[qe_motor_id].previous_direction = 1;
+            motor[qe_motor_id].previous_direction = 1;
             if (noinit_data.motor[qe_motor_id].encoder != INT_MAX) {
                 noinit_data.motor[qe_motor_id].encoder++;
-                motor_state[qe_motor_id].pid_dvalue = 0;
+                motor[qe_motor_id].pid_dvalue = 0;
             }
         } else if (qe_state == qe_dec_states[noinit_data.motor[qe_motor_id].previous_quadrature_encoder]) {
             // Quadrature encoder reading indicates moving in negative direction.
-            motor_state[qe_motor_id].previous_direction = -1;
+            motor[qe_motor_id].previous_direction = -1;
             if (noinit_data.motor[qe_motor_id].encoder != INT_MIN) {
                 noinit_data.motor[qe_motor_id].encoder--;
-                motor_state[qe_motor_id].pid_dvalue = 0;
+                motor[qe_motor_id].pid_dvalue = 0;
             }
         } else if (motor_id != MOTOR_ID_COUNT) {
             // It's easy to get invalid quadrature encoder readings at boot. So motor_id is initialized to
             // MOTOR_ID_COUNT (and then quickly changed to MOTOR_ID_A below), to avoid triggering invalid
             // encoder transitions errors at boot.
-            motor_state[qe_motor_id].error_flags |= MOTOR_ERROR_FLAG_INVALID_ENCODER_TRANSITION;
+            motor[qe_motor_id].error_flags |= MOTOR_ERROR_FLAG_INVALID_ENCODER_TRANSITION;
         }
         noinit_data.motor[qe_motor_id].previous_quadrature_encoder = qe_state;
 
         check_home_switch(qe_motor_id);
 
         if (get_thermal_overload_active(qe_motor_id))
-            motor_state[qe_motor_id].error_flags |= MOTOR_ERROR_FLAG_THERMAL_OVERLOAD_DETECTED;
+            motor[qe_motor_id].error_flags |= MOTOR_ERROR_FLAG_THERMAL_OVERLOAD_DETECTED;
 
-        if (motor_state[qe_motor_id].encoders_per_second_counts++ == (2000 / MOTOR_ID_COUNT / 3)) {
+        if (motor[qe_motor_id].encoders_per_second_counts++ == (2000 / MOTOR_ID_COUNT / 3)) {
             // ISR runs at 2kHz and round-robins the six motors, Every 1/3 of a second
 
             // Update encoders_per_second.
-            motor_state[qe_motor_id].encoders_per_second = noinit_data.motor[qe_motor_id].encoder - motor_state[qe_motor_id].encoders_per_second_start_encoder;
-            motor_state[qe_motor_id].encoders_per_second *= 3;
-            motor_state[qe_motor_id].encoders_per_second_start_encoder = noinit_data.motor[qe_motor_id].encoder;
-            motor_state[qe_motor_id].encoders_per_second_counts = 0;
+            motor[qe_motor_id].encoders_per_second = noinit_data.motor[qe_motor_id].encoder - motor[qe_motor_id].encoders_per_second_start_encoder;
+            motor[qe_motor_id].encoders_per_second *= 3;
+            motor[qe_motor_id].encoders_per_second_start_encoder = noinit_data.motor[qe_motor_id].encoder;
+            motor[qe_motor_id].encoders_per_second_counts = 0;
 
             // Update current draw.
-            motor_state[qe_motor_id].current = motor_get_current(qe_motor_id);
+            motor[qe_motor_id].current = motor_get_current(qe_motor_id);
         }
     }
 
@@ -688,8 +689,8 @@ ISR(TIMER1_COMPA_vect) {
     if (false) {
         // The IntMotor PID is NOT running.
         // ( =1230 instead of =0 is just to kill the routine for now because it isn't doing what it needs to do.)
-        motor_state[motor_id].pid_dvalue = 0;  // Clear the PID DValue for this motor.
-        int intMDiff = abs(motor_state[motor_id].target_encoder - noinit_data.motor[motor_id].encoder);
+        motor[motor_id].pid_dvalue = 0;  // Clear the PID DValue for this motor.
+        int intMDiff = abs(motor[motor_id].target_encoder - noinit_data.motor[motor_id].encoder);
         // if (intMDiff > 3)
         //    Motor_PID[motor_id] = 1;   // Turn on the PID for this Motor.
     } else {
@@ -700,9 +701,9 @@ ISR(TIMER1_COMPA_vect) {
         // apply tension on whatever it is gripping.
         //==========================================================
 
-        if (motor_state[motor_id].current > config.motor[motor_id].stall_current_threshold) {
-            if (motor_state[motor_id].target_encoder == noinit_data.motor[motor_id].encoder) {
-                motor_state[motor_id].error_flags |= MOTOR_ERROR_FLAG_UNEXPECTED_STALL_CURRENT_THRESHOLD_EXCEEDED;
+        if (motor[motor_id].current > config.motor[motor_id].stall_current_threshold) {
+            if (motor[motor_id].target_encoder == noinit_data.motor[motor_id].encoder) {
+                motor[motor_id].error_flags |= MOTOR_ERROR_FLAG_UNEXPECTED_STALL_CURRENT_THRESHOLD_EXCEEDED;
             } else if (!config.motor[motor_id].is_gripper) {
                 // For Motors other than the gripper, High Current means
                 // that the motor is in a stall situation. To unstall,
@@ -710,13 +711,13 @@ ISR(TIMER1_COMPA_vect) {
                 // current position.
                 const int destall_delta = 50;
 
-                if (motor_state[motor_id].previous_direction == 1)
-                    motor_state[motor_id].target_encoder = noinit_data.motor[motor_id].encoder - destall_delta;
-                else if (motor_state[motor_id].previous_direction == -1)
-                    motor_state[motor_id].target_encoder = noinit_data.motor[motor_id].encoder + destall_delta;
-                motor_state[motor_id].current = 0;  // Prevent retriggering until next time current is read.
-                motor_state[motor_id].stall_triggered = true;
-            } else if (motor_state[motor_id].current > config.motor[motor_id].stall_current_threshold) {
+                if (motor[motor_id].previous_direction == 1)
+                    motor[motor_id].target_encoder = noinit_data.motor[motor_id].encoder - destall_delta;
+                else if (motor[motor_id].previous_direction == -1)
+                    motor[motor_id].target_encoder = noinit_data.motor[motor_id].encoder + destall_delta;
+                motor[motor_id].current = 0;  // Prevent retriggering until next time current is read.
+                motor[motor_id].stall_triggered = true;
+            } else if (motor[motor_id].current > config.motor[motor_id].stall_current_threshold) {
                 // The gripper motor is a special case where high current means that the gripper is gripping
                 // something. Create gripper pressure on by setting the target position to the currernt
                 // position. This will cause the PWM to drop to off, and if the relaxed gripper opens a
@@ -729,7 +730,7 @@ ISR(TIMER1_COMPA_vect) {
                     gripper_stall_encoder = noinit_data.motor[motor_id].encoder;
                     gripper_stall_start_ms = millis();
                 } else if (millis() - gripper_stall_start_ms > 250) {
-                    motor_state[motor_id].target_encoder = noinit_data.motor[motor_id].encoder;
+                    motor[motor_id].target_encoder = noinit_data.motor[motor_id].encoder;
                     gripper_stall_start_ms = millis();
                 }
             }
@@ -739,7 +740,7 @@ ISR(TIMER1_COMPA_vect) {
         // Calculate PID Proportional Error
         //==========================================================
         int pid_perror = 0;
-        int target = motor_state[motor_id].target_encoder;
+        int target = motor[motor_id].target_encoder;
         int encoder = -noinit_data.motor[motor_id].encoder;
         if ((encoder > 0) && (target > INT_MAX - encoder))
             pid_perror = INT_MAX;      // Handle overflow by clamping to INT_MAX.
@@ -748,7 +749,7 @@ ISR(TIMER1_COMPA_vect) {
         else
             pid_perror = target + encoder;
 
-        motor_state[motor_id].pid_perror = pid_perror;  // Save.
+        motor[motor_id].pid_perror = pid_perror;  // Save.
 
         //==========================================================
         // Calc the Target Speed from the Proportional Error
@@ -757,71 +758,71 @@ ISR(TIMER1_COMPA_vect) {
         // Results in a speed of +/- 255.
         //==========================================================
         if (pid_perror > max_error) {
-            motor_state[motor_id].target_speed = max_error;
+            motor[motor_id].target_speed = max_error;
             // Set the Status that indicates that the Motor is more than 200 clicks from target.
-            motor_state[motor_id].progress = MOTOR_PROGRESS_ON_WAY_TO_TARGET;
+            motor[motor_id].progress = MOTOR_PROGRESS_ON_WAY_TO_TARGET;
         } else if (pid_perror < min_error) {
-            motor_state[motor_id].target_speed = min_error;
+            motor[motor_id].target_speed = min_error;
             // Set the Status that indicates that the Motor is more than 200 clicks from target.
-            motor_state[motor_id].progress = MOTOR_PROGRESS_ON_WAY_TO_TARGET;
+            motor[motor_id].progress = MOTOR_PROGRESS_ON_WAY_TO_TARGET;
         } else if (pid_perror > 0) {  // TODO: Refactor to combine pid_perror > 0 and < 0 cases.
-            motor_state[motor_id].target_speed = motor_state[motor_id].pid_perror + (motor_state[motor_id].pid_dvalue / 6);
+            motor[motor_id].target_speed = motor[motor_id].pid_perror + (motor[motor_id].pid_dvalue / 6);
             if (pid_perror < 2)
                 // Set the Status that indicates that the Motor is 1 click from target
-                motor_state[motor_id].progress = MOTOR_PROGRESS_BESIDE_TARGET;
+                motor[motor_id].progress = MOTOR_PROGRESS_BESIDE_TARGET;
             else if (pid_perror < 30)
                 // Set the Status that indicates that the Motor is 2-29 clicks from target
-                motor_state[motor_id].progress = MOTOR_PROGRESS_NEAR_TARGET;
+                motor[motor_id].progress = MOTOR_PROGRESS_NEAR_TARGET;
             else
                 // Set the Status that indicates that the Motor is 30-200 clicks from target
-                motor_state[motor_id].progress = MOTOR_PROGRESS_APPROACHING_TARGET;
+                motor[motor_id].progress = MOTOR_PROGRESS_APPROACHING_TARGET;
         } else if (pid_perror < 0) {
-            motor_state[motor_id].target_speed = motor_state[motor_id].pid_perror - (motor_state[motor_id].pid_dvalue / 6), -255;  // TODO: Check.
+            motor[motor_id].target_speed = motor[motor_id].pid_perror - (motor[motor_id].pid_dvalue / 6), -255;  // TODO: Check.
             if (pid_perror > -2)
                 // Set the Status that indicates that the Motor is 1 click from target
-                motor_state[motor_id].progress = MOTOR_PROGRESS_BESIDE_TARGET;
+                motor[motor_id].progress = MOTOR_PROGRESS_BESIDE_TARGET;
             else if (pid_perror > -30)
                 // Set the Status that indicates that the Motor is 2-29 clicks from target
-                motor_state[motor_id].progress = MOTOR_PROGRESS_NEAR_TARGET;
+                motor[motor_id].progress = MOTOR_PROGRESS_NEAR_TARGET;
             else
                 // Set the Status that indicates that the Motor is 30-200 clicks from target
-                motor_state[motor_id].progress = MOTOR_PROGRESS_APPROACHING_TARGET;
+                motor[motor_id].progress = MOTOR_PROGRESS_APPROACHING_TARGET;
         } else {
-            motor_state[motor_id].target_speed = 0;
-            motor_state[motor_id].progress = MOTOR_PROGRESS_AT_TARGET;  // Clear the flag that indicates that the Motor is in motion.
+            motor[motor_id].target_speed = 0;
+            motor[motor_id].progress = MOTOR_PROGRESS_AT_TARGET;  // Clear the flag that indicates that the Motor is in motion.
             // Motor_PID[motor_id] = 0;  // Turn off motor_id's PID.
         }
 
         //==========================================================
         // PID (Currenty Just the P)
         //==========================================================
-        if (motor_state[motor_id].enabled) {
+        if (motor[motor_id].enabled) {
             //============================================
             // Ramp Up/Down Current Speed to Target Speed.
             // Prevents the motors from jumping from dead
             //  stop to full speed and vice-versa
             //============================================
             int CurrentSpeedChanged = 0;
-            if (motor_state[motor_id].target_speed > motor_state[motor_id].speed) {
-                if (motor_state[motor_id].speed < (255 - motor_min_pwm)) {
-                    motor_state[motor_id].speed++;  // if the target is higher, then inc up to the target.
-                    if (motor_state[motor_id].target_speed > motor_state[motor_id].speed)
-                        if (motor_state[motor_id].speed < (255 - motor_min_pwm))
-                            motor_state[motor_id].speed++;  // if the target is higher, then inc up to the target a second time.
+            if (motor[motor_id].target_speed > motor[motor_id].speed) {
+                if (motor[motor_id].speed < (255 - motor_min_pwm)) {
+                    motor[motor_id].speed++;  // if the target is higher, then inc up to the target.
+                    if (motor[motor_id].target_speed > motor[motor_id].speed)
+                        if (motor[motor_id].speed < (255 - motor_min_pwm))
+                            motor[motor_id].speed++;  // if the target is higher, then inc up to the target a second time.
                     CurrentSpeedChanged = 1;
                 }
-            } else if (motor_state[motor_id].target_speed < motor_state[motor_id].speed) {
-                if (motor_state[motor_id].speed > -(255 - motor_min_pwm)) {
-                    motor_state[motor_id].speed--;  // if the target is lower, then inc down to the target.
-                    if (motor_state[motor_id].target_speed < motor_state[motor_id].speed)
-                        if (motor_state[motor_id].speed > -(255 - motor_min_pwm))
-                            motor_state[motor_id].speed--;  // if the target is lower, then inc down to the target a second time.
+            } else if (motor[motor_id].target_speed < motor[motor_id].speed) {
+                if (motor[motor_id].speed > -(255 - motor_min_pwm)) {
+                    motor[motor_id].speed--;  // if the target is lower, then inc down to the target.
+                    if (motor[motor_id].target_speed < motor[motor_id].speed)
+                        if (motor[motor_id].speed > -(255 - motor_min_pwm))
+                            motor[motor_id].speed--;  // if the target is lower, then inc down to the target a second time.
                     CurrentSpeedChanged = 1;
                 }
             }
 
             if (CurrentSpeedChanged == 1)
-                motor_set_speed(motor_id, motor_state[motor_id].speed);
+                motor_set_speed(motor_id, motor[motor_id].speed);
         }
     }
 }

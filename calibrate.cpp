@@ -167,7 +167,7 @@ static void update_status(motor_id_t motor_id)
 
     static unsigned long prev_print_ms = 0;
 
-    if ((motor_state[motor_id].pid_perror != 0) && (millis() - prev_print_ms > 1000)) {
+    if ((motor[motor_id].pid_perror != 0) && (millis() - prev_print_ms > 1000)) {
         log_write(F("Calibrating motor %c: "), 'A' + motor_id);
         int encoder = motor_get_encoder(motor_id);
         int target_encoder = motor_get_target_encoder(motor_id);
@@ -264,8 +264,8 @@ static void transition_to_calibrate_one_reverse_then_forward(void)
     assert((motor_id >= MOTOR_ID_A) && (motor_id < MOTOR_ID_COUNT));
 
     reset_stall_detection();
-    motor_state[motor_id].home_reverse_on_encoder = INT_MIN;
-    motor_state[motor_id].home_reverse_off_encoder = INT_MIN;
+    motor[motor_id].home_reverse_on_encoder = INT_MIN;
+    motor[motor_id].home_reverse_off_encoder = INT_MIN;
 
     sm_set_next_state(state_calibrate_one_reverse_then_forward);
 }
@@ -276,14 +276,14 @@ static void calibrate_one_reverse_then_forward(void)
 
     motor_set_target_encoder(motor_id, INT_MIN);  // Stall detection in motor.cpp may change target. Make sure it's INT_MIN.
 
-    if (motor_state[motor_id].home_reverse_off_encoder != INT_MIN) {
+    if (motor[motor_id].home_reverse_off_encoder != INT_MIN) {
         log_writeln(F("Calibrating motor %c: Reverse direction, encoder %d, backup past home switch complete."), 'A' + motor_id, motor_get_encoder(motor_id));
-        home_reverse_off_encoder = motor_state[motor_id].home_reverse_off_encoder;
+        home_reverse_off_encoder = motor[motor_id].home_reverse_off_encoder;
         transition_to_calibrate_one_forward();
     }
 
-    if (motor_state[motor_id].home_reverse_on_encoder != INT_MIN) {
-        motor_state[motor_id].home_reverse_on_encoder = INT_MIN;
+    if (motor[motor_id].home_reverse_on_encoder != INT_MIN) {
+        motor[motor_id].home_reverse_on_encoder = INT_MIN;
         log_writeln(F("Calibrating motor %c: Reverse direction, encoder %d, unexpected second reverse on home switch. Ignoring."), 'A' + motor_id, motor_get_encoder(motor_id));
     } else if (is_stalled(500)) {
         max_encoder = stalled_start_encoder;  // Set to stalled_start_encoder because it may not be able to command to present encoder when moving slowly.
@@ -297,8 +297,8 @@ static void transition_to_calibrate_one_forward(void)
 {
     assert((motor_id >= MOTOR_ID_A) && (motor_id < MOTOR_ID_COUNT));
 
-    motor_state[motor_id].home_forward_on_encoder = INT_MAX;
-    motor_state[motor_id].home_forward_off_encoder = INT_MAX;
+    motor[motor_id].home_forward_on_encoder = INT_MAX;
+    motor[motor_id].home_forward_off_encoder = INT_MAX;
 
     reset_stall_detection();
     sm_set_next_state(state_calibrate_one_forward);
@@ -311,10 +311,10 @@ static void calibrate_one_forward(void)
     motor_set_target_encoder(motor_id, INT_MAX);  // Stall detection in motor.cpp may change target. Make sure it's INT_MAX.
     update_status(motor_id);
 
-    if (motor_state[motor_id].home_forward_on_encoder != INT_MAX) {
+    if (motor[motor_id].home_forward_on_encoder != INT_MAX) {
         if (home_forward_on_encoder == INT_MAX) {
-            home_forward_on_encoder = motor_state[motor_id].home_forward_on_encoder;
-            motor_state[motor_id].home_forward_on_encoder = INT_MAX;
+            home_forward_on_encoder = motor[motor_id].home_forward_on_encoder;
+            motor[motor_id].home_forward_on_encoder = INT_MAX;
 
             if (home_forward_off_encoder == INT_MAX) {
                 log_writeln(F("Calibrating motor %c: Forward direction, encoder %d, forward home switch on at encoder %d."), 'A' + motor_id, motor_get_encoder(motor_id), home_forward_on_encoder);
@@ -322,27 +322,27 @@ static void calibrate_one_forward(void)
                 // Erase previously found forward_off encoder values.
                 log_writeln(F("Calibrating motor %c: Forward direction, encoder %d, forward home switch on at encoder %d, forgetting previous forward home switch off."), 'A' + motor_id, motor_get_encoder(motor_id), home_forward_on_encoder);
                 home_forward_off_encoder = INT_MAX;
-                motor_state[motor_id].home_forward_off_encoder = INT_MAX;
+                motor[motor_id].home_forward_off_encoder = INT_MAX;
             }
         } else {
             // Second time finding forward on encoder.
             max_encoder = motor_get_encoder(motor_id);
             log_writeln(F("Calibrating motor %c: Forward direction, encoder %d, found second forward home switch on at encoder %d. Setting max encoder to %d. Reversing."),
-                        'A' + motor_id, motor_get_encoder(motor_id), motor_state[motor_id].home_forward_on_encoder, max_encoder);
+                        'A' + motor_id, motor_get_encoder(motor_id), motor[motor_id].home_forward_on_encoder, max_encoder);
             transition_to_calibrate_one_reverse();
         }
     }
 
-    if (motor_state[motor_id].home_forward_off_encoder != INT_MAX) {
+    if (motor[motor_id].home_forward_off_encoder != INT_MAX) {
         if (home_forward_off_encoder == INT_MAX) {
             // First time finding forward off encoder.
-            home_forward_off_encoder = motor_state[motor_id].home_forward_off_encoder;
+            home_forward_off_encoder = motor[motor_id].home_forward_off_encoder;
             log_writeln(F("Calibrating motor %c: Forward direction, encoder %d, forward home switch off at encoder %d."), 'A' + motor_id, motor_get_encoder(motor_id), home_forward_off_encoder);
         } else {
             // Second time finding forward off encoder.
-            log_writeln(F("Calibrating motor %c: Forward direction, encoder %d, unexpected second forward home switch off at encoder %d. Ignoring."), 'A' + motor_id, motor_get_encoder(motor_id), motor_state[motor_id].home_forward_off_encoder);
+            log_writeln(F("Calibrating motor %c: Forward direction, encoder %d, unexpected second forward home switch off at encoder %d. Ignoring."), 'A' + motor_id, motor_get_encoder(motor_id), motor[motor_id].home_forward_off_encoder);
         }
-        motor_state[motor_id].home_forward_off_encoder = INT_MAX;
+        motor[motor_id].home_forward_off_encoder = INT_MAX;
     }
 
     if (found_all_positions()) {
@@ -373,8 +373,8 @@ static void transition_to_calibrate_one_reverse()
     assert((motor_id >= MOTOR_ID_A) && (motor_id < MOTOR_ID_COUNT));
 
     reset_stall_detection();
-    motor_state[motor_id].home_reverse_on_encoder = INT_MIN;
-    motor_state[motor_id].home_reverse_off_encoder = INT_MIN;
+    motor[motor_id].home_reverse_on_encoder = INT_MIN;
+    motor[motor_id].home_reverse_off_encoder = INT_MIN;
 
     sm_set_next_state(state_calibrate_one_reverse);
 }
@@ -388,10 +388,10 @@ static void calibrate_one_reverse(void)
 
     update_status(motor_id);
 
-    if (motor_state[motor_id].home_reverse_on_encoder != INT_MIN) {
+    if (motor[motor_id].home_reverse_on_encoder != INT_MIN) {
         if (home_reverse_on_encoder == INT_MIN) {
-            home_reverse_on_encoder = motor_state[motor_id].home_reverse_on_encoder;
-            motor_state[motor_id].home_reverse_on_encoder = INT_MIN;
+            home_reverse_on_encoder = motor[motor_id].home_reverse_on_encoder;
+            motor[motor_id].home_reverse_on_encoder = INT_MIN;
 
             if (home_reverse_off_encoder == INT_MIN) {
                 log_writeln(F("Calibrating motor %c: Reverse direction, encoder %d, reverse home switch on at encoder %d."), 'A' + motor_id, motor_get_encoder(motor_id), home_reverse_on_encoder);
@@ -399,26 +399,26 @@ static void calibrate_one_reverse(void)
                 // Erase previously found home_reverse_off_encoder values.
                 log_writeln(F("Calibrating motor %c: Reverse direction, encoder %d, reverse home switch on at encoder %d, forgetting previous reverse home switch off."), 'A' + motor_id, motor_get_encoder(motor_id), home_reverse_on_encoder);
                 home_reverse_off_encoder = INT_MIN;
-                motor_state[motor_id].home_reverse_off_encoder = INT_MIN;
+                motor[motor_id].home_reverse_off_encoder = INT_MIN;
             }
         } else {
             // Second time finding reverse on encoder.
             min_encoder = motor_get_encoder(motor_id);
             log_writeln(F("Calibrating motor %c: Reverse direction, encoder %d, found second reverse home switch on at encoder %d. Setting min encoder to %d and reversing."),
-                        'A' + motor_id, motor_get_encoder(motor_id), min_encoder, motor_state[motor_id].home_reverse_on_encoder, min_encoder);
+                        'A' + motor_id, motor_get_encoder(motor_id), min_encoder, motor[motor_id].home_reverse_on_encoder, min_encoder);
             transition_to_calibrate_one_forward();
         }
     }
 
-    if (motor_state[motor_id].home_reverse_off_encoder != INT_MIN) {
+    if (motor[motor_id].home_reverse_off_encoder != INT_MIN) {
         if (home_reverse_off_encoder == INT_MIN) {
-            home_reverse_off_encoder = motor_state[motor_id].home_reverse_off_encoder;
+            home_reverse_off_encoder = motor[motor_id].home_reverse_off_encoder;
             log_writeln(F("Calibrating motor %c: Reverse direction, encoder %d, reverse home switch off at encoder %d."), 'A' + motor_id, motor_get_encoder(motor_id), home_reverse_off_encoder);
         } else {
             // Second time finding reverse off encoder.
-            log_writeln(F("Calibrating motor %c: Reverse direction, encoder %d, unexpected second reverse home switch off at encoder %d. Ignoring."), 'A' + motor_id, motor_get_encoder(motor_id), motor_state[motor_id].home_reverse_off_encoder);
+            log_writeln(F("Calibrating motor %c: Reverse direction, encoder %d, unexpected second reverse home switch off at encoder %d. Ignoring."), 'A' + motor_id, motor_get_encoder(motor_id), motor[motor_id].home_reverse_off_encoder);
         }
-        motor_state[motor_id].home_reverse_off_encoder = INT_MIN;
+        motor[motor_id].home_reverse_off_encoder = INT_MIN;
     }
 
     if (found_all_positions()) {
@@ -550,10 +550,10 @@ static void calibrate_one_done(void)
 
     update_status(motor_id);
 
-    motor_state[motor_id].home_forward_on_encoder = INT_MAX;
-    motor_state[motor_id].home_forward_off_encoder = INT_MAX;
-    motor_state[motor_id].home_reverse_on_encoder = INT_MIN;
-    motor_state[motor_id].home_reverse_off_encoder = INT_MIN;
+    motor[motor_id].home_forward_on_encoder = INT_MAX;
+    motor[motor_id].home_forward_off_encoder = INT_MAX;
+    motor[motor_id].home_reverse_on_encoder = INT_MIN;
+    motor[motor_id].home_reverse_off_encoder = INT_MIN;
 
     motor_set_max_speed_percent(motor_id, prev_max_speed_percent);
 

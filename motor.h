@@ -68,9 +68,9 @@ typedef struct {
     int                home_reverse_on_encoder; // Home switch reverse direction high value.
     int                home_reverse_off_encoder; // Home switch reverse direction low value.
     motor_error_flag_t error_flags;  // Once set, error flags must be cleared by user code.
-} motor_state_t;
+} motor_t;
 
-extern motor_state_t motor_state[MOTOR_ID_COUNT];
+extern motor_t motor[MOTOR_ID_COUNT];
 
 void motor_clear_ram_data(void);  // Clears data cached in RAM between boots.
 

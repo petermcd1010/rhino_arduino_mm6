@@ -319,25 +319,25 @@ void config_print_one(motor_id_t motor_id)
     if (!config_check())
         log_writeln(F("Invalid configuration."));
 
-    config_motor_t *motor = &config.motor[motor_id];
+    config_motor_t *m = &config.motor[motor_id];
 
     log_write(F("  Motor %c: "), 'A' + motor_id);
     char str[15] = {};
 
-    if (!motor->is_configured) {
+    if (!m->is_configured) {
         log_writeln(F("Not configured. Run calibration."));
         return;
     }
 
-    dtostrf(motor->angle_offset, 3, 2, str);
+    dtostrf(m->angle_offset, 3, 2, str);
     log_writeln(F("angle_offset: %s, orientation: %s, polarity: %s, stall current threshold: %d."),
                 str,
-                motor->orientation == MOTOR_ORIENTATION_NOT_INVERTED ? "not inverted" : "inverted",
-                motor->forward_polarity == LOW ? "not reversed" : "reversed",
-                motor->stall_current_threshold);
-    log_write(F("           Encoder min: %d, max: %d, "), motor->min_encoder, motor->max_encoder);
-    if (motor->is_gripper)
-        log_writeln(F("gripper close: %d"), motor->gripper_close_encoder);
+                m->orientation == MOTOR_ORIENTATION_NOT_INVERTED ? "not inverted" : "inverted",
+                m->forward_polarity == LOW ? "not reversed" : "reversed",
+                m->stall_current_threshold);
+    log_write(F("           Encoder min: %d, max: %d, "), m->min_encoder, m->max_encoder);
+    if (m->is_gripper)
+        log_writeln(F("gripper close: %d"), m->gripper_close_encoder);
     else
         log_writeln();
 }
