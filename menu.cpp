@@ -271,7 +271,7 @@ const menu_item_t calibration_menu[] = {
     { 'E', MM_E,    NULL,                 NULL,      true,  command_set_enabled_motors,        MH_E    },
     { 'H', MM_H,    NULL,                 NULL,      true,  command_go_home_or_open_gripper,   MH_H    },
     { 'M', MM_M,    NULL,                 NULL,      true,  command_print_motor_status,        MH_M    },
-    // { 'N', MM_N,    NULL, NULL,      true,  command_set_motor_angle,           MH_N    },   // TODO.
+    { 'N', MM_N,    NULL,                 NULL,      true,  command_set_motor_angle,           MH_N    },
     { 'P', MM_P,    NULL,                 NULL,      true,  command_set_motor_encoder,         MH_P    },
     { 'T', MM_T,    NULL,                 NULL,      true,  command_test_motors,               MH_T    },
     { 'V', MM_V,    NULL,                 NULL,      true,  command_close_gripper,             MH_V    },
@@ -306,7 +306,7 @@ const menu_item_t waypoint_menu[] = {
     { 'E', MM_E,    NULL,                          NULL,      true,  command_set_enabled_motors,        MH_E    },
     { 'H', MM_H,    NULL,                          NULL,      false, command_go_home_or_open_gripper,   MH_H    },
     { 'I', WM_I,    extended_menu_insert_waypoint, NULL,      true,  command_waypoint_insert_before,    WH_I    },
-    // { 'N', MM_N,    NULL,                          NULL,      true,  command_set_motor_angle,           MH_N    }, // TODO.
+    { 'N', MM_N,    NULL,                          NULL,      true,  command_set_motor_angle,           MH_N    },
     { 'P', MM_P,    NULL,                          NULL,      true,  command_set_motor_encoder,         MH_P    },
     { 'R', WM_R,    NULL,                          NULL,      false, command_waypoint_run,              WH_R    },
     { 'S', WM_S,    extended_menu_set_waypoint,    NULL,      true,  command_waypoint_set,              WH_S    },
