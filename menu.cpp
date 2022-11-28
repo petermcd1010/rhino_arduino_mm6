@@ -65,6 +65,40 @@ static void extended_menu_config_home_encoder(void)
     log_write(F(">"));
 }
 
+static void extended_menu_config_encoders_per_degree(void)
+{
+    // TODO: The values below are incomplete and wrong. Fix this.
+    log_writeln();
+    log_writeln(F("Example encoders/degree:"));
+    log_writeln(F("  XR-1, XR-2, XR-4 motor A: 1 encoders/degree."));
+    log_writeln(F("  XR-1, XR-4 motor B: (5.51)(165.4/1) = 12.5 encoders/degree."));
+    log_writeln(F("  XR-1, XR-2 motor E: (5.51)(165.4/1) = 36 encoders/degree."));
+    log_writeln(F("  XR-4, motor E: (5.51)(165.4/1) = 35 encoders/degree."));
+    log_writeln(F("  XR-1, XR2 motor F: (4.4)(66.1/1) = 29.5 encoders/degree."));
+    log_writeln(F("  XR-4, motor F: (4.4)(66.1/1) = 17.5 encoders/degree."));
+
+    log_writeln(F("Current encoders/degree:"));
+    for (int i = 0; i < MOTOR_ID_COUNT; i++) {
+        log_writeln(F("  %c: %d"), 'A' + i, config.motor[i].encoders_per_degree);
+    }
+    log_writeln(F("Enter 'motorid encoders' to set the number of encoders per degree. Or <CTRL+C> to exit."));
+    log_write(F(">"));
+}
+
+static void extended_menu_config_angle_offset(void)
+{
+    log_writeln();
+    log_writeln(F("Current angle offsets:"));
+    char str[15] = {};
+
+    for (int i = 0; i < MOTOR_ID_COUNT; i++) {
+        dtostrf(config.motor[i].angle_offset, 3, 2, str);
+        log_writeln(F("  %c: %s"), 'A' + i, str);
+    }
+    log_writeln(F("Enter 'motorid offset' to set the angle-offset from the home (0) encoder. Or <CTRL+C> to exit."));
+    log_write(F(">"));
+}
+
 static void extended_menu_factory_reset(void)
 {
     log_writeln();
@@ -145,6 +179,10 @@ static const char MM_6[] PROGMEM = "set motor min max encoder limits";
 static const char MH_6[] PROGMEM = "motorid min max -- Print or set configured min max encoder limits.";
 static const char MM_7[] PROGMEM = "set motor home encoder";
 static const char MH_7[] PROGMEM = "motorid encoder -- Print or set configured home encoder to zero (adjusts min, max).";
+static const char MM_8[] PROGMEM = "set motor encoders/degree";
+static const char MH_8[] PROGMEM = "motorid encoders/degree -- Print or set configured encoders/degree).";
+static const char MM_9[] PROGMEM = "set motor angle offset";
+static const char MH_9[] PROGMEM = "motorid angle -- Print or set configured angle offset from encdoer 0.";
 static const char MM_0[] PROGMEM = "write configuration";
 static const char MH_0[] PROGMEM = "-- Write configuration data to EEPROM.";
 static const char MM_B[] PROGMEM = "reboot";
@@ -188,31 +226,33 @@ extern const menu_item_t waypoint_menu[];
 extern const menu_item_t calibration_menu[];
 
 static const menu_item_t main_menu[] = {
-    { '1', MM_1,    NULL,                                  NULL,             false, command_print_config,              MH_1    },
-    { '2', MM_2,    extended_menu_config_robot_id,         NULL,             true,  command_config_robot_id,           MH_2    },
-    { '3', MM_3,    extended_menu_config_robot_serial,     NULL,             true,  command_config_robot_serial,       MH_3    },
-    { '4', MM_4,    extended_menu_config_robot_name,       NULL,             true,  command_config_robot_name,         MH_4    },
-    { '5', MM_5,    NULL,                                  NULL,             true,  command_reverse_motor_orientation, MH_5    },
-    { '6', MM_6,    extended_menu_config_min_max_encoders, NULL,             true,  command_config_min_max_encoders,   MH_6    },
-    { '7', MM_7,    extended_menu_config_home_encoder,     NULL,             true,  command_config_home_encoder,       MH_7    },
-    { '0', MM_0,    NULL,                                  NULL,             false, command_config_write,              MH_0    },
-    { 'B', MM_B,    extended_menu_reboot,                  NULL,             true,  command_reboot,                    MH_B    },
-    { 'C', MM_C,    NULL,                                  calibration_menu, false, NULL,                              MH_C    },
-    { 'E', MM_E,    NULL,                                  NULL,             true,  command_set_enabled_motors,        MH_E    },
-    { 'H', MM_H,    NULL,                                  NULL,             true,  command_go_home_or_open_gripper,   MH_H    },
-    { 'M', MM_M,    NULL,                                  NULL,             true,  command_print_motor_status,        MH_M    },
-    { 'N', MM_N,    NULL,                                  NULL,             true,  command_set_motor_angle,           MH_N    },
-    { 'P', MM_P,    NULL,                                  NULL,             true,  command_set_motor_encoder,         MH_P    },
+    { '1', MM_1,    NULL,                                     NULL,             false, command_print_config,               MH_1    },
+    { '2', MM_2,    extended_menu_config_robot_id,            NULL,             true,  command_config_robot_id,            MH_2    },
+    { '3', MM_3,    extended_menu_config_robot_serial,        NULL,             true,  command_config_robot_serial,        MH_3    },
+    { '4', MM_4,    extended_menu_config_robot_name,          NULL,             true,  command_config_robot_name,          MH_4    },
+    { '5', MM_5,    NULL,                                     NULL,             true,  command_reverse_motor_orientation,  MH_5    },
+    { '6', MM_6,    extended_menu_config_min_max_encoders,    NULL,             true,  command_config_min_max_encoders,    MH_6    },
+    { '7', MM_7,    extended_menu_config_home_encoder,        NULL,             true,  command_config_home_encoder,        MH_7    },
+    { '8', MM_8,    extended_menu_config_encoders_per_degree, NULL,             true,  command_config_encoders_per_degree, MH_8    },
+    { '9', MM_9,    extended_menu_config_angle_offset,        NULL,             true,  command_config_angle_offset,        MH_9    },
+    { '0', MM_0,    NULL,                                     NULL,             false, command_config_write,               MH_0    },
+    { 'B', MM_B,    extended_menu_reboot,                     NULL,             true,  command_reboot,                     MH_B    },
+    { 'C', MM_C,    NULL,                                     calibration_menu, false, NULL,                               MH_C    },
+    { 'E', MM_E,    NULL,                                     NULL,             true,  command_set_enabled_motors,         MH_E    },
+    { 'H', MM_H,    NULL,                                     NULL,             true,  command_go_home_or_open_gripper,    MH_H    },
+    { 'M', MM_M,    NULL,                                     NULL,             true,  command_print_motor_status,         MH_M    },
+    { 'N', MM_N,    NULL,                                     NULL,             true,  command_set_motor_angle,            MH_N    },
+    { 'P', MM_P,    NULL,                                     NULL,             true,  command_set_motor_encoder,          MH_P    },
     // { 'Q', MM_Q,    NULL,                              NULL,             true,  command_run_test_sequence,         MH_Q    },  // TODO.
-    { 'R', MM_R,    NULL,                                  NULL,             false, command_print_software_version,    MH_R    },
-    { 'T', MM_T,    NULL,                                  NULL,             true,  command_test_motors,               MH_T    },
-    { 'V', MM_V,    NULL,                                  NULL,             true,  command_close_gripper,             MH_V    },
-    { 'W', MM_W,    NULL,                                  waypoint_menu,    false, NULL,                              MH_W    },
-    { 'Z', MM_Z,    NULL,                                  NULL,             false, command_poll_pins,                 MH_Z    },
-    { '%', MM_PCT,  NULL,                                  NULL,             true,  command_set_motor_percent,         MH_PCT  },
-    { '*', MM_STAR, extended_menu_factory_reset,           NULL,             true,  command_factory_reset,             MH_STAR },
-    { '!', MM_BANG, NULL,                                  NULL,             false, command_emergency_stop,            MH_BANG },
-    { '?', MM_HELP, NULL,                                  NULL,             false, command_print_help,                MH_HELP },
+    { 'R', MM_R,    NULL,                                     NULL,             false, command_print_software_version,     MH_R    },
+    { 'T', MM_T,    NULL,                                     NULL,             true,  command_test_motors,                MH_T    },
+    { 'V', MM_V,    NULL,                                     NULL,             true,  command_close_gripper,              MH_V    },
+    { 'W', MM_W,    NULL,                                     waypoint_menu,    false, NULL,                               MH_W    },
+    { 'Z', MM_Z,    NULL,                                     NULL,             false, command_poll_pins,                  MH_Z    },
+    { '%', MM_PCT,  NULL,                                     NULL,             true,  command_set_motor_percent,          MH_PCT  },
+    { '*', MM_STAR, extended_menu_factory_reset,              NULL,             true,  command_factory_reset,              MH_STAR },
+    { '!', MM_BANG, NULL,                                     NULL,             false, command_emergency_stop,             MH_BANG },
+    { '?', MM_HELP, NULL,                                     NULL,             false, command_print_help,                 MH_HELP },
     { 0 }  // Terminate menus with an entry filled with zeros.
 };
 

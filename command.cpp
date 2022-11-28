@@ -237,6 +237,60 @@ int command_config_home_encoder(char *args, size_t args_nbytes)
     return p - args;
 }
 
+int command_config_encoders_per_degree(char *args, size_t args_nbytes)
+{
+    assert(args);
+
+    float encoders_per_degree = 0;
+
+    motor_id_t motor_id = MOTOR_ID_A;
+    char *p = args;
+    size_t nbytes = parse_motor_id(p, args_nbytes, &motor_id);
+
+    if (nbytes == 0)
+        return -1;                     // parse_motor_id will emit message if error.
+    args_nbytes -= nbytes;
+    p += nbytes;
+
+    nbytes = parse_float(p, args_nbytes, &encoders_per_degree);
+    if (nbytes <= 0)
+        return -1;
+    p += nbytes;
+    args_nbytes -= nbytes;
+
+    config_set_motor_encoders_per_degree(motor_id, encoders_per_degree);
+    config_print_one(motor_id);
+
+    return p - args;
+}
+
+int command_config_angle_offset(char *args, size_t args_nbytes)
+{
+    assert(args);
+
+    float angle_offset = 0;
+
+    motor_id_t motor_id = MOTOR_ID_A;
+    char *p = args;
+    size_t nbytes = parse_motor_id(p, args_nbytes, &motor_id);
+
+    if (nbytes == 0)
+        return -1;                     // parse_motor_id will emit message if error.
+    args_nbytes -= nbytes;
+    p += nbytes;
+
+    nbytes = parse_float(p, args_nbytes, &angle_offset);
+    if (nbytes <= 0)
+        return -1;
+    p += nbytes;
+    args_nbytes -= nbytes;
+
+    config_set_motor_angle_offset(motor_id, angle_offset);
+    config_print_one(motor_id);
+
+    return p - args;
+}
+
 int command_config_write(char *args, size_t args_nbytes)
 {
     assert(args);
@@ -564,7 +618,6 @@ int command_set_motor_angle(char *args, size_t args_nbytes)
     assert(args);
 
     motor_id_t motor_id = MOTOR_ID_A;
-    float angle = motor_get_angle(motor_id);
     char *p = args;
     bool cancel = false;
 
@@ -579,6 +632,8 @@ int command_set_motor_angle(char *args, size_t args_nbytes)
 
     args_nbytes -= nbytes;
     p += nbytes;
+
+    float angle = motor_get_angle(motor_id);
 
     nbytes = parse_motor_position(p, args_nbytes, &angle);
     if (nbytes == 0)
@@ -597,6 +652,11 @@ int command_set_motor_angle(char *args, size_t args_nbytes)
         cancel = true;
     }
 
+    if (config.motor[motor_id].encoders_per_degree == 0) {
+        log_writeln(F("  Motor %c angles/degree not configured."), 'A' + motor_id);
+        cancel = true;
+    }
+
     if (!cancel && sm_get_state().run != sm_motors_on_execute) {
         log_writeln(F("  Motors can not be actuated in the current state."));
         cancel = true;
@@ -608,6 +668,22 @@ int command_set_motor_angle(char *args, size_t args_nbytes)
     }
 
     // Execute.
+
+    float min_angle = config_motor_encoders_to_angle(motor_id, config.motor[motor_id].min_encoder);
+    float max_angle = config_motor_encoders_to_angle(motor_id, config.motor[motor_id].max_encoder);
+
+    if ((angle < min_angle) || (angle > max_angle)) {
+        char str1[15] = {};
+        char str2[15] = {};
+        char str3[15] = {};
+
+        dtostrf(angle, 3, 2, str1);
+        dtostrf(min_angle, 3, 2, str2);
+        dtostrf(max_angle, 3, 2, str3);
+
+        log_writeln(F("Clamping motor angle %s to [%s, %s]"), str1, str2, str3);
+        angle = fmax(min_angle, fmin(max_angle, angle));
+    }
 
     char angle_str[15] = {};
 
@@ -623,7 +699,6 @@ int command_set_motor_encoder(char *args, size_t args_nbytes)
     assert(args);
 
     motor_id_t motor_id = MOTOR_ID_A;
-    float encoder = motor_get_encoder(motor_id);
     char *p = args;
     bool cancel = false;
 
@@ -638,6 +713,8 @@ int command_set_motor_encoder(char *args, size_t args_nbytes)
 
     args_nbytes -= nbytes;
     p += nbytes;
+
+    float encoder = motor_get_encoder(motor_id);
 
     nbytes = parse_motor_position(p, args_nbytes, &encoder);
     if (nbytes == 0)
@@ -690,7 +767,6 @@ int command_set_motor_percent(char *args, size_t args_nbytes)
     assert(args);
 
     motor_id_t motor_id = MOTOR_ID_A;
-    float percent = motor_get_percent(motor_id);
     char *p = args;
     bool cancel = false;
 
@@ -705,6 +781,8 @@ int command_set_motor_percent(char *args, size_t args_nbytes)
 
     args_nbytes -= nbytes;
     p += nbytes;
+
+    float percent = motor_get_percent(motor_id);
 
     nbytes = parse_motor_position(p, args_nbytes, &percent);
     if (nbytes == 0)

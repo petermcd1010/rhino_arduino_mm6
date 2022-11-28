@@ -281,35 +281,6 @@ void motor_set_home_encoder(motor_id_t motor_id, int home_encoder)
     motor[motor_id].target_encoder -= home_encoder;
 }
 
-float motor_get_encoder_steps_per_degree(motor_id_t motor_id)
-{
-    assert((motor_id >= 0) && (motor_id < MOTOR_ID_COUNT));
-
-    switch (motor_id) {
-    case MOTOR_ID_A:
-        return 1;
-    case MOTOR_ID_B:
-        return 12.5;  // (5.51)(165.4/1) XR4
-        break;
-    case MOTOR_ID_C:
-    case MOTOR_ID_D:  // Fallthrough.
-    case MOTOR_ID_E:  // Fallthrough.
-        if (config.robot_id == CONFIG_ROBOT_ID_RHINO_XR_4)
-            return 35;                 // (8.8)(66.1/1) XR4
-        else
-            return 36;                 // (8.8)(66.1/1) XR3
-        break;
-    case MOTOR_ID_F:
-        if (config.robot_id == CONFIG_ROBOT_ID_RHINO_XR_4)
-            return 17.5;               // (4.4)(66.1/1) XR4
-        else
-            return 29.5;               // (4.4)(66.1/1) XR3
-        break;
-    }
-
-    assert(false);
-}
-
 int motor_get_encoder(motor_id_t motor_id)
 {
     assert((motor_id >= 0) && (motor_id < MOTOR_ID_COUNT));
@@ -340,28 +311,18 @@ int motor_get_target_encoder(motor_id_t motor_id)
     return motor[motor_id].target_encoder * config.motor[motor_id].orientation;
 }
 
-int motor_angle_to_encoder(motor_id_t motor_id, float angle)
-{
-    assert((motor_id >= 0) && (motor_id < MOTOR_ID_COUNT));
-
-    return (angle * motor_get_encoder_steps_per_degree(motor_id)) + config.motor[motor_id].angle_offset;
-}
-
 float motor_get_angle(motor_id_t motor_id)
 {
     assert((motor_id >= 0) && (motor_id < MOTOR_ID_COUNT));
 
-    return (motor_get_encoder(motor_id) - config.motor[motor_id].angle_offset) / motor_get_encoder_steps_per_degree(motor_id);
+    return config_motor_encoders_to_angle(motor_id, motor_get_encoder(motor_id));
 }
 
 void motor_set_target_angle(motor_id_t motor_id, float angle)
 {
     assert((motor_id >= 0) && (motor_id < MOTOR_ID_COUNT));
 
-    // TODO: assert valid angle?
-    int encoder = motor_angle_to_encoder(motor_id, angle);
-
-    motor_set_target_encoder(motor_id, encoder);
+    motor_set_target_encoder(motor_id, config_motor_angle_to_encoders(motor_id, angle));
 }
 
 float motor_get_percent(motor_id_t motor_id)

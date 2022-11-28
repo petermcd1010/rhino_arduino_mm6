@@ -245,24 +245,6 @@ void config_set_motor_forward_polarity(motor_id_t motor_id, int high_or_low)
     modified = true;
 }
 
-void config_set_motor_angle_offsets(int B, int C, int D, int E, int F)
-{
-    // TODO: Remove this?
-    config.motor[MOTOR_ID_B].angle_offset = B;
-    config.motor[MOTOR_ID_C].angle_offset = C;
-    config.motor[MOTOR_ID_D].angle_offset = D;
-    config.motor[MOTOR_ID_E].angle_offset = E;
-    config.motor[MOTOR_ID_F].angle_offset = F;
-    log_write(F("Angle Offsets Set to: %d, %d, %d, %d, %d."),
-              config.motor[MOTOR_ID_B].angle_offset,
-              config.motor[MOTOR_ID_B].angle_offset,
-              config.motor[MOTOR_ID_B].angle_offset,
-              config.motor[MOTOR_ID_B].angle_offset,
-              config.motor[MOTOR_ID_B].angle_offset);
-
-    modified = true;
-}
-
 void config_set_motor_min_max_encoders(motor_id_t motor_id, int min_encoder, int max_encoder)
 {
     assert(motor_id >= 0 && motor_id < MOTOR_ID_COUNT);
@@ -290,6 +272,42 @@ void config_set_motor_home_encoder(motor_id_t motor_id, int encoder)
 
     modified = true;
 };
+
+void config_set_motor_encoders_per_degree(motor_id_t motor_id, float encoders_per_degree)
+{
+    assert(motor_id >= 0 && motor_id < MOTOR_ID_COUNT);
+
+    config.motor[motor_id].is_configured = true;
+    config.motor[motor_id].encoders_per_degree = encoders_per_degree;
+    config_sign();
+
+    modified = true;
+}
+
+void config_set_motor_angle_offset(motor_id_t motor_id, float angle_offset)
+{
+    assert(motor_id >= 0 && motor_id < MOTOR_ID_COUNT);
+
+    config.motor[motor_id].is_configured = true;
+    config.motor[motor_id].angle_offset = angle_offset;
+    config_sign();
+
+    modified = true;
+}
+
+int config_motor_angle_to_encoders(motor_id_t motor_id, float angle)
+{
+    assert(motor_id >= 0 && motor_id < MOTOR_ID_COUNT);
+
+    return (angle + config.motor[motor_id].angle_offset) * config.motor[motor_id].encoders_per_degree;
+}
+
+float config_motor_encoders_to_angle(motor_id_t motor_id, int encoders)
+{
+    assert(motor_id >= 0 && motor_id < MOTOR_ID_COUNT);
+
+    return (encoders / config.motor[motor_id].encoders_per_degree) - config.motor[motor_id].angle_offset;
+}
 
 void config_set_motor_gripper_close_encoder(motor_id_t motor_id, int gripper_close_encoder)
 {
@@ -329,17 +347,29 @@ void config_print_one(motor_id_t motor_id)
         return;
     }
 
+    log_write(F("Encoder min: %d, max: %d, home: 0"), m->min_encoder, m->max_encoder);
+    if (m->is_gripper)
+        log_writeln(F(", gripper close: %d."), m->gripper_close_encoder);
+    else
+        log_writeln(F("."));
+
+    dtostrf(m->encoders_per_degree, 3, 2, str);
+    log_write(F("           Angle encoders/degree: %s, "), str);
+
     dtostrf(m->angle_offset, 3, 2, str);
-    log_writeln(F("angle_offset: %s, orientation: %s, polarity: %s, stall current threshold: %d."),
-                str,
+    log_write(F("offset: %s, "), str);
+
+    dtostrf(config_motor_encoders_to_angle(motor_id, m->min_encoder), 3, 2, str);
+    log_write(F("min: %s, "), str);
+
+    dtostrf(config_motor_encoders_to_angle(motor_id, m->max_encoder), 3, 2, str);
+    log_writeln(F("max: %s."), str);
+
+    dtostrf(m->angle_offset, 3, 2, str);
+    log_writeln(F("           Motor orientation: %s, polarity: %s, stall current threshold: %d."),
                 m->orientation == MOTOR_ORIENTATION_NOT_INVERTED ? "not inverted" : "inverted",
                 m->forward_polarity == LOW ? "not reversed" : "reversed",
                 m->stall_current_threshold);
-    log_write(F("           Encoder min: %d, max: %d, "), m->min_encoder, m->max_encoder);
-    if (m->is_gripper)
-        log_writeln(F("gripper close: %d"), m->gripper_close_encoder);
-    else
-        log_writeln();
 }
 
 void config_print()

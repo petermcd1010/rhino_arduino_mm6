@@ -30,13 +30,14 @@ extern const char * const config_robot_name_by_id[CONFIG_ROBOT_ID_COUNT];
 
 typedef struct __attribute__((packed)) {
     bool is_configured;
-    int angle_offset;
     motor_orientation_t orientation;
-    uint8_t forward_polarity;  // Defaults to LOW. If motor is wired backward, set to HIGH.
-    int min_encoder;  // Minimum encoder limit found during calibration.
-    int max_encoder;  // Maximum encoder limit found during calibration.
-    bool is_gripper;
-    int gripper_close_encoder;
+    uint8_t forward_polarity;  // Defaults to LOW. If +/- wired backward, motor test sets to HIGH.
+    int min_encoder;  // Minimum encoder limit found during calibration or set in config.
+    int max_encoder;  // Maximum encoder limit found during calibration or set in config.
+    float encoders_per_degree;  // Number of encoder counts per angle degree.
+    float angle_offset;  // +/- angle offset to zero-degrees from home encoder 0.
+    bool is_gripper;  // True if calibration detected this motor actuates a gripper.
+    int gripper_close_encoder;  // Calibrated gripper close encoder value.
     int stall_current_threshold;  // Threshold to trigger stall condition. Defaults to 200.
 } config_motor_t;
 
@@ -66,9 +67,12 @@ void config_set_robot_serial(char robot_serial[CONFIG_ROBOT_SERIAL_NBYTES]);
 void config_set_robot_name(char robot_name[CONFIG_ROBOT_NAME_NBYTES]);
 void config_set_motor_orientation(motor_id_t motor_id, motor_orientation_t motor_orientation);
 void config_set_motor_forward_polarity(motor_id_t motor_id, int low_or_high);
-void config_set_motor_angle_offsets(int B, int C, int D, int E, int F);
 void config_set_motor_min_max_encoders(motor_id_t motor_id, int min_encoder, int max_encoder);
 void config_set_motor_home_encoder(motor_id_t motor_id, int encoder);  // Sets encoder to zero and adjusts min, max limits.
+void config_set_motor_encoders_per_degree(motor_id_t motor_id, float encoders_per_degree);
+void config_set_motor_angle_offset(motor_id_t motor_id, float angle_offset);
+int config_motor_angle_to_encoders(motor_id_t motor_id, float angle);
+float config_motor_encoders_to_angle(motor_id_t motor_id, int encoders);
 void config_set_motor_gripper_close_encoder(motor_id_t motor_id, int gripper_close_encoder);
 void config_set_motor_stall_current_threshold(motor_id_t motor_id, int stall_current_threshold);
 void config_print_one(motor_id_t motor_id);
