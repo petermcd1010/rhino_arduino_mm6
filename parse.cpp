@@ -165,6 +165,7 @@ size_t parse_float(char *buf, size_t buf_nbytes, float *out_float)
                 f += (*p - '0');
             } else {
                 is_valid = false;
+                break;
             }
         } else {
             if (isdigit(*p)) {
@@ -172,6 +173,7 @@ size_t parse_float(char *buf, size_t buf_nbytes, float *out_float)
                 fraction_div *= 10;
             } else {
                 is_valid = false;
+                break;
             }
         }
 
