@@ -273,12 +273,17 @@ int command_reboot(char *args, size_t args_nbytes)
     return 0;
 }
 
-int command_calibrate_home_and_limits(char *args, size_t args_nbytes)
+static int calibrate_home_and_or_limits(char *args, size_t args_nbytes, bool calibrate_limits)
 {
     assert(args);
 
     int motor_ids_mask = 0;
     char *p = args;
+    bool cancel = false;
+    int max_speed_percent = 50;
+
+    // Read.
+
     size_t nbytes = parse_motor_ids(p, args_nbytes, &motor_ids_mask);  // parse_motor_ids will emit message if error.
 
     args_nbytes -= nbytes;
@@ -286,56 +291,9 @@ int command_calibrate_home_and_limits(char *args, size_t args_nbytes)
 
     if (motor_ids_mask == -1)
         return nbytes;
-
-    int max_speed_percent = 50;
-
-    if (motor_ids_mask != 0) {
-        nbytes = parse_int(p, args_nbytes, &max_speed_percent);
-        args_nbytes -= nbytes;
-        p += nbytes;
-    }
-
 
     if (motor_ids_mask == 0)
-        motor_ids_mask = motor_get_enabled_mask();
-
-    if (motor_ids_mask == 0) {
-        log_writeln(F("No motors enabled and no motors specified. Skipping calibration."));
-        return args - p;
-    }
-
-    if ((max_speed_percent < 0) || (max_speed_percent > 100)) {
-        log_writeln(F("Max speed percent must be between 0 and 100. Skipping calibration."));
-        return args - p;
-    }
-
-    log_write(F("Calibrating motors "));
-    for (int i = 0; i < MOTOR_ID_COUNT; i++) {
-        if (motor_ids_mask & (1 << i))
-            log_write(F("%c"), 'A' + i);
-    }
-    log_writeln(F(" at %d%% of maximum speed."), max_speed_percent);
-
-    calibrate_home_switch_and_limits(motor_ids_mask, max_speed_percent);
-
-    return p - args;
-}
-
-int command_calibrate_home(char *args, size_t args_nbytes)
-{
-    assert(args);
-
-    int motor_ids_mask = 0;
-    char *p = args;
-    size_t nbytes = parse_motor_ids(p, args_nbytes, &motor_ids_mask);  // parse_motor_ids will emit message if error.
-
-    args_nbytes -= nbytes;
-    p += nbytes;
-
-    if (motor_ids_mask == -1)
-        return nbytes;
-
-    int max_speed_percent = 50;
+        motor_ids_mask = motor_get_enabled_mask();  // If user didn't specify, select all enabled motors.
 
     if (motor_ids_mask != 0) {
         nbytes = parse_int(p, args_nbytes, &max_speed_percent);
@@ -344,24 +302,66 @@ int command_calibrate_home(char *args, size_t args_nbytes)
     }
 
     if (args_nbytes > 0)
-        return -1;
+        return -1;                     // Extraneous input.
 
-    if (motor_ids_mask == 0)
-        motor_ids_mask = motor_get_enabled_mask();
-
-    if (motor_ids_mask == 0) {
-        log_writeln(F("No motors enabled and no motors specified. Skipping calibration."));
-        return args - p;
-    }
+    // Validate.
 
     if ((max_speed_percent < 0) || (max_speed_percent > 100)) {
-        log_writeln(F("Max speed percent must be between 0 and 100. Skipping calibration."));
-        return args - p;
+        log_writeln(F("  Max speed percent must be between 0 and 100."));
+        cancel = true;
     }
 
-    calibrate_home_switch(motor_ids_mask, max_speed_percent);
+    if (motor_ids_mask == 0) {
+        log_writeln(F("  No motors selected."));
+        cancel = true;
+    }
+
+    for (int i = 0; i < MOTOR_ID_COUNT; i++) {
+        if (((1 << i) & motor_ids_mask) && !motor_get_enabled(i)) {
+            log_writeln(F("  Motor %c not enabled."), 'A' + i);
+            cancel = true;
+        }
+    }
+
+    if (!cancel && sm_get_state().run != sm_motors_on_execute) {
+        log_writeln(F("  Motors can not be actuated in the current state."));
+        cancel = true;
+    }
+
+    if (cancel) {
+        log_writeln(F("Canceling."));
+        return p - args;
+    }
+
+    // Execute.
+
+    if (calibrate_limits)
+        log_write(F("Calibrating home switch position and encoder limits for motor(s) "));
+    else
+        log_write(F("Calibrating home switch position for motor(s) "));
+
+    for (int i = 0; i < MOTOR_ID_COUNT; i++) {
+        if (motor_ids_mask & (1 << i))
+            log_write(F("%c"), 'A' + i);
+    }
+    log_writeln(F(" at %d%% of maximum speed."), max_speed_percent);
+
+    if (calibrate_limits)
+        calibrate_home_switch_and_limits(motor_ids_mask, max_speed_percent);
+    else
+        calibrate_home_switch(motor_ids_mask, max_speed_percent);
 
     return p - args;
+}
+
+int command_calibrate_home_and_limits(char *args, size_t args_nbytes)
+{
+    return calibrate_home_and_or_limits(args, args_nbytes, true);
+}
+
+int command_calibrate_home(char *args, size_t args_nbytes)
+{
+    return calibrate_home_and_or_limits(args, args_nbytes, false);
 }
 
 int command_set_enabled_motors(char *args, size_t args_nbytes)
@@ -370,19 +370,30 @@ int command_set_enabled_motors(char *args, size_t args_nbytes)
 
     int motor_ids_mask = 0;
     char *p = args;
+
+    // Read.
+
     size_t nbytes = parse_motor_ids(p, args_nbytes, &motor_ids_mask);  // parse_motor_ids will emit message if error.
 
-    if ((motor_ids_mask == -1) || (args_nbytes != nbytes))
+    if (motor_ids_mask == -1)
         return nbytes;                 // parse_motors_ids prints an error.
 
     args_nbytes -= nbytes;
     p += nbytes;
 
+    if (args_nbytes > 0)
+        return -1;                     // Extraneous input.
+
+    // Validate.
+
     if ((sm_get_state().run != sm_motors_off_execute) &&
         (sm_get_state().run != sm_motors_on_execute)) {
-        log_writeln(F("ERROR: Motors can not be turned on or off in the current state."));
-        goto error;
+        log_writeln(F("ERROR: Motors can not be enabled in the current state."));
+        motor_disable_all();
+        return nbytes;
     }
+
+    // Execute.
 
     sm_set_enabled_motors_mask(motor_ids_mask);
 
@@ -391,8 +402,7 @@ int command_set_enabled_motors(char *args, size_t args_nbytes)
     else if (motor_ids_mask <= 0x3f)
         sm_set_next_state(sm_state_motors_on_enter);
 
-error:
-    return nbytes;
+    return p - args;
 }
 
 static void go_home_break_handler(void)
@@ -402,8 +412,6 @@ static void go_home_break_handler(void)
     motor_disable_all();
     sm_set_next_state(exit_to_state);
 }
-
-static int old_motor_ids_mask;
 
 static void go_home(void)
 {
@@ -436,7 +444,6 @@ static void go_home(void)
         }
 
         log_writeln(F("Go home completed."));
-        motor_set_enabled_mask(old_motor_ids_mask);
         sm_set_next_state(exit_to_state);
     }
 }
@@ -446,20 +453,49 @@ int command_go_home_or_open_gripper(char *args, size_t args_nbytes)
     assert(args);
     int motor_ids_mask = 0;
     char *p = args;
+    bool cancel = false;
+
+    // Read.
+
     size_t nbytes = parse_motor_ids(p, args_nbytes, &motor_ids_mask);
 
-    if ((motor_ids_mask == -1) || (args_nbytes != nbytes))
+    args_nbytes -= nbytes;
+    p += nbytes;
+
+    if (motor_ids_mask == -1)
         return nbytes;                 // parse_motors_ids prints an error.
 
-    if (nbytes != args_nbytes)
-        return -1;
-
-    old_motor_ids_mask = motor_get_enabled_mask();
-
     if (motor_ids_mask == 0)
-        motor_ids_mask = motor_get_enabled_mask();
+        motor_ids_mask = motor_get_enabled_mask();  // If user didn't specify, select all enabled motors.
 
-    motor_set_enabled_mask(motor_ids_mask);
+    if (args_nbytes > 0)
+        return -1;                     // Extraneous input.
+
+    // Validate.
+
+    if (motor_ids_mask == 0) {
+        log_writeln(F("  No motors selected."));
+        cancel = true;
+    }
+
+    for (int i = 0; i < MOTOR_ID_COUNT; i++) {
+        if (((1 << i) & motor_ids_mask) && !motor_get_enabled(i)) {
+            log_writeln(F("  Motor %c not enabled."), 'A' + i);
+            cancel = true;
+        }
+    }
+
+    if (!cancel && sm_get_state().run != sm_motors_on_execute) {
+        log_writeln(F("  Motors can not be actuated in the current state."));
+        cancel = true;
+    }
+
+    if (cancel) {
+        log_writeln(F("Canceling."));
+        return p - args;
+    }
+
+    // Execute.
 
     exit_to_state = sm_get_state();
     assert(exit_to_state.run != go_home);
@@ -469,7 +505,7 @@ int command_go_home_or_open_gripper(char *args, size_t args_nbytes)
 
     sm_set_next_state(s);
 
-    return nbytes;
+    return p - args;
 }
 
 int command_print_motor_status(char *args, size_t args_nbytes)
@@ -496,7 +532,7 @@ int command_print_motor_status(char *args, size_t args_nbytes)
 
         char angle_str[15] = {};
         dtostrf(motor_get_angle((motor_id_t)i), 3, 2, angle_str);
-        log_writeln(F("%c%s: home:%d sta:%d enc:%d tar:%d err:%d spd:%d PWM:%d cur:%d hs:%d,%d,%d,%d->%d angle:%s"),
+        log_writeln(F("  %c%s: home:%d sta:%d enc:%d tar:%d err:%d spd:%d PWM:%d cur:%d hs:%d,%d,%d,%d->%d angle:%s"),
                     'A' + i,
                     ((motor_get_enabled_mask() & (1 << i)) == 0) ? " [not enabled]" : "",
                     motor[i].home_triggered_debounced,  // home switch.
@@ -527,70 +563,110 @@ int command_set_motor_angle(char *args, size_t args_nbytes)
 {
     assert(args);
 
+    motor_id_t motor_id = MOTOR_ID_A;
+    float angle = motor_get_angle(motor_id);
+    char *p = args;
+    bool cancel = false;
+
     sm_set_display_mode(SM_DISPLAY_MODE_ANGLE);
 
-    motor_id_t motor_id = MOTOR_ID_A;
-    char *p = args;
+    // Read.
+
     size_t nbytes = parse_motor_id(p, args_nbytes, &motor_id);
 
     if (nbytes == 0)
         return -1;                     // parse_motor_id will emit message if error.
+
     args_nbytes -= nbytes;
     p += nbytes;
-
-    float angle = motor_get_angle(motor_id);
 
     nbytes = parse_motor_position(p, args_nbytes, &angle);
     if (nbytes == 0)
         return -1;                     // parse_motor_position will emit message if error.
+
     args_nbytes -= nbytes;
     p += nbytes;
 
     if (args_nbytes > 0)
-        return -1;
+        return -1;                     // Extraneous input.
+
+    // Validate.
+
+    if (!motor_get_enabled(motor_id)) {
+        log_writeln(F("  Motor %c not enabled."), 'A' + motor_id);
+        cancel = true;
+    }
+
+    if (!cancel && sm_get_state().run != sm_motors_on_execute) {
+        log_writeln(F("  Motors can not be actuated in the current state."));
+        cancel = true;
+    }
+
+    if (cancel) {
+        log_writeln(F("Canceling."));
+        return p - args;
+    }
+
+    // Execute.
 
     char angle_str[15] = {};
 
     dtostrf(angle, 3, 2, angle_str);
+    log_writeln(F("Move Motor %c to an angle of %s degrees."), 'A' + motor_id, angle_str);
+    motor_set_target_angle(motor_id, angle);
 
-    if (motor_get_enabled(motor_id)) {
-        log_writeln(F("Move Motor %c to an angle of %s degrees."), 'A' + motor_id, angle_str);
-        motor_set_target_angle(motor_id, angle);
-    } else {
-        log_writeln(F("ERROR: Motor %c not enabled."), 'A' + motor_id);
-        // TODO: error state?
-    }
     return p - args;
-
-error:
-    return -1;
 }
 
 int command_set_motor_encoder(char *args, size_t args_nbytes)
 {
     assert(args);
 
+    motor_id_t motor_id = MOTOR_ID_A;
+    float encoder = motor_get_encoder(motor_id);
+    char *p = args;
+    bool cancel = false;
+
     sm_set_display_mode(SM_DISPLAY_MODE_ENCODER);
 
-    motor_id_t motor_id = MOTOR_ID_A;
-    char *p = args;
+    // Read.
+
     size_t nbytes = parse_motor_id(p, args_nbytes, &motor_id);
 
     if (nbytes == 0)
         return -1;                     // parse_motor_id will emit message if error.
+
     args_nbytes -= nbytes;
     p += nbytes;
-
-    float encoder = motor_get_encoder(motor_id);
 
     nbytes = parse_motor_position(p, args_nbytes, &encoder);
     if (nbytes == 0)
         return -1;
+
     args_nbytes -= nbytes;
     p += nbytes;
 
     if (args_nbytes > 0)
-        return -1;
+        return -1;                     // Extraneous input.
+
+    // Validate.
+
+    if (!motor_get_enabled(motor_id)) {
+        log_writeln(F("  Motor %c not enabled."), 'A' + motor_id);
+        cancel = true;
+    }
+
+    if (!cancel && sm_get_state().run != sm_motors_on_execute) {
+        log_writeln(F("  Motors can not be actuated in the current state."));
+        cancel = true;
+    }
+
+    if (cancel) {
+        log_writeln(F("Canceling."));
+        return p - args;
+    }
+
+    // Execute.
 
     int min_encoder = config.motor[motor_id].min_encoder;
     int max_encoder = config.motor[motor_id].max_encoder;
@@ -603,14 +679,8 @@ int command_set_motor_encoder(char *args, size_t args_nbytes)
     char encoder_str[15] = {};
 
     dtostrf(encoder, 3, 2, encoder_str);
-
-    if (motor_get_enabled(motor_id)) {
-        log_writeln(F("Move Motor %c to encoder %s."), 'A' + motor_id, encoder_str);
-        motor_set_target_encoder(motor_id, encoder);
-    } else {
-        log_writeln(F("ERROR: Motor %c not enabled."), 'A' + motor_id);
-        // TODO: error state?
-    }
+    log_writeln(F("Move Motor %c to encoder %s."), 'A' + motor_id, encoder_str);
+    motor_set_target_encoder(motor_id, encoder);
 
     return p - args;
 }
@@ -619,27 +689,51 @@ int command_set_motor_percent(char *args, size_t args_nbytes)
 {
     assert(args);
 
+    motor_id_t motor_id = MOTOR_ID_A;
+    float percent = motor_get_percent(motor_id);
+    char *p = args;
+    bool cancel = false;
+
     sm_set_display_mode(SM_DISPLAY_MODE_PERCENT);
 
-    motor_id_t motor_id = MOTOR_ID_A;
-    char *p = args;
+    // Read.
+
     size_t nbytes = parse_motor_id(p, args_nbytes, &motor_id);
 
     if (nbytes == 0)
         return -1;                     // parse_motor_id will emit message if error.
+
     args_nbytes -= nbytes;
     p += nbytes;
-
-    float percent = motor_get_percent(motor_id);
 
     nbytes = parse_motor_position(p, args_nbytes, &percent);
     if (nbytes == 0)
         return -1;                     // parse_motor_position will emit message if error.
+
     args_nbytes -= nbytes;
     p += nbytes;
 
     if (args_nbytes > 0)
-        return -1;
+        return -1;                     // Extraneous input.
+
+    // Validate.
+
+    if (!motor_get_enabled(motor_id)) {
+        log_writeln(F("  Motor %c not enabled."), 'A' + motor_id);
+        cancel = true;
+    }
+
+    if (!cancel && sm_get_state().run != sm_motors_on_execute) {
+        log_writeln(F("  Motors can not be actuated in the current state."));
+        cancel = true;
+    }
+
+    if (cancel) {
+        log_writeln(F("Canceling."));
+        return p - args;
+    }
+
+    // Execute.
 
     if ((percent < 0.0) || (percent > 100.0)) {
         log_writeln(F("Clamping motor position %d%% to [0.0, 100.0]"), (int)percent);
@@ -649,18 +743,10 @@ int command_set_motor_percent(char *args, size_t args_nbytes)
     char percent_str[15] = {};
 
     dtostrf(percent, 3, 2, percent_str);
+    log_writeln(F("Move Motor %c to %s%%."), 'A' + motor_id, percent_str);
+    motor_set_target_percent(motor_id, percent);
 
-    if (motor_get_enabled(motor_id)) {
-        log_writeln(F("Move Motor %c to %s%%."), 'A' + motor_id, percent_str);
-        motor_set_target_percent(motor_id, percent);
-    } else {
-        log_writeln(F("ERROR: Motor %c not enabled."), 'A' + motor_id);
-        // TODO: error state?
-    }
     return p - args;
-
-error:
-    return -1;
 }
 
 static void poll_pins_break_handler(void)
@@ -722,9 +808,13 @@ int command_run_test_sequence(char *args, size_t args_nbytes)
 int command_test_motors(char *args, size_t args_nbytes)
 {
     assert(args);
-    int old_motor_ids_mask = 0;
+
     int motor_ids_mask = 0;
     char *p = args;
+    bool cancel = false;
+
+    // Read.
+
     size_t nbytes = parse_motor_ids(p, args_nbytes, &motor_ids_mask);
 
     if ((motor_ids_mask == -1) || (args_nbytes != nbytes))
@@ -734,31 +824,40 @@ int command_test_motors(char *args, size_t args_nbytes)
     p += nbytes;
 
     if (args_nbytes > 0)
-        goto error;
+        return -1;                     // Extraneous input.
 
-    if ((sm_get_state().run != sm_motors_off_execute) &&
-        (sm_get_state().run != sm_motors_on_execute)) {
-        log_writeln(F("ERROR: Motors can not be turned on or off in the current state."));
-        goto error;
-    }
+    if (motor_ids_mask == 0)
+        motor_ids_mask = motor_get_enabled_mask();
 
-    old_motor_ids_mask = motor_get_enabled_mask();
+    // Validate.
 
     if (motor_ids_mask == 0) {
-        // No args specified, so test all enabled motors.
-        if (old_motor_ids_mask == 0) {
-            log_writeln(F("No motors enabled. Skipping test."));
-            return nbytes;
-        }
-        motor_ids_mask = motor_get_enabled_mask();
+        log_writeln(F("  No motors to calibrate."));
+        cancel = true;
     }
+
+    for (int i = 0; i < MOTOR_ID_COUNT; i++) {
+        if (((1 << i) & motor_ids_mask) && !motor_get_enabled(i)) {
+            log_writeln(F("  Motor %c not enabled."), 'A' + i);
+            cancel = true;
+        }
+    }
+
+    if (!cancel && sm_get_state().run != sm_motors_on_execute) {
+        log_writeln(F("  Motors can not be actuated in the current state."));
+        cancel = true;
+    }
+
+    if (cancel) {
+        log_writeln(F("Canceling."));
+        return p - args;
+    }
+
+    // Execute.
 
     motor_test_mask(motor_ids_mask, sm_get_state());
 
     return nbytes;
-
-error:
-    return -1;
 }
 
 int command_close_gripper(char *args, size_t args_nbytes)
@@ -767,43 +866,53 @@ int command_close_gripper(char *args, size_t args_nbytes)
     int old_motor_ids_mask = 0;
     int motor_ids_mask = 0;
     char *p = args;
+    bool cancel = false;
+
+    // Read.
+
     size_t nbytes = parse_motor_ids(p, args_nbytes, &motor_ids_mask);
 
-    if ((motor_ids_mask == -1) || (args_nbytes != nbytes))
+    if (motor_ids_mask == -1)
         return nbytes;                 // parse_motors_ids prints an error.
 
     args_nbytes -= nbytes;
     p += nbytes;
 
     if (args_nbytes > 0)
-        goto error;
+        return -1;                     // Extraneous input.
 
-    if ((sm_get_state().run != sm_motors_off_execute) &&
-        (sm_get_state().run != sm_motors_on_execute)) {
-        log_writeln(F("ERROR: Motors can not be turned on or off in the current state."));
-        goto error;
-    }
+    if (motor_ids_mask == 0)
+        motor_ids_mask = motor_get_enabled_mask();
 
-    old_motor_ids_mask = motor_get_enabled_mask();
+    // Validate.
 
     if (motor_ids_mask == 0) {
-        // No args specified, so test all enabled motors.
-        if (old_motor_ids_mask == 0) {
-            log_write(F("No motors enabled. Skipping gripper close."));
-            return nbytes;
-        }
-        motor_ids_mask = motor_get_enabled_mask();
+        log_writeln(F("  No motors to actuate."));
+        cancel = true;
     }
+
+    for (int i = 0; i < MOTOR_ID_COUNT; i++) {
+        if (((1 << i) & motor_ids_mask) && !motor_get_enabled(i)) {
+            log_writeln(F("  Motor %c not enabled."), 'A' + i);
+            cancel = true;
+        }
+    }
+
+    if (!cancel && sm_get_state().run != sm_motors_on_execute) {
+        log_writeln(F("  Motors can not be actuated in the current state."));
+        cancel = true;
+    }
+
+    if (cancel) {
+        log_writeln(F("Canceling."));
+        return p - args;
+    }
+
+    // Execute.
 
     for (int i = 0; i < MOTOR_ID_COUNT; i++) {
         if ((motor_ids_mask & (1 << i)) == 0)
             continue;
-
-        if (!motor_get_enabled(i)) {
-            log_writeln(F("ERROR: Motor %c not enabled."), 'A' + i);
-            // TODO: error state?
-            continue;
-        }
 
         if (!config.motor[i].is_gripper) {
             log_writeln(F("Motor %c is not a gripper. Skipping."), 'A' + i);
@@ -815,9 +924,6 @@ int command_close_gripper(char *args, size_t args_nbytes)
     }
 
     return nbytes;
-
-error:
-    return -1;
 }
 
 int command_print_software_version(char *args, size_t args_nbytes)
@@ -991,16 +1097,13 @@ int command_waypoint_delete(char *args, size_t args_nbytes)
     args_nbytes -= nbytes;
     p += nbytes;
     if (args_nbytes > 0)
-        goto error;
+        return -1;
 
     log_writeln(F("Deleting waypoint %d."), step);
 
     waypoint_delete(step);
 
     return p - args;
-
-error:
-    return -1;
 }
 
 int command_waypoint_print(char *args, size_t args_nbytes)
