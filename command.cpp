@@ -36,6 +36,122 @@ int command_print_config(char *args, size_t args_nbytes)
     return 0;
 }
 
+int command_config_angle_offset(char *args, size_t args_nbytes)
+{
+    assert(args);
+
+    float angle_offset = 0;
+
+    motor_id_t motor_id = MOTOR_ID_A;
+    char *p = args;
+    size_t nbytes = parse_motor_id(p, args_nbytes, &motor_id);
+
+    if (nbytes == 0)
+        return -1;                     // parse_motor_id will emit message if error.
+    args_nbytes -= nbytes;
+    p += nbytes;
+
+    nbytes = parse_float(p, args_nbytes, &angle_offset);
+    if (nbytes <= 0)
+        return -1;
+    p += nbytes;
+    args_nbytes -= nbytes;
+
+    config_set_motor_angle_offset(motor_id, angle_offset);
+    config_print_one(motor_id);
+
+    return p - args;
+}
+
+int command_config_encoders_per_degree(char *args, size_t args_nbytes)
+{
+    assert(args);
+
+    float encoders_per_degree = 0;
+
+    motor_id_t motor_id = MOTOR_ID_A;
+    char *p = args;
+    size_t nbytes = parse_motor_id(p, args_nbytes, &motor_id);
+
+    if (nbytes == 0)
+        return -1;                     // parse_motor_id will emit message if error.
+    args_nbytes -= nbytes;
+    p += nbytes;
+
+    nbytes = parse_float(p, args_nbytes, &encoders_per_degree);
+    if (nbytes <= 0)
+        return -1;
+    p += nbytes;
+    args_nbytes -= nbytes;
+
+    config_set_motor_encoders_per_degree(motor_id, encoders_per_degree);
+    config_print_one(motor_id);
+
+    return p - args;
+}
+
+int command_config_home_encoder(char *args, size_t args_nbytes)
+{
+    assert(args);
+
+    int encoder = 0;
+
+    motor_id_t motor_id = MOTOR_ID_A;
+    char *p = args;
+    size_t nbytes = parse_motor_id(p, args_nbytes, &motor_id);
+
+    if (nbytes == 0)
+        return -1;                     // parse_motor_id will emit message if error.
+    args_nbytes -= nbytes;
+    p += nbytes;
+
+    nbytes = parse_int(p, args_nbytes, &encoder);
+    if (nbytes <= 0)
+        return -1;
+    p += nbytes;
+    args_nbytes -= nbytes;
+
+    config_set_motor_home_encoder(motor_id, encoder);
+    motor_set_home_encoder(motor_id, encoder);
+    config_print_one(motor_id);
+
+    return p - args;
+}
+
+int command_config_min_max_encoders(char *args, size_t args_nbytes)
+{
+    assert(args);
+
+    int min_encoder = 0;
+    int max_encoder = 0;
+
+    motor_id_t motor_id = MOTOR_ID_A;
+    char *p = args;
+    size_t nbytes = parse_motor_id(p, args_nbytes, &motor_id);
+
+    if (nbytes == 0)
+        return -1;                     // parse_motor_id will emit message if error.
+    args_nbytes -= nbytes;
+    p += nbytes;
+
+    nbytes = parse_int(p, args_nbytes, &min_encoder);
+    if (nbytes <= 0)
+        return -1;
+    p += nbytes;
+    args_nbytes -= nbytes;
+
+    nbytes = parse_int(p, args_nbytes, &max_encoder);
+    if (nbytes <= 0)
+        return -1;
+    p += nbytes;
+    args_nbytes -= nbytes;
+
+    config_set_motor_min_max_encoders(motor_id, min_encoder, max_encoder);
+    config_print_one(motor_id);
+
+    return p - args;
+}
+
 int command_config_robot_id(char *args, size_t args_nbytes)
 {
     assert(args);
@@ -80,43 +196,6 @@ error:
     return -1;
 }
 
-int command_config_robot_serial(char *args, size_t args_nbytes)
-{
-    assert(args);
-
-    char *p = args;
-
-    size_t nbytes = parse_whitespace(p, args_nbytes);
-
-    args_nbytes -= nbytes;
-    p += nbytes;
-
-    if (args_nbytes == 0) {
-        log_writeln(F("Maintaining robot serial '%s'."), config.robot_serial);
-        return p - args;
-    }
-
-    char robot_serial[CONFIG_ROBOT_SERIAL_NBYTES];
-
-    nbytes = parse_string(p, args_nbytes, robot_serial, CONFIG_ROBOT_SERIAL_NBYTES);
-    if (nbytes == 0)
-        return -1;
-    args_nbytes -= nbytes;
-    p += nbytes;
-
-    if (args_nbytes > 0)
-        goto error;
-
-    log_writeln(F("Setting robot serial to '%s'."), robot_serial);
-
-    config_set_robot_serial(robot_serial);
-
-    return p - args;
-
-error:
-    return -1;
-}
-
 int command_config_robot_name(char *args, size_t args_nbytes)  // TODO: should these return a size_t?
 {
     assert(args);
@@ -142,19 +221,16 @@ int command_config_robot_name(char *args, size_t args_nbytes)  // TODO: should t
     p += nbytes;
 
     if (args_nbytes > 0)
-        goto error;
+        return -1;                     // Extraneous input.
 
     log_writeln(F("Setting robot name to '%s'."), robot_name);
 
     config_set_robot_name(robot_name);
 
     return p - args;
-
-error:
-    return -1;
 }
 
-int command_reverse_motor_orientation(char *args, size_t args_nbytes)
+int command_config_reverse_motor_orientation(char *args, size_t args_nbytes)
 {
     assert(args);
 
@@ -171,121 +247,88 @@ int command_reverse_motor_orientation(char *args, size_t args_nbytes)
                 'A' + motor_id, config.motor[motor_id].orientation == MOTOR_ORIENTATION_INVERTED ? "not " : "");
 
     config_set_motor_orientation(motor_id, (motor_orientation_t)(config.motor[motor_id].orientation * -1));
-
-    return p - args;
-}
-
-int command_config_min_max_encoders(char *args, size_t args_nbytes)
-{
-    assert(args);
-
-    int min_encoder = 0;
-    int max_encoder = 0;
-
-    motor_id_t motor_id = MOTOR_ID_A;
-    char *p = args;
-    size_t nbytes = parse_motor_id(p, args_nbytes, &motor_id);
-
-    if (nbytes == 0)
-        return -1;                     // parse_motor_id will emit message if error.
-    args_nbytes -= nbytes;
-    p += nbytes;
-
-    nbytes = parse_int(p, args_nbytes, &min_encoder);
-    if (nbytes <= 0)
-        return -1;
-    p += nbytes;
-    args_nbytes -= nbytes;
-
-    nbytes = parse_int(p, args_nbytes, &max_encoder);
-    if (nbytes <= 0)
-        return -1;
-    p += nbytes;
-    args_nbytes -= nbytes;
-
-    config_set_motor_min_max_encoders(motor_id, min_encoder, max_encoder);
     config_print_one(motor_id);
 
     return p - args;
 }
 
-int command_config_home_encoder(char *args, size_t args_nbytes)
+int command_config_robot_serial(char *args, size_t args_nbytes)
 {
     assert(args);
 
-    int encoder = 0;
-
-    motor_id_t motor_id = MOTOR_ID_A;
     char *p = args;
-    size_t nbytes = parse_motor_id(p, args_nbytes, &motor_id);
 
+    size_t nbytes = parse_whitespace(p, args_nbytes);
+
+    args_nbytes -= nbytes;
+    p += nbytes;
+
+    if (args_nbytes == 0) {
+        log_writeln(F("Maintaining robot serial '%s'."), config.robot_serial);
+        return p - args;
+    }
+
+    char robot_serial[CONFIG_ROBOT_SERIAL_NBYTES];
+
+    nbytes = parse_string(p, args_nbytes, robot_serial, CONFIG_ROBOT_SERIAL_NBYTES);
     if (nbytes == 0)
-        return -1;                     // parse_motor_id will emit message if error.
-    args_nbytes -= nbytes;
-    p += nbytes;
-
-    nbytes = parse_int(p, args_nbytes, &encoder);
-    if (nbytes <= 0)
         return -1;
-    p += nbytes;
     args_nbytes -= nbytes;
+    p += nbytes;
 
-    config_set_motor_home_encoder(motor_id, encoder);
-    motor_set_home_encoder(motor_id, encoder);
-    config_print_one(motor_id);
+    if (args_nbytes > 0)
+        return -1;                     // Extraneous input.
+
+    log_writeln(F("Setting robot serial to '%s'."), robot_serial);
+
+    config_set_robot_serial(robot_serial);
 
     return p - args;
 }
 
-int command_config_encoders_per_degree(char *args, size_t args_nbytes)
+int command_config_stall_current_threshold(char *args, size_t args_nbytes)
 {
     assert(args);
 
-    float encoders_per_degree = 0;
-
-    motor_id_t motor_id = MOTOR_ID_A;
     char *p = args;
-    size_t nbytes = parse_motor_id(p, args_nbytes, &motor_id);
+    motor_id_t motor_id = MOTOR_ID_A;
+    size_t nbytes = parse_whitespace(p, args_nbytes);
 
+    args_nbytes -= nbytes;
+    p += nbytes;
+
+    if (args_nbytes == 0) {
+        log_writeln(F("Maintaining stall current thresholds at current values."));
+        return p - args;
+    }
+
+    nbytes = parse_motor_id(p, args_nbytes, &motor_id);
     if (nbytes == 0)
         return -1;                     // parse_motor_id will emit message if error.
+
     args_nbytes -= nbytes;
     p += nbytes;
 
-    nbytes = parse_float(p, args_nbytes, &encoders_per_degree);
-    if (nbytes <= 0)
-        return -1;
-    p += nbytes;
-    args_nbytes -= nbytes;
+    int stall_current_threshold = config.motor[motor_id].stall_current_threshold;
 
-    config_set_motor_encoders_per_degree(motor_id, encoders_per_degree);
-    config_print_one(motor_id);
-
-    return p - args;
-}
-
-int command_config_angle_offset(char *args, size_t args_nbytes)
-{
-    assert(args);
-
-    float angle_offset = 0;
-
-    motor_id_t motor_id = MOTOR_ID_A;
-    char *p = args;
-    size_t nbytes = parse_motor_id(p, args_nbytes, &motor_id);
-
+    nbytes = parse_int(p, args_nbytes, (int *)(&stall_current_threshold));
     if (nbytes == 0)
-        return -1;                     // parse_motor_id will emit message if error.
-    args_nbytes -= nbytes;
-    p += nbytes;
-
-    nbytes = parse_float(p, args_nbytes, &angle_offset);
-    if (nbytes <= 0)
         return -1;
-    p += nbytes;
-    args_nbytes -= nbytes;
 
-    config_set_motor_angle_offset(motor_id, angle_offset);
+    args_nbytes -= nbytes;
+    p += nbytes;
+
+    if ((stall_current_threshold < 0) || (stall_current_threshold > 255)) {
+        log_writeln(F("ERROR: Invalid stall current threshold. Please enter a value between 0-255, where 0 disables."));
+        return -1;
+    }
+
+    if (args_nbytes > 0)
+        return -1;                     // Extraneous input.
+
+    log_writeln(F("Setting motor %c stall current threshold to %d."), 'A' + motor_id, stall_current_threshold);
+
+    config_set_motor_stall_current_threshold(motor_id, stall_current_threshold);
     config_print_one(motor_id);
 
     return p - args;

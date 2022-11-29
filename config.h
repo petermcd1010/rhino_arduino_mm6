@@ -38,7 +38,7 @@ typedef struct __attribute__((packed)) {
     float angle_offset;  // +/- angle offset to zero-degrees from home encoder 0.
     bool is_gripper;  // True if calibration detected this motor actuates a gripper.
     int gripper_close_encoder;  // Calibrated gripper close encoder value.
-    int stall_current_threshold;  // Threshold to trigger stall condition. Defaults to 200.
+    int stall_current_threshold;  // Threshold to trigger stall condition. Defaults to 200, 0 disables.
 } config_motor_t;
 
 typedef struct __attribute__((packed)) {
@@ -71,6 +71,7 @@ void config_set_motor_min_max_encoders(motor_id_t motor_id, int min_encoder, int
 void config_set_motor_home_encoder(motor_id_t motor_id, int encoder);  // Sets encoder to zero and adjusts min, max limits.
 void config_set_motor_encoders_per_degree(motor_id_t motor_id, float encoders_per_degree);
 void config_set_motor_angle_offset(motor_id_t motor_id, float angle_offset);
+void config_set_motor_stall_current_threshold(motor_id_t, int stall_current_threshold);
 int config_motor_angle_to_encoders(motor_id_t motor_id, float angle);
 float config_motor_encoders_to_angle(motor_id_t motor_id, int encoders);
 void config_set_motor_gripper_close_encoder(motor_id_t motor_id, int gripper_close_encoder);

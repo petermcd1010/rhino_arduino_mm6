@@ -366,10 +366,15 @@ void config_print_one(motor_id_t motor_id)
     log_writeln(F("max: %s."), str);
 
     dtostrf(m->angle_offset, 3, 2, str);
-    log_writeln(F("           Motor orientation: %s, polarity: %s, stall current threshold: %d."),
-                m->orientation == MOTOR_ORIENTATION_NOT_INVERTED ? "not inverted" : "inverted",
-                m->forward_polarity == LOW ? "not reversed" : "reversed",
-                m->stall_current_threshold);
+    log_write(F("           Motor orientation: %s, polarity: %s, stall current threshold: "),
+              m->orientation == MOTOR_ORIENTATION_NOT_INVERTED ? "not inverted" : "inverted",
+              m->forward_polarity == LOW ? "not reversed" : "reversed",
+              m->stall_current_threshold);
+
+    if (m->stall_current_threshold == 0)
+        log_writeln(F("*DISABLED*."));
+    else
+        log_writeln(F("%d."), m->stall_current_threshold);
 }
 
 void config_print()

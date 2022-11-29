@@ -11,57 +11,17 @@
 static const int menu_item_max_count = 40;
 static const int menu_item_max_name_nbytes = 40;
 
-static void extended_menu_config_robot_id(void)
+static void extended_menu_config_angle_offset(void)
 {
     log_writeln();
-    log_write(F("Current robot ID: "));
-    log_write((const __FlashStringHelper *)config_robot_name_by_id[config.robot_id]);
-    log_writeln(F("."));
-    log_writeln(F("Available robot IDs:"));
-    for (int i = 0; i < CONFIG_ROBOT_ID_COUNT; i++) {
-        log_write(F("  %d. "), i);
-        log_write((const __FlashStringHelper *)config_robot_name_by_id[i]);
-        log_writeln(F("."));
-    }
-    log_writeln(F("Select new robot ID, or press [RETURN] to keep current robot ID."));
-    log_write(F(">"));
-}
+    log_writeln(F("Current angle offsets:"));
+    char str[15] = {};
 
-static void extended_menu_config_robot_serial(void)
-{
-    log_writeln();
-    log_writeln(F("Current robot serial is '%s'."), config.robot_serial);
-    log_writeln(F("Enter new robot serial, or press [RETURN] to keep current serial."));
-    log_write(F(">"));
-}
-
-static void extended_menu_config_robot_name(void)
-{
-    log_writeln();
-    log_writeln(F("Current robot name is '%s'."), config.robot_name);
-    log_writeln(F("Enter new robot name shorter than %d characters, or press [RETURN] to keep current name."), CONFIG_ROBOT_NAME_NBYTES);
-    log_write(F(">"));
-}
-
-static void extended_menu_config_min_max_encoders(void)
-{
-    log_writeln();
-    log_writeln(F("Current min max encoder limits:"));
     for (int i = 0; i < MOTOR_ID_COUNT; i++) {
-        log_writeln(F("  %c: min %d, max %d"), 'A' + i, config.motor[i].min_encoder, config.motor[i].max_encoder);
+        dtostrf(config.motor[i].angle_offset, 3, 2, str);
+        log_writeln(F("  Motor %c: %s"), 'A' + i, str);
     }
-    log_writeln(F("Enter 'motorid min max' to configure or <CTRL+C> to exit."));
-    log_write(F(">"));
-}
-
-static void extended_menu_config_home_encoder(void)
-{
-    log_writeln();
-    log_writeln(F("Current min max encoder limits:"));
-    for (int i = 0; i < MOTOR_ID_COUNT; i++) {
-        log_writeln(F("  %c: min %d, max %d"), 'A' + i, config.motor[i].min_encoder, config.motor[i].max_encoder);
-    }
-    log_writeln(F("Enter 'motorid encoder' to set encoder to the home/zero position (this adjusts the min, max limits). Or <CTRL+C> to exit."));
+    log_writeln(F("Enter 'motorid offset' to set the angle-offset from the home (0) encoder. Or <CTRL+C> to exit."));
     log_write(F(">"));
 }
 
@@ -79,23 +39,76 @@ static void extended_menu_config_encoders_per_degree(void)
 
     log_writeln(F("Current encoders/degree:"));
     for (int i = 0; i < MOTOR_ID_COUNT; i++) {
-        log_writeln(F("  %c: %d"), 'A' + i, config.motor[i].encoders_per_degree);
+        log_writeln(F("  Motor %c: %d"), 'A' + i, config.motor[i].encoders_per_degree);
     }
     log_writeln(F("Enter 'motorid encoders' to set the number of encoders per degree. Or <CTRL+C> to exit."));
     log_write(F(">"));
 }
 
-static void extended_menu_config_angle_offset(void)
+static void extended_menu_config_home_encoder(void)
 {
     log_writeln();
-    log_writeln(F("Current angle offsets:"));
+    log_writeln(F("Current min max encoder limits:"));
+    for (int i = 0; i < MOTOR_ID_COUNT; i++) {
+        log_writeln(F("  Motor %c: min %d, max %d"), 'A' + i, config.motor[i].min_encoder, config.motor[i].max_encoder);
+    }
+    log_writeln(F("Enter 'motorid encoder' to set encoder to the home/zero position (this adjusts the min, max limits). Or <CTRL+C> to exit."));
+    log_write(F(">"));
+}
+
+static void extended_menu_config_min_max_encoders(void)
+{
+    log_writeln();
+    log_writeln(F("Current min max encoder limits:"));
+    for (int i = 0; i < MOTOR_ID_COUNT; i++) {
+        log_writeln(F("  Motor %c: min %d, max %d"), 'A' + i, config.motor[i].min_encoder, config.motor[i].max_encoder);
+    }
+    log_writeln(F("Enter 'motorid min max' to configure or <CTRL+C> to exit."));
+    log_write(F(">"));
+}
+
+static void extended_menu_config_robot_id(void)
+{
+    log_writeln();
+    log_write(F("Current robot ID: "));
+    log_write((const __FlashStringHelper *)config_robot_name_by_id[config.robot_id]);
+    log_writeln(F("."));
+    log_writeln(F("Available robot IDs:"));
+    for (int i = 0; i < CONFIG_ROBOT_ID_COUNT; i++) {
+        log_write(F("  %d. "), i);
+        log_write((const __FlashStringHelper *)config_robot_name_by_id[i]);
+        log_writeln(F("."));
+    }
+    log_writeln(F("Select new robot ID, or press [RETURN] to keep current robot ID."));
+    log_write(F(">"));
+}
+
+static void extended_menu_config_robot_name(void)
+{
+    log_writeln();
+    log_writeln(F("Current robot name is '%s'."), config.robot_name);
+    log_writeln(F("Enter new robot name shorter than %d characters, or press [RETURN] to keep current name."), CONFIG_ROBOT_NAME_NBYTES);
+    log_write(F(">"));
+}
+
+static void extended_menu_config_stall_current_threshold(void)
+{
+    log_writeln();
+    log_writeln(F("Present stall current thresholds:"));
     char str[15] = {};
 
     for (int i = 0; i < MOTOR_ID_COUNT; i++) {
-        dtostrf(config.motor[i].angle_offset, 3, 2, str);
-        log_writeln(F("  %c: %s"), 'A' + i, str);
+        log_writeln(F("  Motor %c: %d"), 'A' + i, config.motor[i].stall_current_threshold);
     }
-    log_writeln(F("Enter 'motorid offset' to set the angle-offset from the home (0) encoder. Or <CTRL+C> to exit."));
+    log_writeln(F("Enter 'motorid threshold' to set the stall current threshold (0-255, where 0 disables). Or <CTRL+C> to exit."));
+    log_write(F(">"));
+}
+
+static void extended_menu_config_robot_serial(void)
+{
+    log_writeln();
+    log_writeln(F("Current robot serial is '%s'."), config.robot_serial);
+    log_writeln(F("Enter new robot serial, or press [RETURN] to keep current serial."));
     log_write(F(">"));
 }
 
@@ -231,6 +244,8 @@ static const menu_item_t main_menu[] = {
 
 static const char OM_0[] PROGMEM = "write configuration";
 static const char OH_0[] PROGMEM = "-- Write configuration data to EEPROM.";
+static const char OM_C[] PROGMEM = "configure stall current threshold";
+static const char OH_C[] PROGMEM = "-- Print or set motor stall current threshold.";
 static const char OM_I[] PROGMEM = "configure robot ID";
 static const char OH_I[] PROGMEM = "Print or set configured robot ID.";
 static const char OM_S[] PROGMEM = "configure robot serial";
@@ -251,19 +266,20 @@ static const char OM_X[] PROGMEM = "exit to main menu";
 static const char OH_X[] PROGMEM = "-- Exit to main menu.";
 
 const menu_item_t config_menu[] = {
-    { '0', OM_0,    NULL,                                     NULL,      false, command_config_write,               OH_0    },
-    { '1', MM_1,    NULL,                                     NULL,      false, command_print_config,               MH_1    },
-    { 'A', OM_A,    extended_menu_config_angle_offset,        NULL,      true,  command_config_angle_offset,        OH_A    },
-    { 'D', OM_D,    extended_menu_config_encoders_per_degree, NULL,      true,  command_config_encoders_per_degree, OH_D    },
-    { 'H', OM_H,    extended_menu_config_home_encoder,        NULL,      true,  command_config_home_encoder,        OH_H    },
-    { 'I', OM_I,    extended_menu_config_robot_id,            NULL,      true,  command_config_robot_id,            OH_I    },
-    { 'M', OM_M,    extended_menu_config_min_max_encoders,    NULL,      true,  command_config_min_max_encoders,    OH_M    },
-    { 'N', OM_N,    extended_menu_config_robot_name,          NULL,      true,  command_config_robot_name,          OH_N    },
-    { 'R', OM_R,    NULL,                                     NULL,      true,  command_reverse_motor_orientation,  OH_R    },
-    { 'S', OM_S,    extended_menu_config_robot_serial,        NULL,      true,  command_config_robot_serial,        OH_S    },
-    { 'X', OM_X,    NULL,                                     main_menu, false, NULL,                               OH_X    },
-    { '!', MM_BANG, NULL,                                     NULL,      false, command_emergency_stop,             MH_BANG },
-    { '?', MM_HELP, NULL,                                     NULL,      false, command_print_help,                 MH_HELP },
+    { '0', OM_0,    NULL,                                         NULL,      false, command_config_write,                     OH_0    },
+    { '1', MM_1,    NULL,                                         NULL,      false, command_print_config,                     MH_1    },
+    { 'A', OM_A,    extended_menu_config_angle_offset,            NULL,      true,  command_config_angle_offset,              OH_A    },
+    { 'C', OM_C,    extended_menu_config_stall_current_threshold, NULL,      true,  command_config_stall_current_threshold,   OH_C    },
+    { 'D', OM_D,    extended_menu_config_encoders_per_degree,     NULL,      true,  command_config_encoders_per_degree,       OH_D    },
+    { 'H', OM_H,    extended_menu_config_home_encoder,            NULL,      true,  command_config_home_encoder,              OH_H    },
+    { 'I', OM_I,    extended_menu_config_robot_id,                NULL,      true,  command_config_robot_id,                  OH_I    },
+    { 'M', OM_M,    extended_menu_config_min_max_encoders,        NULL,      true,  command_config_min_max_encoders,          OH_M    },
+    { 'N', OM_N,    extended_menu_config_robot_name,              NULL,      true,  command_config_robot_name,                OH_N    },
+    { 'R', OM_R,    NULL,                                         NULL,      true,  command_config_reverse_motor_orientation, OH_R    },
+    { 'S', OM_S,    extended_menu_config_robot_serial,            NULL,      true,  command_config_robot_serial,              OH_S    },
+    { 'X', OM_X,    NULL,                                         main_menu, false, NULL,                                     OH_X    },
+    { '!', MM_BANG, NULL,                                         NULL,      false, command_emergency_stop,                   MH_BANG },
+    { '?', MM_HELP, NULL,                                         NULL,      false, command_print_help,                       MH_HELP },
     { 0 }  // Terminate menus with an entry filled with zeros.
 };
 
@@ -274,7 +290,7 @@ static const char CH_W[] PROGMEM = "[motorids [max-speed-percent]] -- Calibrate 
 
 const menu_item_t calibration_menu[] = {
     { '1', MM_1,    NULL,                 NULL,      false, command_print_config,              MH_1    },
-    { '0', OH_0,    NULL,                 NULL,      false, command_config_write,              OH_0    },
+    { '0', OM_0,    NULL,                 NULL,      false, command_config_write,              OH_0    },
     { 'B', MM_B,    extended_menu_reboot, NULL,      true,  command_reboot,                    MH_B    },
     { 'C', CM_C,    NULL,                 NULL,      true,  command_calibrate_home_and_limits, CH_C    },
     { 'E', MM_E,    NULL,                 NULL,      true,  command_set_enabled_motors,        MH_E    },

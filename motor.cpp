@@ -662,7 +662,8 @@ ISR(TIMER1_COMPA_vect) {
         // apply tension on whatever it is gripping.
         //==========================================================
 
-        if (motor[motor_id].current > config.motor[motor_id].stall_current_threshold) {
+        if ((config.motor[motor_id].stall_current_threshold) != 0 &&
+            (motor[motor_id].current > config.motor[motor_id].stall_current_threshold)) {
             if (motor[motor_id].target_encoder == noinit_data.motor[motor_id].encoder) {
                 motor[motor_id].error_flags |= MOTOR_ERROR_FLAG_UNEXPECTED_STALL_CURRENT_THRESHOLD_EXCEEDED;
             } else if (!config.motor[motor_id].is_gripper) {
