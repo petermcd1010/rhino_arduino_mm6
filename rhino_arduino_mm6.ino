@@ -30,10 +30,8 @@ static bool check_system_integrity()
 
     for (int i = 0; i < MOTOR_ID_COUNT; i++) {
         if (motor[i].error_flags != 0) {
-            if (previous_ok) {
-                log_writeln();
+            if (previous_ok)
                 motor_log_errors((motor_id_t)i);
-            }
             if (motor[i].error_flags != 0) // See TODO in motor_log_errors about quadrature encoder mistriggers.
                 ok = false;
         }
