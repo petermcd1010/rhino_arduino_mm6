@@ -347,7 +347,7 @@ void config_print_one(motor_id_t motor_id)
         return;
     }
 
-    log_write(F("Encoder min: %d, max: %d, home: 0"), m->min_encoder, m->max_encoder);
+    log_write(F("Encoder min: %d, home: 0, max: %d"), m->min_encoder, m->max_encoder);
     if (m->is_gripper)
         log_writeln(F(", gripper close: %d."), m->gripper_close_encoder);
     else

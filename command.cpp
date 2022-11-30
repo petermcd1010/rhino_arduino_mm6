@@ -57,6 +57,9 @@ int command_config_angle_offset(char *args, size_t args_nbytes)
     p += nbytes;
     args_nbytes -= nbytes;
 
+    if (args_nbytes > 0)
+        return -1;                     // Extraneous input.
+
     config_set_motor_angle_offset(motor_id, angle_offset);
     config_print_one(motor_id);
 
@@ -83,6 +86,9 @@ int command_config_encoders_per_degree(char *args, size_t args_nbytes)
         return -1;
     p += nbytes;
     args_nbytes -= nbytes;
+
+    if (args_nbytes > 0)
+        return -1;                     // Extraneous input.
 
     config_set_motor_encoders_per_degree(motor_id, encoders_per_degree);
     config_print_one(motor_id);
@@ -111,8 +117,36 @@ int command_config_home_encoder(char *args, size_t args_nbytes)
     p += nbytes;
     args_nbytes -= nbytes;
 
+    if (args_nbytes > 0)
+        return -1;                     // Extraneous input.
+
     config_set_motor_home_encoder(motor_id, encoder);
     motor_set_home_encoder(motor_id, encoder);
+    config_print_one(motor_id);
+
+    return p - args;
+}
+
+int command_config_invert_motor_orientation(char *args, size_t args_nbytes)
+{
+    assert(args);
+
+    motor_id_t motor_id = MOTOR_ID_A;
+    char *p = args;
+    size_t nbytes = parse_motor_id(p, args_nbytes, &motor_id);
+
+    if (nbytes == 0)
+        return -1;                     // parse_motor_id will emit message if error.
+    args_nbytes -= nbytes;
+    p += nbytes;
+
+    if (args_nbytes > 0)
+        return -1;                     // Extraneous input.
+
+    log_writeln(F("Changing orientation of motor %c to '%sinverted'."),
+                'A' + motor_id, config.motor[motor_id].orientation == MOTOR_ORIENTATION_INVERTED ? "not " : "");
+
+    config_set_motor_orientation(motor_id, (motor_orientation_t)(config.motor[motor_id].orientation * -1));
     config_print_one(motor_id);
 
     return p - args;
@@ -145,6 +179,9 @@ int command_config_min_max_encoders(char *args, size_t args_nbytes)
         return -1;
     p += nbytes;
     args_nbytes -= nbytes;
+
+    if (args_nbytes > 0)
+        return -1;                     // Extraneous input.
 
     config_set_motor_min_max_encoders(motor_id, min_encoder, max_encoder);
     config_print_one(motor_id);
@@ -182,7 +219,7 @@ int command_config_robot_id(char *args, size_t args_nbytes)
     }
 
     if (args_nbytes > 0)
-        goto error;
+        return -1;                     // Extraneous input.
 
     log_write(F("Setting robot ID to '"));
     log_write((const __FlashStringHelper *)config_robot_name_by_id[robot_id]);
@@ -191,9 +228,6 @@ int command_config_robot_id(char *args, size_t args_nbytes)
     config_set_robot_id(robot_id);
 
     return p - args;
-
-error:
-    return -1;
 }
 
 int command_config_robot_name(char *args, size_t args_nbytes)  // TODO: should these return a size_t?
@@ -226,28 +260,6 @@ int command_config_robot_name(char *args, size_t args_nbytes)  // TODO: should t
     log_writeln(F("Setting robot name to '%s'."), robot_name);
 
     config_set_robot_name(robot_name);
-
-    return p - args;
-}
-
-int command_config_reverse_motor_orientation(char *args, size_t args_nbytes)
-{
-    assert(args);
-
-    motor_id_t motor_id = MOTOR_ID_A;
-    char *p = args;
-    size_t nbytes = parse_motor_id(p, args_nbytes, &motor_id);
-
-    if (nbytes == 0)
-        return -1;                     // parse_motor_id will emit message if error.
-    args_nbytes -= nbytes;
-    p += nbytes;
-
-    log_writeln(F("Changing orientation of motor %c to '%sinverted'."),
-                'A' + motor_id, config.motor[motor_id].orientation == MOTOR_ORIENTATION_INVERTED ? "not " : "");
-
-    config_set_motor_orientation(motor_id, (motor_orientation_t)(config.motor[motor_id].orientation * -1));
-    config_print_one(motor_id);
 
     return p - args;
 }
@@ -651,7 +663,7 @@ int command_print_motor_status(char *args, size_t args_nbytes)
     }
 
     if (args_nbytes > 0)
-        return -1;
+        return -1;                     // Extraneous input.
 
     return p - args;
 }
@@ -1100,7 +1112,7 @@ int command_waypoint_run(char *args, size_t args_nbytes)
     }
 
     if (args_nbytes > 0)
-        return -1;
+        return -1;                     // Extraneous input.
 
     log_writeln(F("Running waypoint sequence. Type <CTRL+C> to stop."));
 
@@ -1136,7 +1148,7 @@ static size_t parse_step_and_waypoint(char *args, size_t args_nbytes, int *step,
     args_nbytes -= nbytes;
     p += nbytes;
     if (args_nbytes > 0)
-        return -1;
+        return -1;                     // Extraneous input.
 
     return p - args;
 }
@@ -1153,7 +1165,7 @@ int command_waypoint_set(char *args, size_t args_nbytes)
     args_nbytes -= nbytes;
     p += nbytes;
     if (args_nbytes > 0)
-        return -1;
+        return -1;                     // Extraneous input.
 
     log_writeln(F("Setting waypoint %d."), step);
     waypoint_set(step, waypoint);
@@ -1175,7 +1187,7 @@ int command_waypoint_insert_before(char *args, size_t args_nbytes)
     args_nbytes -= nbytes;
     p += nbytes;
     if (args_nbytes > 0)
-        return -1;
+        return -1;                     // Extraneous input.
 
     log_writeln(F("Inserting waypoint before step %d."), step);
     waypoint_insert_before(step, waypoint);
@@ -1197,7 +1209,7 @@ int command_waypoint_append(char *args, size_t args_nbytes)
     args_nbytes -= nbytes;
     p += nbytes;
     if (args_nbytes > 0)
-        return -1;
+        return -1;                     // Extraneous input.
 
     log_writeln(F("Appending waypoint to end of list."));
     waypoint_append(waypoint);
@@ -1218,7 +1230,7 @@ int command_waypoint_delete(char *args, size_t args_nbytes)
     args_nbytes -= nbytes;
     p += nbytes;
     if (args_nbytes > 0)
-        return -1;
+        return -1;                     // Extraneous input.
 
     log_writeln(F("Deleting waypoint %d."), step);
 

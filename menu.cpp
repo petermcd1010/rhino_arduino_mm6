@@ -244,42 +244,42 @@ static const menu_item_t main_menu[] = {
 
 static const char OM_0[] PROGMEM = "write configuration";
 static const char OH_0[] PROGMEM = "-- Write configuration data to EEPROM.";
-static const char OM_C[] PROGMEM = "configure stall current threshold";
-static const char OH_C[] PROGMEM = "-- Print or set motor stall current threshold.";
-static const char OM_I[] PROGMEM = "configure robot ID";
-static const char OH_I[] PROGMEM = "Print or set configured robot ID.";
-static const char OM_S[] PROGMEM = "configure robot serial";
-static const char OH_S[] PROGMEM = "Print or set configured robot serial.";
-static const char OM_N[] PROGMEM = "configure robot name";
-static const char OH_N[] PROGMEM = "Print or set robot name.";
-static const char OM_R[] PROGMEM = "reverse motor orientation";
-static const char OH_R[] PROGMEM = "motorid -- Reverse orientation of a motor.";
-static const char OM_M[] PROGMEM = "set motor min max encoder limits";
-static const char OH_M[] PROGMEM = "motorid min max -- Print or set configured min max encoder limits.";
-static const char OM_H[] PROGMEM = "set motor home encoder";
-static const char OH_H[] PROGMEM = "motorid encoder -- Print or set configured home encoder to zero (adjusts min, max).";
-static const char OM_D[] PROGMEM = "set motor encoders/degree";
-static const char OH_D[] PROGMEM = "motorid encoders/degree -- Print or set configured encoders/degree).";
 static const char OM_A[] PROGMEM = "set motor angle offset";
 static const char OH_A[] PROGMEM = "motorid angle -- Print or set configured angle offset from encdoer 0.";
+static const char OM_C[] PROGMEM = "configure stall current threshold";
+static const char OH_C[] PROGMEM = "-- Print or set motor stall current threshold.";
+static const char OM_D[] PROGMEM = "configure robot ID";
+static const char OH_D[] PROGMEM = "Print or set configured robot ID.";
+static const char OM_E[] PROGMEM = "set motor encoders/degree";
+static const char OH_E[] PROGMEM = "motorid encoders/degree -- Print or set configured encoders/degree).";
+static const char OM_H[] PROGMEM = "set motor home encoder";
+static const char OH_H[] PROGMEM = "motorid encoder -- Print or set configured home encoder to zero (adjusts min, max).";
+static const char OM_I[] PROGMEM = "invert motor orientation";
+static const char OH_I[] PROGMEM = "motorid -- Invert orientation of a motor.";
+static const char OM_M[] PROGMEM = "set motor min max encoder limits";
+static const char OH_M[] PROGMEM = "motorid min max -- Print or set configured min max encoder limits.";
+static const char OM_N[] PROGMEM = "configure robot name";
+static const char OH_N[] PROGMEM = "Print or set robot name.";
+static const char OM_S[] PROGMEM = "configure robot serial";
+static const char OH_S[] PROGMEM = "Print or set configured robot serial.";
 static const char OM_X[] PROGMEM = "exit to main menu";
 static const char OH_X[] PROGMEM = "-- Exit to main menu.";
 
 const menu_item_t config_menu[] = {
-    { '0', OM_0,    NULL,                                         NULL,      false, command_config_write,                     OH_0    },
-    { '1', MM_1,    NULL,                                         NULL,      false, command_print_config,                     MH_1    },
-    { 'A', OM_A,    extended_menu_config_angle_offset,            NULL,      true,  command_config_angle_offset,              OH_A    },
-    { 'C', OM_C,    extended_menu_config_stall_current_threshold, NULL,      true,  command_config_stall_current_threshold,   OH_C    },
-    { 'D', OM_D,    extended_menu_config_encoders_per_degree,     NULL,      true,  command_config_encoders_per_degree,       OH_D    },
-    { 'H', OM_H,    extended_menu_config_home_encoder,            NULL,      true,  command_config_home_encoder,              OH_H    },
-    { 'I', OM_I,    extended_menu_config_robot_id,                NULL,      true,  command_config_robot_id,                  OH_I    },
-    { 'M', OM_M,    extended_menu_config_min_max_encoders,        NULL,      true,  command_config_min_max_encoders,          OH_M    },
-    { 'N', OM_N,    extended_menu_config_robot_name,              NULL,      true,  command_config_robot_name,                OH_N    },
-    { 'R', OM_R,    NULL,                                         NULL,      true,  command_config_reverse_motor_orientation, OH_R    },
-    { 'S', OM_S,    extended_menu_config_robot_serial,            NULL,      true,  command_config_robot_serial,              OH_S    },
-    { 'X', OM_X,    NULL,                                         main_menu, false, NULL,                                     OH_X    },
-    { '!', MM_BANG, NULL,                                         NULL,      false, command_emergency_stop,                   MH_BANG },
-    { '?', MM_HELP, NULL,                                         NULL,      false, command_print_help,                       MH_HELP },
+    { '0', OM_0,    NULL,                                         NULL,      false, command_config_write,                    OH_0    },
+    { '1', MM_1,    NULL,                                         NULL,      false, command_print_config,                    MH_1    },
+    { 'A', OM_A,    extended_menu_config_angle_offset,            NULL,      true,  command_config_angle_offset,             OH_A    },
+    { 'C', OM_C,    extended_menu_config_stall_current_threshold, NULL,      true,  command_config_stall_current_threshold,  OH_C    },
+    { 'D', OM_D,    extended_menu_config_robot_id,                NULL,      true,  command_config_robot_id,                 OH_D    },
+    { 'E', OM_E,    extended_menu_config_encoders_per_degree,     NULL,      true,  command_config_encoders_per_degree,      OH_E    },
+    { 'H', OM_H,    extended_menu_config_home_encoder,            NULL,      true,  command_config_home_encoder,             OH_H    },
+    { 'I', OM_I,    NULL,                                         NULL,      true,  command_config_invert_motor_orientation, OH_I    },
+    { 'M', OM_M,    extended_menu_config_min_max_encoders,        NULL,      true,  command_config_min_max_encoders,         OH_M    },
+    { 'N', OM_N,    extended_menu_config_robot_name,              NULL,      true,  command_config_robot_name,               OH_N    },
+    { 'S', OM_S,    extended_menu_config_robot_serial,            NULL,      true,  command_config_robot_serial,             OH_S    },
+    { 'X', OM_X,    NULL,                                         main_menu, false, NULL,                                    OH_X    },
+    { '!', MM_BANG, NULL,                                         NULL,      false, command_emergency_stop,                  MH_BANG },
+    { '?', MM_HELP, NULL,                                         NULL,      false, command_print_help,                      MH_HELP },
     { 0 }  // Terminate menus with an entry filled with zeros.
 };
 
