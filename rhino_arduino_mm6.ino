@@ -20,6 +20,10 @@ void setup()
 
 static bool check_system_integrity()
 {
+    // Return false if config_check() fails or a thermal overload is triggered.
+
+    static unsigned char prev_error_flags[MOTOR_ID_COUNT] = {};
+
     static bool previous_ok = true;
     bool ok = previous_ok;
 
@@ -29,11 +33,23 @@ static bool check_system_integrity()
     ok = motor_get_thermal_overload_detected() ? false : ok;
 
     for (int i = 0; i < MOTOR_ID_COUNT; i++) {
-        if (motor[i].error_flags != 0) {
-            if (previous_ok)
-                motor_log_errors((motor_id_t)i);
-            if (motor[i].error_flags != 0) // See TODO in motor_log_errors about quadrature encoder mistriggers.
-                ok = false;
+        unsigned char error_flags = motor_get_and_clear_error_flags(i);
+
+        if (error_flags != prev_error_flags[i]) {
+            for (int j = 0; j < MOTOR_ERROR_FLAG_COUNT; j++) {
+                int error_bit = 1 << j;
+                if ((error_flags & error_bit) != (prev_error_flags[i] & error_bit)) {
+                    log_writeln();
+                    log_write(error_flags & error_bit ? F("*ERROR TRIGGERED*") : F("*ERROR CLEARED*"));
+                    log_write(F(" Motor %c: "), 'A' + i);
+                    motor_log_error_flags(error_bit);
+                    log_writeln();
+                }
+
+                if ((error_flags & error_bit) == MOTOR_ERROR_FLAG_THERMAL_OVERLOAD_DETECTED)
+                    ok = false;
+            }
+            prev_error_flags[i] = error_flags;
         }
     }
 

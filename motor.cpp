@@ -434,30 +434,38 @@ void motor_set_user_error(bool enable)
         motor[0].error_flags &= ~MOTOR_ERROR_FLAG_USER_FLAG;
 }
 
-void motor_log_errors(motor_id_t motor_id)
+int motor_get_and_clear_error_flags(motor_id_t motor_id)
 {
     assert((motor_id >= 0) && (motor_id < MOTOR_ID_COUNT));
-    int ef = motor[motor_id].error_flags;
 
-    if (ef == 0)
+    unsigned char ret = 0;
+
+    cli();
+    ret = motor[motor_id].error_flags;
+    motor[motor_id].error_flags = 0;
+    sei();
+
+    return ret;
+}
+
+
+void motor_log_error_flags(unsigned char error_flags)
+{
+    if (error_flags == 0)
         return;
 
-    if (ef & MOTOR_ERROR_FLAG_THERMAL_OVERLOAD_DETECTED)
-        log_writeln(F("ERROR: Motor %c thermal overload detected."), 'A' + motor_id);
-    if (ef & MOTOR_ERROR_FLAG_INVALID_ENCODER_TRANSITION) {
-        // Log these, but clear them for now.
-        // TODO: These shouldn't happen when moving at high speed, but are.
-        log_writeln(F("ERROR: Motor %c invalid quadrature encoder transition."), 'A' + motor_id);
-        motor[motor_id].error_flags &= ~MOTOR_ERROR_FLAG_INVALID_ENCODER_TRANSITION;
-    }
-    if (ef & MOTOR_ERROR_FLAG_OPPOSITE_DIRECTION)
-        log_writeln(F("ERROR: Motor %c direction opposite of expectation."), 'A' + motor_id);
-    if (ef & MOTOR_ERROR_FLAG_UNEXPECTED_HOME_SWITCH_ENCODER)
-        log_writeln(F("ERROR: Motor %c unexpected home switch encoder."), 'A' + motor_id);
-    if (ef & MOTOR_ERROR_FLAG_UNEXPECTED_STALL_CURRENT_THRESHOLD_EXCEEDED) {
-        log_writeln(F("ERROR: Motor %c unexpected stall current threshold exceeded (motor %c not moving)."), 'A' + motor_id, 'A' + motor_id);
-        motor[motor_id].error_flags &= ~MOTOR_ERROR_FLAG_UNEXPECTED_STALL_CURRENT_THRESHOLD_EXCEEDED;
-    }
+    // TODO: Fix this so it works correctly if more than one error_flags bit is set.
+
+    if (error_flags & MOTOR_ERROR_FLAG_THERMAL_OVERLOAD_DETECTED)
+        log_write(F("thermal overload detected."));
+    if (error_flags & MOTOR_ERROR_FLAG_INVALID_ENCODER_TRANSITION)
+        log_write(F("invalid quadrature encoder transition."));  // TODO: These shouldn't happen when moving at high speed, but are.
+    if (error_flags & MOTOR_ERROR_FLAG_OPPOSITE_DIRECTION)
+        log_write(F("direction opposite of expectation."));
+    if (error_flags & MOTOR_ERROR_FLAG_UNEXPECTED_HOME_SWITCH_ENCODER)
+        log_write(F("unexpected home switch encoder."));
+    if (error_flags & MOTOR_ERROR_FLAG_UNEXPECTED_STALL_CURRENT_THRESHOLD_EXCEEDED)
+        log_write(F("stall current threshold exceeded."));
 }
 
 static void maybe_blink_led(void)
@@ -516,7 +524,7 @@ static void maybe_blink_led(void)
         hardware_set_speaker_enabled(false);
     } else {
         led_counter++;
-        if (led_counter > 500) {
+        if (led_counter > 1000) {
             bool led_state = !hardware_get_led_enabled();
             hardware_set_led_enabled(led_state);
             hardware_set_speaker_enabled(led_state);

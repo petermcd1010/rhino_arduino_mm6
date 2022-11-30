@@ -37,6 +37,8 @@ typedef enum {
     MOTOR_ERROR_FLAG_UNEXPECTED_STALL_CURRENT_THRESHOLD_EXCEEDED = 1 << 5,
 } motor_error_flag_t;
 
+const int MOTOR_ERROR_FLAG_COUNT = 6;
+
 // Mechanical orientation based on motor installation side.
 typedef enum {
     MOTOR_ORIENTATION_INVERTED     = -1,
@@ -44,30 +46,30 @@ typedef enum {
 } motor_orientation_t;
 
 typedef struct {
-    bool               enabled;
-    int                max_speed;
-    int                target_speed;
-    int                speed;
-    int                pwm;
-    int                previous_direction;
-    int                pid_dvalue;
-    int                pid_perror; // Proportional Error (Difference between Current and Target)
-    int                target_encoder;
-    int                current; // TODO: units? counts?
-    bool               stall_triggered; // If current >= stall_current once, remains true until cleared.
-    motor_progress_t   progress;
-    int                encoders_per_second;  // Updated 3x/second.
-    int                encoders_per_second_counts;
-    int                encoders_per_second_start_encoder;
-    bool               prev_home_triggered;  // Switch value last time transition detected.
-    unsigned long      prev_home_triggered_millis;  // Time last transition detected.
-    int                prev_home_triggered_encoder;  // Encoder value last time transition detected.
-    bool               home_triggered_debounced; // Debounced switch value.
-    int                home_forward_on_encoder; // Home switch forward direction high value.
-    int                home_forward_off_encoder; // Home switch forward direction low value.
-    int                home_reverse_on_encoder; // Home switch reverse direction high value.
-    int                home_reverse_off_encoder; // Home switch reverse direction low value.
-    motor_error_flag_t error_flags;  // Once set, error flags must be cleared by user code.
+    bool             enabled;
+    int              max_speed;
+    int              target_speed;
+    int              speed;
+    int              pwm;
+    int              previous_direction;
+    int              pid_dvalue;
+    int              pid_perror;   // Proportional Error (Difference between Current and Target)
+    int              target_encoder;
+    int              current;   // TODO: units? counts?
+    bool             stall_triggered;   // If current >= stall_current once, remains true until cleared.
+    motor_progress_t progress;
+    int              encoders_per_second;    // Updated 3x/second.
+    int              encoders_per_second_counts;
+    int              encoders_per_second_start_encoder;
+    bool             prev_home_triggered;    // Switch value last time transition detected.
+    unsigned long    prev_home_triggered_millis;    // Time last transition detected.
+    int              prev_home_triggered_encoder;    // Encoder value last time transition detected.
+    bool             home_triggered_debounced;   // Debounced switch value.
+    int              home_forward_on_encoder;   // Home switch forward direction high value.
+    int              home_forward_off_encoder;   // Home switch forward direction low value.
+    int              home_reverse_on_encoder;   // Home switch reverse direction high value.
+    int              home_reverse_off_encoder;   // Home switch reverse direction low value.
+    unsigned char    error_flags;    // Once set, error flags must be cleared by user code.
 } motor_t;
 
 extern motor_t motor[MOTOR_ID_COUNT];
@@ -102,4 +104,5 @@ bool motor_is_home_triggered(motor_id_t motor_id);
 bool motor_is_home_triggered_debounced(motor_id_t motor_id);
 void motor_dump(motor_id_t motor_id);
 void motor_set_user_error(bool enable);  // Will blink LED quickly to notify user of issue.
-void motor_log_errors(motor_id_t motor_id);
+int motor_get_and_clear_error_flags(motor_id_t motor_id);
+void motor_log_error_flags(unsigned char error_flags);
