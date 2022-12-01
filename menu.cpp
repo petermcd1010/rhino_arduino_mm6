@@ -38,8 +38,10 @@ static void extended_menu_config_encoders_per_degree(void)
     log_writeln(F("  XR-4, motor F: (4.4)(66.1/1) = 17.5 encoders/degree."));
 
     log_writeln(F("Current encoders/degree:"));
+    char str[15];
     for (int i = 0; i < MOTOR_ID_COUNT; i++) {
-        log_writeln(F("  Motor %c: %d"), 'A' + i, config.motor[i].encoders_per_degree);
+        dtostrf(config.motor[i].encoders_per_degree, 3, 2, str);
+        log_writeln(F("  Motor %c: %s"), 'A' + i, str);
     }
     log_writeln(F("Enter 'motorid encoders' to set the number of encoders per degree. Or <CTRL+C> to exit."));
     log_write(F(">"));
