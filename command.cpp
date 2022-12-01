@@ -525,8 +525,17 @@ static void go_home_break_handler(void)
 static void go_home(void)
 {
     bool all_home = true;
-
+    static long previous_status_time_millis = 0;
+    long current_time_millis = millis();
     // TODO: Signal failure if motors stall.
+    status_t status;
+
+    if (current_time_millis - previous_status_time_millis > 250) {
+        gather_status(&status);
+        print_status(&status);
+        log_writeln();
+        previous_status_time_millis = millis();
+    }
 
     int enabled_motors = motor_get_enabled_mask();
 

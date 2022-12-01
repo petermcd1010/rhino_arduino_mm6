@@ -6,6 +6,19 @@
 
 #include <Arduino.h>
 
+// Used for status messages.
+typedef struct {
+    struct {
+        int  encoder;
+        bool switch_triggered;
+        bool thermal_overload_detected;
+    } motor[MOTOR_ID_COUNT];
+} status_t;
+
+void gather_status(status_t *status);
+bool status_changed(status_t *status);
+void print_status(status_t *status);
+
 typedef struct _sm_state_t {
     void (*run)(void);
     void (*break_handler)(void);

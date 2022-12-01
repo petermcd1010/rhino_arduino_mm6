@@ -22,6 +22,7 @@ sm_state_t next_state;
 static int enabled_motors_mask = 0;
 static bool reset_prompt = true;
 static sm_display_mode display_mode = SM_DISPLAY_MODE_ENCODER;
+static status_t previous_status = { 0 };
 
 static const char sm_state_motors_off_enter_name[] PROGMEM = "motors off";  // Keep as 'motors off', so the prompt isn't confusing to the user.
 static const char sm_state_motors_off_execute_name[] PROGMEM = "motors off";
@@ -74,26 +75,48 @@ static bool run_self_test()
     return failure_count == 0;
 }
 
-// Used for status messages.
-typedef struct {
-    int  encoder;
-    bool switch_triggered;
-    bool thermal_overload_detected;
-} motor_status_t;
-
-typedef struct {
-    motor_status_t motor[MOTOR_ID_COUNT];
-} status_t;
-
-static void gather_status(status_t *pstatus)
+void gather_status(status_t *status)
 {
-    assert(pstatus);
+    assert(status);
 
     for (int i = 0; i < MOTOR_ID_COUNT; i++) {
-        pstatus->motor[i].encoder = motor_get_encoder((motor_id_t)i);
-        pstatus->motor[i].switch_triggered = motor_is_home_triggered((motor_id_t)i);
-        pstatus->motor[i].thermal_overload_detected = motor_get_thermal_overload_detected((motor_id_t)i);
+        status->motor[i].encoder = motor_get_encoder((motor_id_t)i);
+        status->motor[i].switch_triggered = motor_is_home_triggered((motor_id_t)i);
+        status->motor[i].thermal_overload_detected = motor_get_thermal_overload_detected((motor_id_t)i);
         motor_clear_thermal_overload((motor_id_t)i);
+    }
+}
+
+bool status_changed(status_t *status)
+{
+    return memcmp(&previous_status, status, sizeof(status_t)) != 0;
+}
+
+void print_status(status_t *status)
+{
+    memcpy(&previous_status, status, sizeof(status_t));
+
+    if (display_mode == SM_DISPLAY_MODE_ENCODER)
+        log_write(F("enc "));
+    else if (display_mode == SM_DISPLAY_MODE_ANGLE)
+        log_write(F("deg "));
+    else if (display_mode == SM_DISPLAY_MODE_PERCENT)
+        log_write(F("pct "));
+
+    for (int motor_id = 0; motor_id < MOTOR_ID_COUNT; motor_id++) {
+        if (motor_get_enabled((motor_id_t)motor_id)) {
+            char str[15];
+            char motor_name = (status->motor[motor_id].switch_triggered ? 'A' : 'a') + motor_id;
+            if (display_mode == SM_DISPLAY_MODE_ENCODER) {
+                log_write(F("%c:%d "), motor_name, motor_get_encoder(motor_id));
+            } else if (display_mode == SM_DISPLAY_MODE_ANGLE) {
+                dtostrf(motor_get_angle(motor_id), 3, 1, str);
+                log_write(F("%c:%s "), motor_name, str);
+            } else if (display_mode == SM_DISPLAY_MODE_PERCENT) {
+                dtostrf(motor_get_percent(motor_id), 3, 2, str);
+                log_write(F("%c:%s "), motor_name, str);
+            }
+        }
     }
 }
 
@@ -120,16 +143,13 @@ static void process_break_only()
 
 static void maybe_print_command_prompt(menu_item_t const **prev_menu_item, int *command_args_nbytes, bool *have_command)
 {
-    static status_t previous_status = { 0 };
     static unsigned long previous_status_time_millis = 0;
     unsigned long current_time_millis = millis();
-    bool status_updated = false;
+
     status_t status;
 
     gather_status(&status);
-
-    if (memcmp(&previous_status, &status, sizeof(status_t)) != 0)
-        status_updated = true;
+    bool status_updated = status_changed(&status);
 
     if (reset_prompt ||
         (!*prev_menu_item &&
@@ -159,32 +179,10 @@ static void maybe_print_command_prompt(menu_item_t const **prev_menu_item, int *
             log_write(F("Unknown state "));
         }
 
-        if (display_mode == SM_DISPLAY_MODE_ENCODER)
-            log_write(F("enc "));
-        else if (display_mode == SM_DISPLAY_MODE_ANGLE)
-            log_write(F("deg "));
-        else if (display_mode == SM_DISPLAY_MODE_PERCENT)
-            log_write(F("pct "));
-
-        for (int motor_id = 0; motor_id < MOTOR_ID_COUNT; motor_id++) {
-            if (motor_get_enabled((motor_id_t)motor_id)) {
-                char str[15];
-                char motor_name = (status.motor[motor_id].switch_triggered ? 'A' : 'a') + motor_id;
-                if (display_mode == SM_DISPLAY_MODE_ENCODER) {
-                    log_write(F("%c:%d "), motor_name, motor_get_encoder(motor_id));
-                } else if (display_mode == SM_DISPLAY_MODE_ANGLE) {
-                    dtostrf(motor_get_angle(motor_id), 3, 1, str);
-                    log_write(F("%c:%s "), motor_name, str);
-                } else if (display_mode == SM_DISPLAY_MODE_PERCENT) {
-                    dtostrf(motor_get_percent(motor_id), 3, 2, str);
-                    log_write(F("%c:%s "), motor_name, str);
-                }
-            }
-        }
+        print_status(&status);
 
         log_write(F("> "));
 
-        memcpy(&previous_status, &status, sizeof(status_t));
         previous_status_time_millis = current_time_millis;
     }
 }
