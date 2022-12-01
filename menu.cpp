@@ -219,7 +219,7 @@ extern const menu_item_t config_menu[];
 extern const menu_item_t waypoint_menu[];
 extern const menu_item_t calibration_menu[];
 
-static const menu_item_t main_menu[] = {
+static const menu_item_t main_menu[] PROGMEM = {
     { '1', MM_1,    NULL,                        NULL,             false, command_print_config,            MH_1    },
     { 'B', MM_B,    extended_menu_reboot,        NULL,             true,  command_reboot,                  MH_B    },
     { 'C', MM_C,    NULL,                        calibration_menu, false, NULL,                            MH_C    },
@@ -265,7 +265,7 @@ static const char OH_S[] PROGMEM = "Print or set configured robot serial.";
 static const char OM_X[] PROGMEM = "exit to main menu";
 static const char OH_X[] PROGMEM = "-- Exit to main menu.";
 
-const menu_item_t config_menu[] = {
+const menu_item_t config_menu[] PROGMEM = {
     { '0', OM_0,    NULL,                                         NULL,      false, command_config_write,                    OH_0    },
     { '1', MM_1,    NULL,                                         NULL,      false, command_print_config,                    MH_1    },
     { 'A', OM_A,    extended_menu_config_angle_offset,            NULL,      true,  command_config_angle_offset,             OH_A    },
@@ -288,7 +288,7 @@ static const char CH_C[] PROGMEM = "[motorids [max-speed-percent]] -- Calibrate 
 static const char CM_W[] PROGMEM = "calibrate home switches";
 static const char CH_W[] PROGMEM = "[motorids [max-speed-percent]] -- Calibrate home switches; calibrates enabled motors if none given.";
 
-const menu_item_t calibration_menu[] = {
+const menu_item_t calibration_menu[] PROGMEM = {
     { '1', MM_1,    NULL,                 NULL,      false, command_print_config,              MH_1    },
     { '0', OM_0,    NULL,                 NULL,      false, command_config_write,              OH_0    },
     { 'B', MM_B,    extended_menu_reboot, NULL,      true,  command_reboot,                    MH_B    },
@@ -321,7 +321,7 @@ static const char WH_R[] PROGMEM = "-- Run waypoint sequence.";
 static const char WM_S[] PROGMEM = "set waypoint";
 static const char WH_S[] PROGMEM = "-- Set waypoint.";
 
-const menu_item_t waypoint_menu[] = {
+const menu_item_t waypoint_menu[] PROGMEM = {
     { '1', WM_1,    NULL,                          NULL,      false, command_waypoint_print,            WH_1    },
     { 'A', WM_A,    extended_menu_append_waypoint, NULL,      true,  command_waypoint_append,           WH_A    },
     { 'C', CM_C,    NULL,                          NULL,      true,  command_calibrate_home_and_limits, CH_C    },
@@ -352,13 +352,13 @@ void menu_set_current_menu(const menu_item_t *menu)
     current_menu = menu;
 }
 
-const menu_item_t * menu_item_by_command_char(char ch)
+const menu_item_t *menu_item_by_command_char(char ch)
 {
     int n = 0;
 
-    while (current_menu[n].command_char != 0) {
+    while (pgm_read_byte(&current_menu[n].command_char) != 0) {
         assert(n < menu_item_max_count);
-        if (toupper(ch) == toupper(current_menu[n].command_char))
+        if (toupper(ch) == toupper(pgm_read_byte(&current_menu[n].command_char)))
             return &current_menu[n];
         n++;
     }
@@ -373,31 +373,29 @@ void menu_help(void)
     int n = 0;
     int longest_name_nbytes = 0;
 
-    while (current_menu[n].command_char != 0) {
+    while (pgm_read_byte(&current_menu[n].command_char) != 0) {
         assert(n < menu_item_max_count);
         const menu_item_t *item = &current_menu[n];
-        int len = strlen_P(item->name);
+        int len = strlen_P(pgm_read_ptr(&item->name));
         longest_name_nbytes = len > longest_name_nbytes ? len : longest_name_nbytes;
         n++;
     }
 
-    n = 0;
-    while (current_menu[n].command_char != 0) {
+    for (n = 0; pgm_read_byte(&current_menu[n].command_char) != 0; n++) {
         const menu_item_t *item = &current_menu[n];
 
         // Pad with spaces afer the name to align the help message.
         char spaces[menu_item_max_name_nbytes];  // Just a buffer of whitespace.
-        int nspaces = longest_name_nbytes - strlen_P(item->name) + 1;
+        int nspaces = longest_name_nbytes - strlen_P(pgm_read_ptr(&item->name)) + 1;
         nspaces = (nspaces >= menu_item_max_name_nbytes) ? menu_item_max_name_nbytes - 1 : nspaces;
         memset(spaces, ' ', nspaces);
         spaces[nspaces] = '\0';
 
         // log_writeln(F("  %c : %s %s %s"), item->command_char, item->name, spaces, item->help);
-        log_write(F("  %c : "), item->command_char);
-        log_write((const __FlashStringHelper *)item->name);
+        log_write(F("  %c : "), pgm_read_byte(&item->command_char));
+        log_write((const __FlashStringHelper *)pgm_read_ptr(&item->name));
         log_write(F("%s"), spaces);
-        log_writeln((const __FlashStringHelper *)item->help);
-        n++;
+        log_writeln((const __FlashStringHelper *)pgm_read_ptr(&item->help));
     }
 }
 
@@ -406,7 +404,7 @@ static bool menu_test_single_menu(const menu_item_t *menu_items)
     bool ret = true;
     int n = 0;
 
-    while (menu_items[n].command_char != 0) {
+    while (pgm_read_byte(&menu_items[n].command_char) != 0) {
         if (n >= menu_item_max_count) {
             LOG_ERROR(F("menu has more than %d items"), menu_item_max_count);
             ret = false;
@@ -414,19 +412,19 @@ static bool menu_test_single_menu(const menu_item_t *menu_items)
         }
 
         const menu_item_t *item = &menu_items[n];
-        if (!item->name) {
+        if (!pgm_read_ptr(&item->name)) {
             LOG_ERROR(F("%d NULL name"), n);
             ret = false;
         }
-        if (strlen_P(item->name) > menu_item_max_name_nbytes) {
+        if (strlen_P(pgm_read_ptr(&item->name)) > menu_item_max_name_nbytes) {
             LOG_ERROR(F("%d name too long"), n);
             ret = false;
         }
-        if ((!item->function) && (!item->sub_menu)) {
+        if ((!pgm_read_ptr(&item->function)) && (!pgm_read_ptr(&item->sub_menu))) {
             LOG_ERROR(F("%d NULL function and NULL sub_menu"), n);
             ret = false;
         }
-        if (!item->help) {
+        if (!pgm_read_ptr(&item->help)) {
             LOG_ERROR(F("%d NULL help"), n);
             ret = false;
         }

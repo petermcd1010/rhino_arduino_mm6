@@ -224,12 +224,12 @@ static void process_all_input()
                     log_writeln(F("ERROR: Invalid command '%c'. Type '?' for help."), input_char);  // TODO: NAK?
                     reset_prompt = true;
                 } else {
-                    log_write((const __FlashStringHelper *)menu_item->name);
-                    if (menu_item->print_sub_menu_fn)
-                        menu_item->print_sub_menu_fn();
-                    if (menu_item->has_args)
+                    log_write((const __FlashStringHelper *)pgm_read_ptr(&menu_item->name));
+                    void (*print_sub_menu_fn)() = pgm_read_ptr(&menu_item->print_sub_menu_fn);
+                    if (print_sub_menu_fn)
+                        print_sub_menu_fn();
+                    if (pgm_read_ptr(&menu_item->has_args))
                         log_write(F(" "));  // Additional space for args.
-
                     have_command = true;
                 }
             }
@@ -244,16 +244,18 @@ static void process_all_input()
                 char *p = command_args + nbytes;
                 command_args_nbytes -= nbytes;
 
-                if (prev_menu_item->sub_menu) {
-                    menu_set_current_menu(prev_menu_item->sub_menu);
+                int (*function)(char *payload, size_t nbytes) = pgm_read_ptr(&prev_menu_item->function);  // Function to call after the command is typed.
+
+                if (pgm_read_ptr(&prev_menu_item->sub_menu)) {
+                    menu_set_current_menu(pgm_read_ptr(&prev_menu_item->sub_menu));
                     menu_help();
-                } else if (prev_menu_item->function && (prev_menu_item->function(p, command_args_nbytes) != command_args_nbytes)) {
+                } else if (function && (function(p, command_args_nbytes) != command_args_nbytes)) {
                     log_writeln(F("ERROR: Invalid command arguments. Type '?' for help."));  // TODO: NAK?
                 }
                 reset_prompt = true;
             } else if ((input_char == ASCII_BACKSPACE) || (input_char == ASCII_DELETE)) {
                 // TODO: only 1 BS if we're entering args.
-                int nbackspaces_count = strlen(prev_menu_item->name) + 2;  // +2 for " >"
+                int nbackspaces_count = strlen_P(prev_menu_item->name) + 2;  // +2 for " >"
                 if (prev_menu_item->has_args)
                     nbackspaces_count++;  // Account for additional ' '.
                 for (int i = 0; i < nbackspaces_count; i++) {
@@ -262,7 +264,7 @@ static void process_all_input()
                     Serial.write(ASCII_BACKSPACE);
                 }
                 reset_prompt = true;
-            } else if (prev_menu_item->has_args && (command_args_nbytes < command_args_max_nbytes - 1)) {  // -1 to leave space for '\0' at end.
+            } else if (pgm_read_byte(&prev_menu_item->has_args) && (command_args_nbytes < command_args_max_nbytes - 1)) {  // -1 to leave space for '\0' at end.
                 log_write(F("%c"), input_char);
                 command_args[command_args_nbytes++] = input_char;
             } else {
