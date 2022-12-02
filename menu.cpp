@@ -39,6 +39,7 @@ static void extended_menu_config_encoders_per_degree(void)
 
     log_writeln(F("Current encoders/degree:"));
     char str[15];
+
     for (int i = 0; i < MOTOR_ID_COUNT; i++) {
         dtostrf(config.motor[i].encoders_per_degree, 3, 2, str);
         log_writeln(F("  Motor %c: %s"), 'A' + i, str);
@@ -210,8 +211,6 @@ static const char MM_Z[] PROGMEM = "poll header pins";
 static const char MH_Z[] PROGMEM = "-- Poll header pins for changes in polarity. Useful for debugging buttons.";
 static const char MM_PCT[] PROGMEM = "set motor percent";
 static const char MH_PCT[] PROGMEM = "motorid percent -- Percent is 0.0 to 100.0, +15, -20, +, -, ++, --.";
-static const char MM_STAR[] PROGMEM = "factory reset";
-static const char MH_STAR[] PROGMEM = "-- Reset system to factory defaults (clears EEPROM, etc). Requires typing 'RESET'.";
 static const char MM_BANG[] PROGMEM = "emergency stop";
 static const char MH_BANG[] PROGMEM = "-- Execute hardware emergency stop (E-Stop). Enters 'Error' state. Requires reboot.";
 static const char MM_HELP[] PROGMEM = "print help";
@@ -222,25 +221,24 @@ extern const menu_item_t waypoint_menu[];
 extern const menu_item_t calibration_menu[];
 
 static const menu_item_t main_menu[] PROGMEM = {
-    { '1', MM_1,    NULL,                        NULL,             false, command_print_config,            MH_1    },
-    { 'B', MM_B,    extended_menu_reboot,        NULL,             true,  command_reboot,                  MH_B    },
-    { 'C', MM_C,    NULL,                        calibration_menu, false, NULL,                            MH_C    },
-    { 'E', MM_E,    NULL,                        NULL,             true,  command_set_enabled_motors,      MH_E    },
-    { 'H', MM_H,    NULL,                        NULL,             true,  command_go_home_or_open_gripper, MH_H    },
-    { 'M', MM_M,    NULL,                        NULL,             true,  command_print_motor_status,      MH_M    },
-    { 'N', MM_N,    NULL,                        NULL,             true,  command_set_motor_angle,         MH_N    },
-    { 'O', MM_O,    NULL,                        config_menu,      false, NULL,                            MH_O    },
-    { 'P', MM_P,    NULL,                        NULL,             true,  command_set_motor_encoder,       MH_P    },
+    { '1', MM_1,    NULL,                 NULL,             false, command_print_config,            MH_1    },
+    { 'B', MM_B,    extended_menu_reboot, NULL,             true,  command_reboot,                  MH_B    },
+    { 'C', MM_C,    NULL,                 calibration_menu, false, NULL,                            MH_C    },
+    { 'E', MM_E,    NULL,                 NULL,             true,  command_set_enabled_motors,      MH_E    },
+    { 'H', MM_H,    NULL,                 NULL,             true,  command_go_home_or_open_gripper, MH_H    },
+    { 'M', MM_M,    NULL,                 NULL,             true,  command_print_motor_status,      MH_M    },
+    { 'N', MM_N,    NULL,                 NULL,             true,  command_set_motor_angle,         MH_N    },
+    { 'O', MM_O,    NULL,                 config_menu,      false, NULL,                            MH_O    },
+    { 'P', MM_P,    NULL,                 NULL,             true,  command_set_motor_encoder,       MH_P    },
     // { 'Q', MM_Q,    NULL,                              NULL,             true,  command_run_test_sequence,         MH_Q    },  // TODO.
-    { 'R', MM_R,    NULL,                        NULL,             false, command_print_software_version,  MH_R    },
-    { 'T', MM_T,    NULL,                        NULL,             true,  command_test_motors,             MH_T    },
-    { 'V', MM_V,    NULL,                        NULL,             true,  command_close_gripper,           MH_V    },
-    { 'W', MM_W,    NULL,                        waypoint_menu,    false, NULL,                            MH_W    },
-    { 'Z', MM_Z,    NULL,                        NULL,             false, command_poll_pins,               MH_Z    },
-    { '%', MM_PCT,  NULL,                        NULL,             true,  command_set_motor_percent,       MH_PCT  },
-    { '*', MM_STAR, extended_menu_factory_reset, NULL,             true,  command_factory_reset,           MH_STAR },
-    { '!', MM_BANG, NULL,                        NULL,             false, command_emergency_stop,          MH_BANG },
-    { '?', MM_HELP, NULL,                        NULL,             false, command_print_help,              MH_HELP },
+    { 'R', MM_R,    NULL,                 NULL,             false, command_print_software_version,  MH_R    },
+    { 'T', MM_T,    NULL,                 NULL,             true,  command_test_motors,             MH_T    },
+    { 'V', MM_V,    NULL,                 NULL,             true,  command_close_gripper,           MH_V    },
+    { 'W', MM_W,    NULL,                 waypoint_menu,    false, NULL,                            MH_W    },
+    { 'Z', MM_Z,    NULL,                 NULL,             false, command_poll_pins,               MH_Z    },
+    { '%', MM_PCT,  NULL,                 NULL,             true,  command_set_motor_percent,       MH_PCT  },
+    { '!', MM_BANG, NULL,                 NULL,             false, command_emergency_stop,          MH_BANG },
+    { '?', MM_HELP, NULL,                 NULL,             false, command_print_help,              MH_HELP },
     { 0 }  // Terminate menus with an entry filled with zeros.
 };
 
@@ -266,6 +264,8 @@ static const char OM_S[] PROGMEM = "configure robot serial";
 static const char OH_S[] PROGMEM = "Print or set configured robot serial.";
 static const char OM_X[] PROGMEM = "exit to main menu";
 static const char OH_X[] PROGMEM = "-- Exit to main menu.";
+static const char OM_STAR[] PROGMEM = "factory reset";
+static const char OH_STAR[] PROGMEM = "-- Reset system to factory defaults (clears EEPROM, etc). Requires typing 'RESET'.";
 
 const menu_item_t config_menu[] PROGMEM = {
     { '0', OM_0,    NULL,                                         NULL,      false, command_config_write,                    OH_0    },
@@ -280,6 +280,7 @@ const menu_item_t config_menu[] PROGMEM = {
     { 'N', OM_N,    extended_menu_config_robot_name,              NULL,      true,  command_config_robot_name,               OH_N    },
     { 'S', OM_S,    extended_menu_config_robot_serial,            NULL,      true,  command_config_robot_serial,             OH_S    },
     { 'X', OM_X,    NULL,                                         main_menu, false, NULL,                                    OH_X    },
+    { '*', OM_STAR, extended_menu_factory_reset,                  NULL,      true,  command_factory_reset,                   OH_STAR },
     { '!', MM_BANG, NULL,                                         NULL,      false, command_emergency_stop,                  MH_BANG },
     { '?', MM_HELP, NULL,                                         NULL,      false, command_print_help,                      MH_HELP },
     { 0 }  // Terminate menus with an entry filled with zeros.
