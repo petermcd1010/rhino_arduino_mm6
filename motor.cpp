@@ -338,6 +338,8 @@ void motor_set_target_percent(motor_id_t motor_id, float percent)
 {
     assert((motor_id >= 0) && (motor_id < MOTOR_ID_COUNT));
     assert((percent >= 0) && (percent <= 100.0));
+    assert(config.motor[motor_id].max_encoder < INT_MAX);
+    assert(config.motor[motor_id].min_encoder > INT_MIN);
 
     int encoder = config.motor[motor_id].min_encoder + (config.motor[motor_id].max_encoder - config.motor[motor_id].min_encoder) * percent / 100.0;
 

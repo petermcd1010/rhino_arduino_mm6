@@ -3,6 +3,7 @@
  * See the LICENSE file in the root directory of this project for copyright and licensing details.
  */
 
+#include <limits.h>
 #include <stdlib.h>
 #include "calibrate.h"
 #include "command.h"
@@ -522,6 +523,8 @@ static void go_home_break_handler(void)
     sm_set_next_state(exit_to_state);
 }
 
+static int go_home_motor_ids_mask = 0;
+
 static void go_home(void)
 {
     bool all_home = true;
@@ -537,27 +540,26 @@ static void go_home(void)
         previous_status_time_millis = millis();
     }
 
-    int enabled_motors = motor_get_enabled_mask();
-
     for (int i = 0; i < MOTOR_ID_COUNT; i++) {
-        bool enabled = ((enabled_motors & (1 << i)) != 0);
-        if (enabled) {
-            if (config.motor[i].min_encoder > 0) {
-                log_writeln(F("Motor %c min encoder limit %d > 0. Skipping."), 'A' + i, config.motor[i].min_encoder);
-                continue;
-            }
+        bool selected = ((go_home_motor_ids_mask & (1 << i)) != 0);
+        if (!selected)
+            continue;
 
-            if (motor_get_target_encoder((motor_id_t)i) != 0)
-                motor_set_target_encoder((motor_id_t)i, 0);
-            if (motor_get_encoder((motor_id_t)i) != 0)
-                all_home = false;
+        if (config.motor[i].min_encoder > 0) {
+            log_writeln(F("Motor %c min encoder limit %d > 0. Skipping."), 'A' + i, config.motor[i].min_encoder);
+            continue;
         }
+
+        if (motor_get_target_encoder((motor_id_t)i) != 0)
+            motor_set_target_encoder((motor_id_t)i, 0);
+        if (motor_get_encoder((motor_id_t)i) != 0)
+            all_home = false;
     }
 
     if (all_home) {
         for (int i = 0; i < MOTOR_ID_COUNT; i++) {
-            bool enabled = ((enabled_motors & (1 << i)) != 0);
-            if (enabled && (!motor_is_home_triggered_debounced((motor_id_t)i)))
+            bool selected = ((go_home_motor_ids_mask & (1 << i)) != 0);
+            if (selected && (!motor_is_home_triggered_debounced((motor_id_t)i)))
                 log_writeln(F("WARNING: Motor %c arrived home, but home switch not triggered."), 'A' + i);
         }
 
@@ -569,35 +571,35 @@ static void go_home(void)
 int command_go_home_or_open_gripper(char *args, size_t args_nbytes)
 {
     assert(args);
-    int motor_ids_mask = 0;
+    go_home_motor_ids_mask = 0;
     char *p = args;
     bool cancel = false;
 
     // Read.
 
-    size_t nbytes = parse_motor_ids(p, args_nbytes, &motor_ids_mask);
+    size_t nbytes = parse_motor_ids(p, args_nbytes, &go_home_motor_ids_mask);
 
     args_nbytes -= nbytes;
     p += nbytes;
 
-    if (motor_ids_mask == -1)
+    if (go_home_motor_ids_mask == -1)
         return nbytes;                 // parse_motors_ids prints an error.
 
-    if (motor_ids_mask == 0)
-        motor_ids_mask = motor_get_enabled_mask();  // If user didn't specify, select all enabled motors.
+    if (go_home_motor_ids_mask == 0)
+        go_home_motor_ids_mask = motor_get_enabled_mask();  // If user didn't specify, select all enabled motors.
 
     if (args_nbytes > 0)
         return -1;                     // Extraneous input.
 
     // Validate.
 
-    if (motor_ids_mask == 0) {
+    if (go_home_motor_ids_mask == 0) {
         log_writeln(F("  No motors selected."));
         cancel = true;
     }
 
     for (int i = 0; i < MOTOR_ID_COUNT; i++) {
-        if (((1 << i) & motor_ids_mask) && !motor_get_enabled(i)) {
+        if (((1 << i) & go_home_motor_ids_mask) && !motor_get_enabled(i)) {
             log_writeln(F("  Motor %c not enabled."), 'A' + i);
             cancel = true;
         }
@@ -867,6 +869,11 @@ int command_set_motor_percent(char *args, size_t args_nbytes)
 
     if (!cancel && sm_get_state().run != sm_motors_on_execute) {
         log_writeln(F("  Motors can not be actuated in the current state."));
+        cancel = true;
+    }
+
+    if ((config.motor[motor_id].min_encoder == INT_MIN) || (config.motor[motor_id].max_encoder == INT_MAX)) {
+        log_writeln(F("  Motor percent cannot be set until both min and max encoders have been calibrated."));
         cancel = true;
     }
 
