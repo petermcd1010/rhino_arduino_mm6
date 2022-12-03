@@ -284,8 +284,6 @@ void motor_set_home_encoder(motor_id_t motor_id, int home_encoder)
 int motor_get_encoder(motor_id_t motor_id)
 {
     assert((motor_id >= 0) && (motor_id < MOTOR_ID_COUNT));
-    if (!motor_get_enabled(motor_id))
-        return 0;
 
     return noinit_data.motor[motor_id].encoder * config.motor[motor_id].orientation;
 }

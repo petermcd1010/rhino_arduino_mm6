@@ -92,10 +92,24 @@ bool status_changed(status_t *status)
     return memcmp(&previous_status, status, sizeof(status_t)) != 0;
 }
 
+static void print_motor_status(status_t *status, sm_display_mode display_mode, motor_id_t motor_id)
+{
+    char str[15];
+    char motor_name = (status->motor[motor_id].switch_triggered ? 'A' : 'a') + motor_id;
+
+    if (display_mode == SM_DISPLAY_MODE_ENCODER) {
+        log_write(F("%c:%d"), motor_name, motor_get_encoder(motor_id));
+    } else if (display_mode == SM_DISPLAY_MODE_ANGLE) {
+        dtostrf(motor_get_angle(motor_id), 3, 1, str);
+        log_write(F("%c:%s"), motor_name, str);
+    } else if (display_mode == SM_DISPLAY_MODE_PERCENT) {
+        dtostrf(motor_get_percent(motor_id), 3, 2, str);
+        log_write(F("%c:%s"), motor_name, str);
+    }
+}
+
 void print_status(status_t *status)
 {
-    memcpy(&previous_status, status, sizeof(status_t));
-
     if (display_mode == SM_DISPLAY_MODE_ENCODER)
         log_write(F("enc "));
     else if (display_mode == SM_DISPLAY_MODE_ANGLE)
@@ -105,19 +119,16 @@ void print_status(status_t *status)
 
     for (int motor_id = 0; motor_id < MOTOR_ID_COUNT; motor_id++) {
         if (motor_get_enabled((motor_id_t)motor_id)) {
-            char str[15];
-            char motor_name = (status->motor[motor_id].switch_triggered ? 'A' : 'a') + motor_id;
-            if (display_mode == SM_DISPLAY_MODE_ENCODER) {
-                log_write(F("%c:%d "), motor_name, motor_get_encoder(motor_id));
-            } else if (display_mode == SM_DISPLAY_MODE_ANGLE) {
-                dtostrf(motor_get_angle(motor_id), 3, 1, str);
-                log_write(F("%c:%s "), motor_name, str);
-            } else if (display_mode == SM_DISPLAY_MODE_PERCENT) {
-                dtostrf(motor_get_percent(motor_id), 3, 2, str);
-                log_write(F("%c:%s "), motor_name, str);
-            }
+            print_motor_status(status, display_mode, motor_id);
+            log_write(F(" "));
+        } else if (motor_get_encoder(motor_id) != previous_status.motor[motor_id].encoder) {
+            log_write(F("["));
+            print_motor_status(status, display_mode, motor_id);
+            log_write(F("] "));
         }
     }
+
+    memcpy(&previous_status, status, sizeof(status_t));
 }
 
 static void process_break_only()
@@ -307,6 +318,8 @@ void sm_init(void)
 
     menu_help();
     log_writeln(F("Ready."));
+
+    gather_status(&previous_status);
 
     if (self_test_success)
         sm_set_next_state(sm_state_motors_off_enter);
