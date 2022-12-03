@@ -20,7 +20,7 @@ The MegaMotor6 system provides a complete and modern replacement for the control
 
 ## Installation
 
-Follow the Arduino instructions for building and flashing this software. Once flashed, use your serial terminal to connect to the Arduino at 38400 bps. You will see a text menu explaining the control options when connected. 
+Follow the Arduino instructions for building and flashing this software. Once flashed, use your serial terminal to connect to the Arduino at 38,400 bps. You will see a text menu explaining the control options when connected. 
 
 Once connected, start by running a motor test followed by a calibration. It's a good idea to stay within an arm's reach of the reset button while learning the software and how the robot moves.
 
