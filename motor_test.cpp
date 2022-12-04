@@ -50,7 +50,7 @@ static void half_wiggle(void)
     assert((motor_id >= 0) && (motor_id < MOTOR_ID_COUNT));
     assert(half_wiggle_speed != 0);
 
-    const int desired_encoder_delta = 10;
+    const int desired_encoder_delta = 10;  // Empricially determined to work well across various scenarios.
     const int timeout_ms = 500;
 
     if (start_ms == 0) {
@@ -66,7 +66,6 @@ static void half_wiggle(void)
         start_ms = 0;  // Initialize wait_stop.
         sm_set_next_state(state_half_wiggle_wait_stop);
     } else if (millis() - start_ms > timeout_ms) {
-        // Timeout.
         motor_set_enabled(motor_id, false);
         start_ms = 0;  // Initialize wait_stop.
         sm_set_next_state(state_half_wiggle_wait_stop);
@@ -85,7 +84,6 @@ static void half_wiggle_wait_stop(void)
     } else if (!motor_is_moving(motor_id)) {
         sm_set_next_state(state_test_one);
     } else if (millis() - start_ms > timeout_ms) {
-        // Timeout.
         motor_set_enabled(motor_id, false);
         log_writeln(F("ERROR: Timeout waiting for motor %c to stop."), 'A' + motor_id);
         sm_set_next_state(state_test_one_exit);
@@ -119,7 +117,7 @@ static void test_one(void)
         log_write(F(" (%d encoders)"), reverse_delta);
         half_wiggle_speed = 0;  // Reset.
 
-        if ((forward_delta == 0) && (reverse_delta != 0) && !retried_forward) {
+        if ((forward_delta <= 0) && (reverse_delta != 0) && !retried_forward) {
             // Retry if it moved one direction but not the other. This happens if the motor won't move due to a joint being structurally
             // blocked from moving.
             half_wiggle_speed = speed;
