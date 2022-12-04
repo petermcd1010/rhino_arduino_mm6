@@ -186,7 +186,7 @@ static const char MH_1[] PROGMEM = "-- Print configuration.";
 static const char MM_B[] PROGMEM = "reboot";
 static const char MH_B[] PROGMEM = "-- Reboot system. Requires typing 'REBOOT'.";
 static const char MM_C[] PROGMEM = "calibration menu";
-static const char MH_C[] PROGMEM = "-- Print, run, and save home switch and motor calibration.";
+static const char MH_C[] PROGMEM = "-- Submenu for calibrating home switches (zeros) and motor limits.";
 static const char MM_E[] PROGMEM = "set enabled motors";
 static const char MH_E[] PROGMEM = "[motorids] -- Enable/disable motors, list (e.g 'abce') or blank to disable all.";
 static const char MM_H[] PROGMEM = "go home or open gripper";
@@ -196,7 +196,7 @@ static const char MH_M[] PROGMEM = "[motorids] -- Print motor status, list (e.g.
 static const char MM_N[] PROGMEM = "set motor angle";
 static const char MH_N[] PROGMEM = "motorid degrees -- Degrees is 0.0 to 360.0, +15, -20, +, -, ++, --.";
 static const char MM_O[] PROGMEM = "configuration menu";
-static const char MH_O[] PROGMEM = "-- Configure system and attached motors.";
+static const char MH_O[] PROGMEM = "-- Submenu for configuring the system and attached motors.";
 static const char MM_P[] PROGMEM = "set motor encoder";
 static const char MH_P[] PROGMEM = "motorid encoder -- Set motor encoder.";
 static const char MM_R[] PROGMEM = "print software version";
@@ -206,7 +206,7 @@ static const char MH_T[] PROGMEM = "[motorids] -- Test motors. Test enabled moto
 static const char MM_V[] PROGMEM = "close gripper";
 static const char MH_V[] PROGMEM = "-- Close gripper [motorids].";
 static const char MM_W[] PROGMEM = "waypoints menu";
-static const char MH_W[] PROGMEM = "-- Edit and execute waypoints.";
+static const char MH_W[] PROGMEM = "-- Submenu for editing and executing waypoints.";
 static const char MM_Z[] PROGMEM = "poll header pins";
 static const char MH_Z[] PROGMEM = "-- Poll header pins for changes in polarity. Useful for debugging buttons.";
 static const char MM_PCT[] PROGMEM = "set motor percent";
@@ -287,9 +287,9 @@ const menu_item_t config_menu[] PROGMEM = {
 };
 
 static const char CM_C[] PROGMEM = "calibrate home switches and limits";
-static const char CH_C[] PROGMEM = "[motorids [max-speed-percent]] -- Calibrate home switches and motor limits; calibrates enabled motors if none given.";
+static const char CH_C[] PROGMEM = "[motorids [max-speed-percent]] -- Calibrate home switches (zeros) motor limits.";
 static const char CM_W[] PROGMEM = "calibrate home switches";
-static const char CH_W[] PROGMEM = "[motorids [max-speed-percent]] -- Calibrate home switches; calibrates enabled motors if none given.";
+static const char CH_W[] PROGMEM = "[motorids [max-speed-percent]] -- Calibrate home switches (zeros).";
 
 const menu_item_t calibration_menu[] PROGMEM = {
     { '1', MM_1,    NULL,                 NULL,      false, command_print_config,              MH_1    },
