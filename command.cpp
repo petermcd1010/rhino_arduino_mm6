@@ -981,7 +981,7 @@ int command_test_motors(char *args, size_t args_nbytes)
     // Validate.
 
     if (motor_ids_mask == 0) {
-        log_writeln(F("  No motors to calibrate."));
+        log_writeln(F("  No motors to test."));
         cancel = true;
     }
 
