@@ -43,7 +43,7 @@ static int forward_delta;
 static int reverse_delta;
 static int half_wiggle_speed;
 static int half_wiggle_start_encoder;
-static unsigned long half_wiggle_start_ms;
+static unsigned long start_ms;
 
 static void half_wiggle(void)
 {
@@ -53,9 +53,9 @@ static void half_wiggle(void)
     const int desired_encoder_delta = 10;
     const int timeout_ms = 500;
 
-    if (half_wiggle_start_ms == 0) {
-        // Initialize when half_wiggle_start_ms == 0;
-        half_wiggle_start_ms = millis();
+    if (start_ms == 0) {
+        // Initialize when start_ms == 0;
+        start_ms = millis();
         half_wiggle_start_encoder = motor_get_encoder(motor_id);
         motor_set_speed(motor_id, half_wiggle_speed);
         log_write(F("on"));
@@ -63,10 +63,12 @@ static void half_wiggle(void)
         motor_set_speed(motor_id, 0);
         motor_set_enabled(motor_id, false);
         log_write(F(", off,"));
+        start_ms = 0;  // Initialize wait_stop.
         sm_set_next_state(state_half_wiggle_wait_stop);
-    } else if (millis() - half_wiggle_start_ms > timeout_ms) {
+    } else if (millis() - start_ms > timeout_ms) {
         // Timeout.
         motor_set_enabled(motor_id, false);
+        start_ms = 0;  // Initialize wait_stop.
         sm_set_next_state(state_half_wiggle_wait_stop);
     }
 }
@@ -75,8 +77,19 @@ static void half_wiggle_wait_stop(void)
 {
     assert((motor_id >= 0) && (motor_id < MOTOR_ID_COUNT));
 
-    if (!motor_is_moving(motor_id))
+    const int timeout_ms = 1500;
+
+    if (start_ms == 0) {
+        // Initialize when start_ms == 0;
+        start_ms = millis();
+    } else if (!motor_is_moving(motor_id)) {
         sm_set_next_state(state_test_one);
+    } else if (millis() - start_ms > timeout_ms) {
+        // Timeout.
+        motor_set_enabled(motor_id, false);
+        log_writeln(F("ERROR: Timeout waiting for motor %c to stop."), 'A' + motor_id);
+        sm_set_next_state(state_test_one_exit);
+    }
 }
 
 static void test_one(void)
@@ -88,7 +101,7 @@ static void test_one(void)
 
     motor_set_enabled(motor_id, true);
 
-    half_wiggle_start_ms = 0;  // Set to 0 so half_wiggle initializes.
+    start_ms = 0;  // Set to 0 so half_wiggle initializes.
 
     if (half_wiggle_speed == 0) {
         half_wiggle_speed = speed;
@@ -188,7 +201,7 @@ static void test_mask(void)
             reverse_delta = 0;
             half_wiggle_speed = 0;
             half_wiggle_start_encoder = 0;
-            half_wiggle_start_ms = 0;
+            start_ms = 0;
             sm_set_next_state(state_test_one);
         }
     } else {
