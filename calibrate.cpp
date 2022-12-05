@@ -182,7 +182,7 @@ static void update_status(motor_id_t motor_id)
                 log_write(F("At home, "));
         }
 
-        log_writeln(F("encoder %d."), encoder * config.motor[motor_id].orientation);
+        log_writeln(F("encoder %d, current draw %d."), encoder * config.motor[motor_id].orientation, motor[motor_id].current);
         prev_print_ms = millis();
     }
 }
@@ -487,7 +487,7 @@ static void calibrate_one_go_home(void)
             }
 
             log_writeln(F("Calibrating motor %c: Motor arrived at home position (encoder 0)."), 'A' + motor_id);
-            log_writeln(F("Calibrating motor %c: Motor Calibration for motor %c ** PASSED **. *WRITE CONFIGURATION*"), 'A' + motor_id, 'A' + motor_id);
+            log_writeln(F("Calibrating motor %c: Motor Calibration for motor %c ** PASSED **."), 'A' + motor_id, 'A' + motor_id);
 
             passing_motor_ids_mask |= (1 << motor_id);
             sm_set_next_state(state_calibrate_one_done);
