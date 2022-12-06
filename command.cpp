@@ -652,7 +652,7 @@ int command_print_motor_status(char *args, size_t args_nbytes)
 
         char angle_str[15] = {};
         dtostrf(motor_get_angle((motor_id_t)i), 3, 2, angle_str);
-        log_writeln(F("  %c%s: home:%d sta:%d enc:%d tar:%d err:%d spd:%d PWM:%d cur:%d hs:%d,%d,%d,%d->%d angle:%s"),
+        log_writeln(F("  %c%s: home:%d sta:%d enc:%d tar:%d err:%d spd:%d PWM:%d cur:%d hs:%d,%d,%d,%d->%d angle:%s thermal:%d"),
                     'A' + i,
                     ((motor_get_enabled_mask() & (1 << i)) == 0) ? " [not enabled]" : "",
                     motor[i].home_triggered_debounced,  // home switch.
@@ -670,7 +670,8 @@ int command_print_motor_status(char *args, size_t args_nbytes)
                     motor[i].home_reverse_on_encoder,  // hs.
                     motor[i].home_forward_off_encoder,  // hs.
                     (motor[i].home_forward_off_encoder + motor[i].home_reverse_on_encoder + motor[i].home_forward_on_encoder + motor[i].home_reverse_off_encoder) / 4,  // hs.
-                    angle_str);
+                    angle_str,
+                    motor_get_thermal_overload_detected(i));
     }
 
     if (args_nbytes > 0)
