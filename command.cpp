@@ -67,6 +67,49 @@ int command_config_angle_offset(char *args, size_t args_nbytes)
     return p - args;
 }
 
+int command_config_boot_mode(char *args, size_t args_nbytes)
+{
+    assert(args);
+
+    char *p = args;
+
+    size_t nbytes = parse_whitespace(p, args_nbytes);
+
+    args_nbytes -= nbytes;
+    p += nbytes;
+
+    if (args_nbytes == 0) {
+        log_write(F("Maintaining boot mode as '"));
+        log_write((const __FlashStringHelper *)config_boot_mode_by_id[config.boot_mode]);
+        log_writeln(F("'."));
+        return p - args;
+    }
+
+    char *command_table[] = { "U", "W" };
+    const int command_table_nentries = 2;
+    int boot_mode = 0;
+
+    nbytes = parse_string_in_table(p, 1, command_table, command_table_nentries, &boot_mode);
+    args_nbytes -= nbytes;
+    p += nbytes;
+
+    if ((boot_mode < 0) || (boot_mode > CONFIG_BOOT_MODE_COUNT)) {
+        log_writeln(F("ERROR: Invalid boot mode."));
+        return 0;
+    }
+
+    if (args_nbytes > 0)
+        return -1;                     // Extraneous input.
+
+    log_write(F("Setting boot mode to '"));
+    log_write((const __FlashStringHelper *)config_boot_mode_by_id[boot_mode]);
+    log_writeln(F("'."));
+
+    config_set_boot_mode(boot_mode);
+
+    return p - args;
+}
+
 int command_config_encoders_per_degree(char *args, size_t args_nbytes)
 {
     assert(args);

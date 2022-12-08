@@ -273,6 +273,8 @@ void waypoint_run(int start_index, int count)
     steps_remaining = count;
 
     exit_to_state = sm_get_state();
+    if (!exit_to_state.run)
+        exit_to_state = sm_state_motors_off_enter;  // If executed from boot, .run will be NULL.
 
     sm_set_next_state(state_waypoint_start);
 }

@@ -26,7 +26,15 @@ typedef enum {
     CONFIG_ROBOT_ID_DEFAULT = CONFIG_ROBOT_ID_NOT_CONFIGURED,
 } config_robot_id_t;
 
-extern const char * const config_robot_name_by_id[CONFIG_ROBOT_ID_COUNT];
+typedef enum {
+    CONFIG_BOOT_MODE_WAIT_USER_INPUT = 0,
+    CONFIG_BOOT_MODE_EXECUTE_WAYPOINT_SEQUENCE,
+    CONFIG_BOOT_MODE_COUNT,
+    CONFIG_BOOT_MODE_DEFAULT         = CONFIG_BOOT_MODE_WAIT_USER_INPUT
+} config_boot_mode_t;
+
+extern const char *const config_robot_name_by_id[CONFIG_ROBOT_ID_COUNT];
+extern const char *const config_boot_mode_by_id[CONFIG_BOOT_MODE_COUNT];
 
 typedef struct __attribute__((packed)) {
     bool is_configured;
@@ -48,6 +56,7 @@ typedef struct __attribute__((packed)) {
     uint32_t magic;
     uint32_t crc;
 
+    config_boot_mode_t boot_mode;
     config_robot_id_t robot_id;
     char robot_serial[CONFIG_ROBOT_SERIAL_NBYTES];  // To help user confirm board/robot match.
     char robot_name[CONFIG_ROBOT_NAME_NBYTES];  // Optional robot name for user.
@@ -62,6 +71,7 @@ bool config_write(void);
 bool config_check(void);
 bool config_modified(void);
 void config_clear(void);
+void config_set_boot_mode(config_boot_mode_t boot_mode);
 void config_set_robot_id(config_robot_id_t robot_id);
 void config_set_robot_serial(char robot_serial[CONFIG_ROBOT_SERIAL_NBYTES]);
 void config_set_robot_name(char robot_name[CONFIG_ROBOT_NAME_NBYTES]);

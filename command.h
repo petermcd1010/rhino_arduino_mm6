@@ -9,6 +9,7 @@
 // Returns number of bytes processed on success, or -1 on error.
 int command_print_config(char *args, size_t args_nbytes);
 int command_config_angle_offset(char *args, size_t args_nbytes);
+int command_config_boot_mode(char *args, size_t args_nbytes);
 int command_config_encoders_per_degree(char *args, size_t args_nbytes);
 int command_config_home_encoder(char *args, size_t args_nbytes);
 int command_config_invert_motor_orientation(char *args, size_t args_nbytes);

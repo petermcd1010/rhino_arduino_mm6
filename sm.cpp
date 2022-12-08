@@ -325,6 +325,10 @@ void sm_init(void)
         sm_set_next_state(sm_state_motors_off_enter);
     else
         sm_set_next_state(sm_state_error_enter);
+
+    if (config.boot_mode == CONFIG_BOOT_MODE_EXECUTE_WAYPOINT_SEQUENCE)
+        waypoint_run(0, -1);
+
     sm_execute();
 }
 

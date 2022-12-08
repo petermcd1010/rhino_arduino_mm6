@@ -23,7 +23,7 @@ static const char name_rotary[] PROGMEM = "Rhino rotary carousel";
 static const char name_tilt[] PROGMEM = "Rhino tilt carousel";
 static const char name_conveyor[] PROGMEM = "Rhino conveyor belt";
 
-const char * const config_robot_name_by_id[CONFIG_ROBOT_ID_COUNT] = {
+const char *const config_robot_name_by_id[CONFIG_ROBOT_ID_COUNT] = {
     name_not_configured,
     name_xr_1,
     name_xr_2,
@@ -35,6 +35,14 @@ const char * const config_robot_name_by_id[CONFIG_ROBOT_ID_COUNT] = {
     name_rotary,
     name_tilt,
     name_conveyor,
+};
+
+static const char boot_mode_wait_user_input[] PROGMEM = "Wait for user input";
+static const char boot_mode_execute_waypoint_sequence[] PROGMEM = "Execute waypoint sequence";
+
+const char *const config_boot_mode_by_id[CONFIG_BOOT_MODE_COUNT] = {
+    boot_mode_wait_user_input,
+    boot_mode_execute_waypoint_sequence,
 };
 
 static const int config_base_address = EEPROM.length() - sizeof(config_t);
@@ -122,6 +130,11 @@ bool config_check()
     // If there's an error in the contents, keep going, but return false.
     bool ret = true;
 
+    if ((config.boot_mode < 0) || (config.boot_mode >= CONFIG_BOOT_MODE_COUNT)) {
+        log_writeln(F("ERROR: config_check: Invalid bootmode %d."), config.boot_mode);
+        ret = false;
+    }
+
     if ((config.robot_id < 0) || (config.robot_id >= CONFIG_ROBOT_ID_COUNT)) {
         log_writeln(F("ERROR: config_check: Invalid robot ID %d."), config.robot_id);
         ret = false;
@@ -146,14 +159,12 @@ bool config_check()
             ret = false;
         }
 
-        if ((config.motor[i].orientation != MOTOR_ORIENTATION_NOT_INVERTED) &&
-            (config.motor[i].orientation != MOTOR_ORIENTATION_INVERTED)) {
+        if ((config.motor[i].orientation != MOTOR_ORIENTATION_NOT_INVERTED) && (config.motor[i].orientation != MOTOR_ORIENTATION_INVERTED)) {
             log_writeln(F("ERROR: config_check: Invalid motor orientation for motor %c."), 'A' + i);
             ret = false;
         }
 
-        if ((config.motor[i].forward_polarity != HIGH) &&
-            (config.motor[i].forward_polarity != LOW)) {
+        if ((config.motor[i].forward_polarity != HIGH) && (config.motor[i].forward_polarity != LOW)) {
             log_writeln(F("ERROR: config_check: Invalid motor polarity for motor %c."), 'A' + i);
             ret = false;
         }
@@ -176,8 +187,17 @@ void config_clear()
         config.motor[i].forward_polarity = LOW;  // Correctly-wired polarity is LOW.
         config.motor[i].min_encoder = INT_MIN;
         config.motor[i].max_encoder = INT_MAX;
-        config.motor[i].stall_current_threshold = 200;
+        config.motor[i].stall_current_threshold = 200;  // Determined empirically. Max is 255.
     }
+    config_sign();
+
+    modified = true;
+}
+
+void config_set_boot_mode(config_boot_mode_t boot_mode)
+{
+    assert(config_check());
+    config.boot_mode = boot_mode;
     config_sign();
 
     modified = true;
@@ -220,8 +240,7 @@ void config_set_robot_name(char robot_name[CONFIG_ROBOT_NAME_NBYTES])
 void config_set_motor_orientation(motor_id_t motor_id, motor_orientation_t motor_orientation)
 {
     assert(motor_id >= 0 && motor_id < MOTOR_ID_COUNT);
-    assert((motor_orientation == MOTOR_ORIENTATION_NOT_INVERTED) ||
-           (motor_orientation == MOTOR_ORIENTATION_INVERTED));
+    assert((motor_orientation == MOTOR_ORIENTATION_NOT_INVERTED) || (motor_orientation == MOTOR_ORIENTATION_INVERTED));
 
     assert(config_check());
     config.motor[motor_id].is_configured = true;
@@ -234,8 +253,7 @@ void config_set_motor_orientation(motor_id_t motor_id, motor_orientation_t motor
 void config_set_motor_forward_polarity(motor_id_t motor_id, int high_or_low)
 {
     assert(motor_id >= 0 && motor_id < MOTOR_ID_COUNT);
-    assert((high_or_low == HIGH) ||
-           (high_or_low == LOW));
+    assert((high_or_low == HIGH) || (high_or_low == LOW));
     assert(config_check());
 
     config.motor[motor_id].is_configured = true;
@@ -383,6 +401,9 @@ void config_print()
         log_writeln(F("Invalid configuration."));
 
     log_writeln(F("Configuration:"));
+    log_write(F("  Boot mode: "));
+    log_write((const __FlashStringHelper *)config_boot_mode_by_id[config.boot_mode]);
+    log_writeln(F("."));
     log_write(F("  Robot ID: "));
     log_write((const __FlashStringHelper *)config_robot_name_by_id[config.robot_id]);
     log_writeln(F("."));

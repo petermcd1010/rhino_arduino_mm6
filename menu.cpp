@@ -25,6 +25,19 @@ static void extended_menu_config_angle_offset(void)
     log_write(F(">"));
 }
 
+static void extended_menu_config_boot_mode(void)
+{
+    log_writeln();
+    log_write(F("Current boot mode: "));
+    log_write((const __FlashStringHelper *)config_boot_mode_by_id[config.boot_mode]);
+    log_writeln(F("."));
+    log_writeln(F("Available boot modes:"));
+    log_writeln(F("  W : Execute waypoint sequence."));
+    log_writeln(F("  U : Wait for user input."));
+    log_writeln(F("Select new boot mode, or press [RETURN] to keep current boot mode."));
+    log_write(F(">"));
+}
+
 static void extended_menu_config_encoders_per_degree(void)
 {
     // TODO: The values below are incomplete and wrong. Fix this.
@@ -234,6 +247,8 @@ static const char OM_0[] PROGMEM = "write configuration";
 static const char OH_0[] PROGMEM = "-- Write configuration data to EEPROM.";
 static const char OM_A[] PROGMEM = "set motor angle offset";
 static const char OH_A[] PROGMEM = "motorid angle -- Print or set configured angle offset from encdoer 0.";
+static const char OM_B[] PROGMEM = "set boot mode";
+static const char OH_B[] PROGMEM = "-- Set system boot mode.";
 static const char OM_C[] PROGMEM = "configure stall current threshold";
 static const char OH_C[] PROGMEM = "-- Print or set motor stall current threshold.";
 static const char OM_D[] PROGMEM = "configure robot ID";
@@ -259,6 +274,7 @@ const menu_item_t config_menu[] PROGMEM = {
     { '0', OM_0,    NULL,                                         NULL,      false, command_config_write,                    OH_0    },
     { '1', MM_1,    NULL,                                         NULL,      false, command_print_config,                    MH_1    },
     { 'A', OM_A,    extended_menu_config_angle_offset,            NULL,      true,  command_config_angle_offset,             OH_A    },
+    { 'B', OM_B,    extended_menu_config_boot_mode,               NULL,      true,  command_config_boot_mode,                OH_B    },
     { 'C', OM_C,    extended_menu_config_stall_current_threshold, NULL,      true,  command_config_stall_current_threshold,  OH_C    },
     { 'D', OM_D,    extended_menu_config_robot_id,                NULL,      true,  command_config_robot_id,                 OH_D    },
     { 'E', OM_E,    extended_menu_config_encoders_per_degree,     NULL,      true,  command_config_encoders_per_degree,      OH_E    },
