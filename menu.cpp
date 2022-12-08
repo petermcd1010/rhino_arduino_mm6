@@ -129,55 +129,43 @@ static void extended_menu_reboot(void)
     log_write(F(">"));
 }
 
+static void print_waypoint_options(bool print_step)
+{
+    char *s = print_step ? "step " : "";
+
+    log_writeln(F("  %sA <ENTER> -- Move motors to current positions."), s);
+    log_writeln(F("  %sB <ENTER> -- Move motors to within 1 encoder value of current positions."), s);
+    log_writeln(F("  %sC <ENTER> -- Move motors to within 30 encoder values of current positions."), s);
+    log_writeln(F("  %sD <ENTER> -- Move motors to within 200 encoder values current positions."), s);
+    log_writeln(F("  %sE [motorids] -- Enable selected motors. Disables all motors if none specified."), s);
+    log_writeln(F("  %sG step <ENTER> -- Goto step."), s);
+    log_writeln(F("  %sJ pin step <ENTER> -- If IO pin triggered, goto step."), s);
+    log_writeln(F("  %sK pin <ENTER> -- Wait for IO pin triggered."), s);
+    log_writeln(F("  %sL [motorids] <ENTER> -- Calibrate home switches and limits of motorids or enabled motors."), s);
+    log_writeln(F("  %sO [motorids] <ENTER> --  Calibrate home switches of motorids or enabled motors."), s);
+    log_writeln(F("  %sW milliseconds <ENTER> -- Wait milliseconds."), s);
+    log_write(F(">"));
+}
+
 static void extended_menu_append_waypoint(void)
 {
     log_writeln();
-    log_writeln(F("A <ENTER> -- Append waypoint to move motors to current positions."));
-    log_writeln(F("B <ENTER> -- Append waypoint to move motors to within 1 encoder value of current positions."));
-    log_writeln(F("C <ENTER> -- Append waypoint to move motors to within 30 encoder values of current positions."));
-    log_writeln(F("D <ENTER> -- Append waypoint to move motors to within 200 encoder values current positions."));
-    log_writeln(F("E [motorids] -- Append waypoint to enable motors. Disables all motors if none specified."));
-    log_writeln(F("G step <ENTER> -- Append waypoint to goto step."));
-    log_writeln(F("J pin step <ENTER> -- Append waypoint so if IO pin triggered, goto step."));
-    log_writeln(F("K pin <ENTER> -- Append waypoint to wait for IO pin triggered."));
-    log_writeln(F("L [motorids] <ENTER> -- Append waypoint to calibrate home switches and limits of motorids or enabled motors."));
-    log_writeln(F("O [motorids] <ENTER> --  Append waypoint to calibrate home switches of motorids or enabled motors."));
-    log_writeln(F("W milliseconds <ENTER> -- Append waypoint to wait milliseconds."));
-    log_write(F(">"));
+    log_writeln(F("Append:"));
+    print_waypoint_options(false);
 }
 
 static void extended_menu_insert_waypoint(void)
 {
     log_writeln();
-    log_writeln(F("step A <ENTER> -- Insert waypoint before step to move motors to current positions."));
-    log_writeln(F("step B <ENTER> -- Insert waypoint before step to move motors to within 1 encoder value of current positions."));
-    log_writeln(F("step C <ENTER> -- Insert waypoint before step to move motors to within 30 encoder values of current positions."));
-    log_writeln(F("step D <ENTER> -- Insert waypoint before step to move motors to within 200 encoder values current positions."));
-    log_writeln(F("step E [motorids] -- Insert waypoint before step to enable motors. Disables all motors if none specified."));
-    log_writeln(F("step G step <ENTER> -- Insert waypoint before step to goto step."));
-    log_writeln(F("step J pin step <ENTER> -- Insert waypoint before step so if IO pin triggered, goto step."));
-    log_writeln(F("step K pin <ENTER> -- Insert waypoint before step to wait for IO pin triggered."));
-    log_writeln(F("step L [motorids] <ENTER> -- Insert waypoint before step to calibrate home switches and limits of motorids or enabled motors."));
-    log_writeln(F("step O [motorids] <ENTER> -- Insert waypoint before step to calibrate home switches of motorids or enabled motors."));
-    log_writeln(F("step W milliseconds <ENTER> -- Insert waypoint before step to wait milliseconds."));
-    log_write(F(">"));
+    log_writeln(F("Insert before step:"));
+    print_waypoint_options(true);
 }
 
 static void extended_menu_set_waypoint(void)
 {
     log_writeln();
-    log_writeln(F("step A <ENTER> -- Set waypoint step to move motors to exactly current positions."));
-    log_writeln(F("step B <ENTER> -- Set waypoint step to move motors to within 1 encoder value of current positions."));
-    log_writeln(F("step C <ENTER> -- Set waypoint step to move motors to within 30 encoder values of current positions."));
-    log_writeln(F("step D <ENTER> -- Set waypoint step to move motors to within 200 encoder values current positions."));
-    log_writeln(F("step E [motorids] -- Enable motors. Disables all motors if none specified."));
-    log_writeln(F("step G step <ENTER> -- Set waypoint step to goto step."));
-    log_writeln(F("step J pin step <ENTER> -- Set waypoint step so if IO pin triggered, goto step."));
-    log_writeln(F("step K pin <ENTER> -- Set waypoint step to wait for IO pin triggered."));
-    log_writeln(F("step L [motorids] <ENTER> -- Set waypoint step to calibrate home switches and limits of motorids or enabled motors."));
-    log_writeln(F("step O [motorids] <ENTER> -- Set waypoint step to calibrate home switches of motorids or enabled motors."));
-    log_writeln(F("step W milliseconds <ENTER> -- Set waypoint step to wait milliseconds."));
-    log_write(F(">"));
+    log_writeln(F("Set step:"));
+    print_waypoint_options(true);
 }
 
 // These strings are defined outside of the menu below, so they can be stored in flash with PROGMEM.

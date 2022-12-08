@@ -41,10 +41,7 @@ int waypoint_get_max_count(void)
     int nbytes = 0;
 
     config_get_waypoint_eeprom_region(&start_address, &nbytes);
-
-    static const int max_num_waypoints = nbytes / sizeof(waypoint_t);
-
-    return max_num_waypoints;
+    return nbytes / sizeof(waypoint_t);
 }
 
 int waypoint_get_used_count(void)
@@ -139,17 +136,18 @@ void waypoint_insert_before(int index, waypoint_t waypoint)
     }
 }
 
-void waypoint_append(waypoint_t waypoint)
+int waypoint_append(waypoint_t waypoint)
 {
-    int last_index = -1;
+    int index = 0;
 
     for (int i = 0; i < waypoint_get_max_count(); i++) {
         waypoint_t waypoint2 = waypoint_get(i);
         if (waypoint2.command != -1)
-            last_index = i;
+            index = i + 1;
     }
 
-    waypoint_set(last_index + 1, waypoint);
+    waypoint_set(index, waypoint);
+    return index;
 }
 
 void waypoint_delete(int index)
@@ -192,17 +190,17 @@ void waypoint_print(int index)
     log_write(F("%d: "), index);
 
     switch (waypoint.command) {
-    case WAYPOINT_COMMAND_MOVE_AT:     // Fallthrough.
+    case WAYPOINT_COMMAND_MOVE_AT:
         print_move("to", waypoint);
         break;
-    case WAYPOINT_COMMAND_MOVE_BESIDE:     // Fallthough.
-        print_move("beside", waypoint);
+    case WAYPOINT_COMMAND_MOVE_BESIDE:
+        print_move("within 1 encoder of", waypoint);
         break;
-    case WAYPOINT_COMMAND_MOVE_CLOSE:     // Fallthrough.
-        print_move("close to", waypoint);
+    case WAYPOINT_COMMAND_MOVE_CLOSE:
+        print_move("within 32 encoders of", waypoint);
         break;
     case WAYPOINT_COMMAND_MOVE_APPROACHING:
-        print_move("approaching", waypoint);
+        print_move("within 200 encoders of", waypoint);
         break;
     case WAYPOINT_COMMAND_SET_ENABLED_MOTORS:
         if (waypoint.enabled_motors_mask == 0) {

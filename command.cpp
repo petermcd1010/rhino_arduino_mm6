@@ -1218,7 +1218,6 @@ int command_waypoint_append(char *args, size_t args_nbytes)
     assert(args);
 
     char *p = args;
-    int step = -1;
     waypoint_t waypoint = { 0 };
 
     size_t nbytes = parse_waypoint(p, args_nbytes, &waypoint);
@@ -1229,7 +1228,13 @@ int command_waypoint_append(char *args, size_t args_nbytes)
         return -1;                     // Extraneous input.
 
     log_writeln(F("Appending waypoint to end of list."));
-    waypoint_append(waypoint);
+    int step = waypoint_append(waypoint);
+
+    if (step < 0) {
+        log_writeln(F("ERROR: Waypoint append failed."));
+        return -1;
+    }
+
     waypoint_print(step);
 
     return nbytes;

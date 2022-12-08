@@ -39,7 +39,7 @@ int waypoint_get_used_count(void);
 waypoint_t waypoint_get(int index);
 void waypoint_set(int index, waypoint_t waypoint);
 void waypoint_insert_before(int index, waypoint_t waypoint);
-void waypoint_append(waypoint_t waypoint);
+int waypoint_append(waypoint_t waypoint);  // Returns index that contains waypoint.
 void waypoint_delete(int index);
 void waypoint_print(int index);
 void waypoint_print_all_used(void);
