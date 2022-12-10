@@ -13,8 +13,8 @@ typedef enum {
     WAYPOINT_COMMAND_MOVE_APPROACHING                   = 'D',
     WAYPOINT_COMMAND_SET_ENABLED_MOTORS                 = 'E',
     WAYPOINT_COMMAND_GOTO_STEP                          = 'G',
-    WAYPOINT_COMMAND_IF_IO_PIN_GOTO_STEP                = 'J',
-    WAYPOINT_COMMAND_WAIT_IO_PIN                        = 'K',
+    WAYPOINT_COMMAND_IF_GPIO_PIN_GOTO_STEP              = 'J',
+    WAYPOINT_COMMAND_WAIT_GPIO_PIN                      = 'K',
     WAYPOINT_COMMAND_CALIBRATE_HOME_SWITCHES_AND_LIMITS = 'L',
     WAYPOINT_COMMAND_CALIBRATE_HOME_SWITCHES            = 'O',
     WAYPOINT_COMMAND_WAIT_MILLIS                        = 'W',
@@ -26,7 +26,7 @@ typedef struct __attribute__((packed)) {
     union {
         int           enabled_motors_mask; // Mask of motors to enable.
         struct {
-            int pin;  // Pin to potentially check or wait for trigger.
+            int gpio_pin;  // GPIO pin to potentially set, check, or wait for trigger.
             int step;  // Step to potentially goto.
         } io_goto;
         unsigned long wait_millis;  // For wait command.

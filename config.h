@@ -5,6 +5,7 @@
  */
 
 #include <Arduino.h>
+#include "hardware.h"
 #include "motor.h"
 
 #define CONFIG_ROBOT_SERIAL_NBYTES 15
@@ -56,6 +57,7 @@ typedef struct __attribute__((packed)) {
     uint32_t magic;
     uint32_t crc;
 
+    hardware_gpio_pin_mode_t gpio_pin_mode[HARDWARE_GPIO_PIN_COUNT];
     config_boot_mode_t boot_mode;
     config_robot_id_t robot_id;
     char robot_serial[CONFIG_ROBOT_SERIAL_NBYTES];  // To help user confirm board/robot match.
@@ -65,12 +67,14 @@ typedef struct __attribute__((packed)) {
 
 extern config_t config;
 
+void config_print_one_gpio_pin_config(hardware_gpio_pin_t gpio_pin);
 void config_get_waypoint_eeprom_region(int *base_address, int *nbytes);
 bool config_read(void);
 bool config_write(void);
 bool config_check(void);
 bool config_modified(void);
 void config_clear(void);
+void config_init_gpio_pins();
 void config_set_boot_mode(config_boot_mode_t boot_mode);
 void config_set_robot_id(config_robot_id_t robot_id);
 void config_set_robot_serial(char robot_serial[CONFIG_ROBOT_SERIAL_NBYTES]);
@@ -86,6 +90,7 @@ int config_motor_angle_to_encoders(motor_id_t motor_id, float angle);
 float config_motor_encoders_to_angle(motor_id_t motor_id, int encoders);
 void config_set_motor_gripper_close_encoder(motor_id_t motor_id, int gripper_close_encoder);
 void config_set_motor_stall_current_threshold(motor_id_t motor_id, int stall_current_threshold);
+void config_set_gpio_pin_mode(hardware_gpio_pin_t gpio_pin, hardware_gpio_pin_mode_t gpio_mode);
 void config_print_one(motor_id_t motor_id);
 void config_print(void);
 bool config_test(void);

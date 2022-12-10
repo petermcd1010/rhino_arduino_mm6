@@ -194,6 +194,47 @@ void config_clear()
     modified = true;
 }
 
+void config_print_one_gpio_pin_config(hardware_gpio_pin_t gpio_pin)
+{
+    assert(gpio_pin >= 0 && gpio_pin < HARDWARE_GPIO_PIN_COUNT);
+
+    log_write(F("%d : "), gpio_pin);
+    log_write((const __FlashStringHelper *)hardware_gpio_pin_name_by_index[gpio_pin]);
+    log_write(F(" -- "));
+    if (config.gpio_pin_mode[gpio_pin] == HARDWARE_GPIO_PIN_MODE_INPUT)
+        log_writeln(F("input."));
+    else if (config.gpio_pin_mode[gpio_pin] == HARDWARE_GPIO_PIN_MODE_INPUT_PULLUP)
+        log_writeln(F("input with pull-up resistor (high impedence)."));
+    else if (config.gpio_pin_mode[gpio_pin] == HARDWARE_GPIO_PIN_MODE_OUTPUT)
+        log_writeln(F("output."));
+}
+
+void config_init_gpio_pins()
+{
+    bool all_default = true;
+
+    for (int i = 0; i < HARDWARE_GPIO_PIN_COUNT; i++) {
+        if (config.gpio_pin_mode[i] != HARDWARE_GPIO_PIN_MODE_DEFAULT)
+            all_default = false;
+    }
+
+    if (all_default) {
+        log_writeln(F("GPIO header pins all configured as power-up default (input)."));
+        return;
+    }
+
+    log_writeln(F("Configuring GPIO pins as non-default (i.e. non-input):"));
+    for (int i = 0; i < HARDWARE_GPIO_PIN_COUNT; i++) {
+        if (config.gpio_pin_mode[i] == HARDWARE_GPIO_PIN_MODE_INPUT)
+            // As a precaution against misconfigurations, only change mode if it's not the power-on default.
+            continue;
+
+        log_write(F("  "));
+        config_print_one_gpio_pin_config(i);
+        hardware_set_gpio_pin_mode(i, config.gpio_pin_mode[i]);
+    }
+}
+
 void config_set_boot_mode(config_boot_mode_t boot_mode)
 {
     assert(config_check());
@@ -342,7 +383,19 @@ void config_set_motor_gripper_close_encoder(motor_id_t motor_id, int gripper_clo
 void config_set_motor_stall_current_threshold(motor_id_t motor_id, int stall_current_threshold)
 {
     assert(motor_id >= 0 && motor_id < MOTOR_ID_COUNT);
+
     config.motor[motor_id].stall_current_threshold = stall_current_threshold;
+    config_sign();
+
+    modified = true;
+}
+
+void config_set_gpio_pin_mode(hardware_gpio_pin_t gpio_pin, hardware_gpio_pin_mode_t gpio_mode)
+{
+    assert(gpio_pin >= 0 && gpio_pin < HARDWARE_GPIO_PIN_COUNT);
+
+    config.gpio_pin_mode[gpio_pin] = gpio_mode;
+    hardware_set_gpio_pin_mode(gpio_pin, gpio_mode);
     config_sign();
 
     modified = true;
@@ -404,6 +457,11 @@ void config_print()
     log_write(F("  Boot mode: "));
     log_write((const __FlashStringHelper *)config_boot_mode_by_id[config.boot_mode]);
     log_writeln(F("."));
+    log_writeln(F("  GPIO pins:"));
+    for (int i = 0; i < HARDWARE_GPIO_PIN_COUNT; i++) {
+        log_write(F("    "));
+        config_print_one_gpio_pin_config(i);
+    }
     log_write(F("  Robot ID: "));
     log_write((const __FlashStringHelper *)config_robot_name_by_id[config.robot_id]);
     log_writeln(F("."));

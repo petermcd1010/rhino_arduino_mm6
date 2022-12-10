@@ -35,6 +35,8 @@ size_t parse_bool(char *buf, size_t buf_nbytes, bool *out_bool)
         "false",
         "1",
         "0",
+        "high",
+        "low"
     };
 
 #define BOOL_STRINGS_COUNT sizeof(bool_strings) / sizeof(bool_strings[0])
@@ -458,7 +460,7 @@ size_t parse_waypoint(char *buf, size_t buf_nbytes, waypoint_t *out_waypoint)
     char *command_table[] = { "A", "B", "C", "D", "E", "G", "J", "K", "L", "O", "W" };
     const int command_table_nentries = 11;
     int goto_step = -1;
-    int io_pin = -1;
+    int gpio_pin = -1;
     long int millis = -1;
     int enabled_motors_mask = -1;
 
@@ -532,7 +534,7 @@ size_t parse_waypoint(char *buf, size_t buf_nbytes, waypoint_t *out_waypoint)
         out_waypoint->io_goto.step = goto_step;
         break;
     case 'J':  // Set waypoint step so if IO pin triggered, goto step.
-        nbytes = parse_int(p, buf_nbytes, &io_pin);
+        nbytes = parse_int(p, buf_nbytes, &gpio_pin);
         if (nbytes == 0)
             goto error;
         buf_nbytes -= nbytes;
@@ -549,20 +551,20 @@ size_t parse_waypoint(char *buf, size_t buf_nbytes, waypoint_t *out_waypoint)
             log_writeln(F("ERROR: Goto index greater than max index %d."), waypoint_get_max_count());
             goto error;
         }
-        out_waypoint->command = WAYPOINT_COMMAND_IF_IO_PIN_GOTO_STEP;
-        out_waypoint->io_goto.pin = io_pin;
+        out_waypoint->command = WAYPOINT_COMMAND_IF_GPIO_PIN_GOTO_STEP;
+        out_waypoint->io_goto.gpio_pin = gpio_pin;
         out_waypoint->io_goto.step = goto_step;
         break;
     case 'K':  // Set waypoint step to wait for IO pin triggered.
-        nbytes = parse_int(p, buf_nbytes, &io_pin);
+        nbytes = parse_int(p, buf_nbytes, &gpio_pin);
         if (nbytes == 0)
             goto error;
         buf_nbytes -= nbytes;
         p += nbytes;
         if (buf_nbytes != 0)
             goto error;
-        out_waypoint->command = WAYPOINT_COMMAND_WAIT_IO_PIN;
-        out_waypoint->io_goto.pin = io_pin;
+        out_waypoint->command = WAYPOINT_COMMAND_WAIT_GPIO_PIN;
+        out_waypoint->io_goto.gpio_pin = gpio_pin;
         break;
     case 'L':  // Se twaypoint step to calibrate home switches and limits.
         nbytes = parse_motor_ids(p, buf_nbytes, &enabled_motors_mask);

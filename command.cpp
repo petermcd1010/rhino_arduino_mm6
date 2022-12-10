@@ -87,7 +87,7 @@ int command_config_boot_mode(char *args, size_t args_nbytes)
 
     char *command_table[] = { "U", "W" };
     const int command_table_nentries = 2;
-    int boot_mode = 0;
+    int boot_mode = -1;
 
     nbytes = parse_string_in_table(p, 1, command_table, command_table_nentries, &boot_mode);
     args_nbytes -= nbytes;
@@ -136,6 +136,65 @@ int command_config_encoders_per_degree(char *args, size_t args_nbytes)
 
     config_set_motor_encoders_per_degree(motor_id, encoders_per_degree);
     config_print_one(motor_id);
+
+    return p - args;
+}
+
+int command_config_gpio_pin_mode(char *args, size_t args_nbytes)
+{
+    assert(args);
+
+    int gpio_pin = 0;
+    bool cancel = false;
+    char *p = args;
+    hardware_gpio_pin_mode_t gpio_mode = -1;
+
+    // Read.
+
+    size_t nbytes = parse_int(p, args_nbytes, &gpio_pin);
+
+    if (nbytes <= 0)
+        return -1;
+    p += nbytes;
+    args_nbytes -= nbytes;
+
+    char *command_table[] = { "i", "z", "o" };
+    const int command_table_nentries = 3;
+
+    nbytes = parse_string_in_table(p, 1, command_table, command_table_nentries, (int *)&gpio_mode);
+    if (gpio_mode == -1) {
+        log_writeln(F("Invalid gpio mode. Mode should be 'i', 'z', or 'o'."));
+        cancel = true;
+    }
+
+    args_nbytes -= nbytes;
+    p += nbytes;
+
+    nbytes = parse_whitespace(p, args_nbytes);
+    args_nbytes -= nbytes;
+    p += nbytes;
+
+    if (args_nbytes > 0)
+        return -1;                     // Extraneous input.
+
+    // Validate.
+
+    if ((gpio_pin < 0) || (gpio_pin >= HARDWARE_GPIO_PIN_COUNT)) {
+        log_writeln(F("Invalid gpio pin number %d. Pin number should be in the range [0, %d]."), gpio_pin, HARDWARE_GPIO_PIN_COUNT - 1);
+        cancel = true;
+    }
+
+    if (cancel) {
+        log_writeln(F("Canceling."));
+        return p - args;
+    }
+
+    // Execute.
+
+    config_set_gpio_pin_mode(gpio_pin, gpio_mode);
+    log_writeln(F("GPIO pin configuration:"));
+    log_write(F("  "));
+    config_print_one_gpio_pin_config(gpio_pin);
 
     return p - args;
 }
@@ -410,7 +469,7 @@ int command_reboot(char *args, size_t args_nbytes)
     assert(args);
 
     int entry_num = -1;
-    char *reboot_table[] = { "REBOOT" };
+    char *reboot_table[] = { "reboot" };
 
     size_t nbytes = parse_string_in_table(args, args_nbytes, reboot_table, 1, &entry_num);
 
@@ -942,9 +1001,60 @@ int command_set_motor_percent(char *args, size_t args_nbytes)
     return p - args;
 }
 
-static void poll_pins_break_handler(void)
+int command_set_gpio_pin_output(char *args, size_t args_nbytes)
 {
-    log_writeln(F("Break detected. Stopping polling of header pins."));
+    assert(args);
+
+    int gpio_pin = 0;
+    bool is_high = false;
+    bool cancel = false;
+    char *p = args;
+
+    // Read.
+
+    size_t nbytes = parse_int(p, args_nbytes, &gpio_pin);
+
+    if (nbytes <= 0)
+        return -1;
+    p += nbytes;
+    args_nbytes -= nbytes;
+
+    nbytes = parse_bool(p, args_nbytes, &is_high);
+    if (nbytes <= 0)
+        return -1;
+    p += nbytes;
+    args_nbytes -= nbytes;
+
+    if (args_nbytes > 0)
+        return -1;                     // Extraneous input.
+
+    // Validate.
+
+    if ((gpio_pin < 0) || (gpio_pin >= HARDWARE_GPIO_PIN_COUNT)) {
+        log_writeln(F("Invalid gpio pin number %d. Pin number should be in the range [0, %d]."), gpio_pin, HARDWARE_GPIO_PIN_COUNT - 1);
+        cancel = true;
+    }
+
+    if (hardware_get_gpio_pin_mode(gpio_pin) != HARDWARE_GPIO_PIN_MODE_OUTPUT) {
+        log_writeln(F("GPIO pin %d is not configured for output."), gpio_pin);
+        cancel = true;
+    }
+
+    if (cancel) {
+        log_writeln(F("Canceling."));
+        return p - args;
+    }
+
+    // Execute.
+
+    hardware_set_gpio_pin_output(gpio_pin, is_high);
+
+    return p - args;
+}
+
+static void poll_gpio_pins_break_handler(void)
+{
+    log_writeln(F("Break detected. Stopping polling of gpio pins."));
 
     sm_set_next_state(exit_to_state);
 
@@ -953,20 +1063,21 @@ static void poll_pins_break_handler(void)
     }
 }
 
-static void poll_pins(void)
+static void poll_gpio_inputs(void)
 {
-    int npins = hardware_get_num_header_pins();
+    for (int i = 0; i < HARDWARE_GPIO_PIN_COUNT; i++) {
+        if (hardware_get_gpio_pin_mode(i) == HARDWARE_GPIO_PIN_MODE_OUTPUT)
+            continue;
 
-    for (int i = 0; i < npins; i++) {
-        bool val = hardware_get_header_pin_pressed(i);
+        bool val = hardware_get_gpio_pin_pressed(i);
         if (val != poll_pins_prev_val[i]) {
             poll_pins_prev_val[i] = val;
-            log_writeln(F("Pin index %d is %s"), i, val ? "button pressed" : "button not pressed");
+            log_writeln(F("GPIO index %d is %s"), i, val ? "button pressed" : "button not pressed");
         }
     }
 }
 
-int command_poll_pins(char *args, size_t args_nbytes)
+int command_poll_gpio_pin_inputs(char *args, size_t args_nbytes)
 {
     assert(args);
 
@@ -980,8 +1091,8 @@ int command_poll_pins(char *args, size_t args_nbytes)
 
     exit_to_state = sm_get_state();
 
-    static const char state_poll_pins_name[] PROGMEM = "poll pins";
-    const sm_state_t s = { .run = poll_pins, .break_handler = poll_pins_break_handler, .process_break_only = true, .name = state_poll_pins_name };
+    static const char state_poll_gpio_name[] PROGMEM = "poll gpio";
+    const sm_state_t s = { .run = poll_gpio_inputs, .break_handler = poll_gpio_pins_break_handler, .process_break_only = true, .name = state_poll_gpio_name };
 
     sm_set_next_state(s);
 
@@ -1326,7 +1437,7 @@ int command_factory_reset(char *args, size_t args_nbytes)
     char *p = args;
 
     int entry_num = -1;
-    char *reset_table[] = { "RESET" };
+    char *reset_table[] = { "reset" };
 
     size_t nbytes = parse_string_in_table(args, args_nbytes, reset_table, 1, &entry_num);
 

@@ -115,7 +115,7 @@ void waypoint_insert_before(int index, waypoint_t waypoint)
     for (int i = waypoint_get_max_count() - 2; i >= index; i--) {
         waypoint_t copy = waypoint_get(i);
         if (((copy.command == WAYPOINT_COMMAND_GOTO_STEP) ||
-             (copy.command == WAYPOINT_COMMAND_IF_IO_PIN_GOTO_STEP)) &&
+             (copy.command == WAYPOINT_COMMAND_IF_GPIO_PIN_GOTO_STEP)) &&
             copy.io_goto.step >= index)
             copy.io_goto.step++;
         waypoint_set(i + 1, copy);
@@ -128,7 +128,7 @@ void waypoint_insert_before(int index, waypoint_t waypoint)
     for (int i = index; i >= 0; i--) {
         waypoint_t copy = waypoint_get(i);
         if (((copy.command == WAYPOINT_COMMAND_GOTO_STEP) ||
-             (copy.command == WAYPOINT_COMMAND_IF_IO_PIN_GOTO_STEP)) &&
+             (copy.command == WAYPOINT_COMMAND_IF_GPIO_PIN_GOTO_STEP)) &&
             copy.io_goto.step >= index) {
             copy.io_goto.step++;
             waypoint_set(i, copy);
@@ -215,14 +215,14 @@ void waypoint_print(int index)
         log_writeln(F("Goto %d."),
                     waypoint.io_goto.step);
         break;
-    case WAYPOINT_COMMAND_IF_IO_PIN_GOTO_STEP:
-        log_writeln(F("If I/O pin %d then goto %d."),
-                    waypoint.io_goto.pin,
+    case WAYPOINT_COMMAND_IF_GPIO_PIN_GOTO_STEP:
+        log_writeln(F("If GPIO pin %d then goto %d."),
+                    waypoint.io_goto.gpio_pin,
                     waypoint.io_goto.step);
         break;
-    case WAYPOINT_COMMAND_WAIT_IO_PIN:
-        log_writeln(F("Wait I/O pin %d."),
-                    waypoint.io_goto.pin);
+    case WAYPOINT_COMMAND_WAIT_GPIO_PIN:
+        log_writeln(F("Wait GPIO pin %d."),
+                    waypoint.io_goto.gpio_pin);
         break;
     case WAYPOINT_COMMAND_CALIBRATE_HOME_SWITCHES_AND_LIMITS:
         if (waypoint.enabled_motors_mask == 0) {
@@ -393,15 +393,15 @@ static void run(void)
         motor_set_enabled_mask(waypoint.enabled_motors_mask);
         current_index++;
         break;
-    case WAYPOINT_COMMAND_IF_IO_PIN_GOTO_STEP:
-        if (hardware_get_header_pin_pressed(waypoint.io_goto.pin)) {
-            log_writeln(F("I/O pin %d triggered."), waypoint.io_goto.pin);
+    case WAYPOINT_COMMAND_IF_GPIO_PIN_GOTO_STEP:
+        if (hardware_get_gpio_pin_pressed(waypoint.io_goto.gpio_pin)) {
+            log_writeln(F("GPIO pin %d triggered."), waypoint.io_goto.gpio_pin);
             current_index = waypoint.io_goto.step;
         }
         break;
-    case WAYPOINT_COMMAND_WAIT_IO_PIN:
-        if (hardware_get_header_pin_pressed(waypoint.io_goto.pin)) {
-            log_writeln(F("Pin %d triggered."), waypoint.io_goto.pin);
+    case WAYPOINT_COMMAND_WAIT_GPIO_PIN:
+        if (hardware_get_gpio_pin_pressed(waypoint.io_goto.gpio_pin)) {
+            log_writeln(F("GPIO pin %d triggered."), waypoint.io_goto.gpio_pin);
             current_index++;
         }
         break;

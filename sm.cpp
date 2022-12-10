@@ -308,6 +308,8 @@ void sm_init(void)
         log_writeln(F("'."));
     }
 
+    config_init_gpio_pins();
+
     bool self_test_success = run_self_test();
 
     if (self_test_success) {
