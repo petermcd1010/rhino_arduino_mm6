@@ -195,6 +195,7 @@ int command_config_gpio_pin_mode(char *args, size_t args_nbytes)
     log_writeln(F("GPIO pin configuration:"));
     log_write(F("  "));
     config_print_one_gpio_pin_config(gpio_pin);
+    log_writeln();
 
     return p - args;
 }

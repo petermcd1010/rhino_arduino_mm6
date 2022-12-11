@@ -143,19 +143,15 @@ static void extended_menu_reboot(void)
     log_write(F(">"));
 }
 
-static void print_gpio_pin_config(void)
+static void extended_menu_config_gpio_pin(void)
 {
+    log_writeln();
     log_writeln(F("Current GPIO configuration and values:"));
     for (int i = 0; i < HARDWARE_GPIO_PIN_COUNT; i++) {
         log_write(F("  "));
         config_print_one_gpio_pin_config(i);
+        log_writeln();
     }
-}
-
-static void extended_menu_config_gpio_pin(void)
-{
-    log_writeln();
-    print_gpio_pin_config();
     log_writeln();
     log_writeln(F("Enter the pin number followed by 'i' for input, 'z' for input with a pull-up resistor, or 'o' for output."));
     log_writeln();
@@ -168,11 +164,36 @@ static void extended_menu_config_gpio_pin(void)
 
 static void extended_menu_set_gpio_pin_output(void)
 {
+    bool all_input = true;
+
+    int first_output_pin = -1;
+    for (int i = 0; i < HARDWARE_GPIO_PIN_COUNT; i++) {
+        if (hardware_get_gpio_pin_mode(i) == HARDWARE_GPIO_PIN_MODE_OUTPUT) {
+            all_input = false;
+            first_output_pin = i;
+        }
+    }
+
     log_writeln();
-    print_gpio_pin_config();
-    log_writeln(F("Examples:"));
-    log_writeln(F("  4 true -- sets GPIO pin 4 output high/1/true if configured for output."));
-    log_writeln(F("  4 0 -- sets GPIO pin 4 as low/0/false if configured for output."));
+
+    if (all_input) {
+        log_writeln(F("There are no GPIO pins configured for output. Configure pins in the configuration menu."));
+    } else {
+        log_writeln(F("Current output GPIO pins and values:"));
+        for (int i = 0; i < HARDWARE_GPIO_PIN_COUNT; i++) {
+            if (hardware_get_gpio_pin_mode(i) != HARDWARE_GPIO_PIN_MODE_OUTPUT)
+                continue;
+            log_write(F("  "));
+            config_print_one_gpio_pin_config(i);
+            if (hardware_read_gpio_pin(i))
+                log_writeln(F(" GPIO pin presently set to 1/high."));
+            else
+                log_writeln(F(" GPIO pin presently set to 0/low."));
+        }
+        log_writeln(F("Examples:"));
+        log_writeln(F("  %d high -- sets GPIO pin 4 output 1/high."), first_output_pin);
+        log_writeln(F("  %d 0 -- sets GPIO pin 4 as 0/low."), first_output_pin);
+    }
     log_write(F(">"));
 }
 
