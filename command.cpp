@@ -62,7 +62,7 @@ int command_config_angle_offset(char *args, size_t args_nbytes)
         return -1;                     // Extraneous input.
 
     config_set_motor_angle_offset(motor_id, angle_offset);
-    config_print_one(motor_id);
+    config_print_one_motor(motor_id);
 
     return p - args;
 }
@@ -135,7 +135,7 @@ int command_config_encoders_per_degree(char *args, size_t args_nbytes)
         return -1;                     // Extraneous input.
 
     config_set_motor_encoders_per_degree(motor_id, encoders_per_degree);
-    config_print_one(motor_id);
+    config_print_one_motor(motor_id);
 
     return p - args;
 }
@@ -226,7 +226,7 @@ int command_config_home_encoder(char *args, size_t args_nbytes)
 
     config_set_motor_home_encoder(motor_id, encoder);
     motor_set_home_encoder(motor_id, encoder);
-    config_print_one(motor_id);
+    config_print_one_motor(motor_id);
 
     return p - args;
 }
@@ -251,7 +251,7 @@ int command_config_invert_motor_orientation(char *args, size_t args_nbytes)
                 'A' + motor_id, config.motor[motor_id].orientation == MOTOR_ORIENTATION_INVERTED ? "not " : "");
 
     config_set_motor_orientation(motor_id, (motor_orientation_t)(config.motor[motor_id].orientation * -1));
-    config_print_one(motor_id);
+    config_print_one_motor(motor_id);
 
     return p - args;
 }
@@ -288,7 +288,7 @@ int command_config_min_max_encoders(char *args, size_t args_nbytes)
         return -1;                     // Extraneous input.
 
     config_set_motor_min_max_encoders(motor_id, min_encoder, max_encoder);
-    config_print_one(motor_id);
+    config_print_one_motor(motor_id);
 
     return p - args;
 }
@@ -445,7 +445,7 @@ int command_config_stall_current_threshold(char *args, size_t args_nbytes)
     log_writeln(F("Setting motor %c stall current threshold to %d."), 'A' + motor_id, stall_current_threshold);
 
     config_set_motor_stall_current_threshold(motor_id, stall_current_threshold);
-    config_print_one(motor_id);
+    config_print_one_motor(motor_id);
 
     return p - args;
 }

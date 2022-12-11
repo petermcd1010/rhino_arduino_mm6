@@ -573,7 +573,7 @@ static void print_summary(void)
             if ((passing_motor_ids_mask & (1 << motor_id)) == 0)
                 log_writeln(F("  Motor %c: ** FAILED **"), 'A' + motor_id);
             else
-                config_print_one(motor_id);
+                config_print_one_motor(motor_id);
         }
     }
 }

@@ -91,6 +91,6 @@ float config_motor_encoders_to_angle(motor_id_t motor_id, int encoders);
 void config_set_motor_gripper_close_encoder(motor_id_t motor_id, int gripper_close_encoder);
 void config_set_motor_stall_current_threshold(motor_id_t motor_id, int stall_current_threshold);
 void config_set_gpio_pin_mode(hardware_gpio_pin_t gpio_pin, hardware_gpio_pin_mode_t gpio_mode);
-void config_print_one(motor_id_t motor_id);
+void config_print_one_motor(motor_id_t motor_id);
 void config_print(void);
 bool config_test(void);
