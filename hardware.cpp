@@ -69,27 +69,27 @@ void hardware_halt(void)
     log_writeln(F("\nHardware halted. Press reset button to reboot."));
     log_flush();
     set_sleep_mode(SLEEP_MODE_PWR_DOWN);
-    cli();  // Disable interrupts
+    cli(); // Disable interrupts
     sleep_mode();
 }
 
 void hardware_reboot(void)
 {
-    static void (*hardware_really_reboot)(void) = 0;  // Call hardware_really_reboot() to reset the board.
+    static void (*hardware_really_reboot)(void) = 0; // Call hardware_really_reboot() to reset the board.
 
     motor_disable_all();
-    delay(1000);  // Wait 1s for log output to complete writing.
+    delay(1000); // Wait 1s for log output to complete writing.
     hardware_really_reboot();
 }
 
 bool hardware_get_led_enabled(void)
 {
-    return digitalRead(OPRLED) == 0;  // LED is active low.
+    return digitalRead(OPRLED) == 0; // LED is active low.
 }
 
 void hardware_set_led_enabled(bool enabled)
 {
-    digitalWrite(OPRLED, !enabled);  // LED is active low.
+    digitalWrite(OPRLED, !enabled); // LED is active low.
 }
 
 bool hardware_get_speaker_enabled(void)
@@ -150,7 +150,6 @@ void hardware_set_gpio_pin_output(hardware_gpio_pin_t gpio_pin, bool is_high)
 bool hardware_read_gpio_pin(hardware_gpio_pin_t gpio_pin)
 {
     assert(gpio_pin >= 0 && gpio_pin < HARDWARE_GPIO_PIN_COUNT);
-    assert(hardware_get_gpio_pin_mode(gpio_pin) != HARDWARE_GPIO_PIN_MODE_OUTPUT);
 
     return digitalRead(arduino_pin_by_index[gpio_pin]);
 }

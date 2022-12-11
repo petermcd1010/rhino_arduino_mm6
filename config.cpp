@@ -202,11 +202,11 @@ void config_print_one_gpio_pin_config(hardware_gpio_pin_t gpio_pin)
     log_write((const __FlashStringHelper *)hardware_gpio_pin_name_by_index[gpio_pin]);
     log_write(F(" -- "));
     if (config.gpio_pin_mode[gpio_pin] == HARDWARE_GPIO_PIN_MODE_INPUT)
-        log_writeln(F("input."));
+        log_write(F("input."));
     else if (config.gpio_pin_mode[gpio_pin] == HARDWARE_GPIO_PIN_MODE_INPUT_PULLUP)
-        log_writeln(F("input with pull-up resistor (high impedence)."));
+        log_write(F("input with pull-up resistor (high impedence)."));
     else if (config.gpio_pin_mode[gpio_pin] == HARDWARE_GPIO_PIN_MODE_OUTPUT)
-        log_writeln(F("output."));
+        log_write(F("output."));
 }
 
 void config_init_gpio_pins()
@@ -231,6 +231,7 @@ void config_init_gpio_pins()
 
         log_write(F("  "));
         config_print_one_gpio_pin_config(i);
+        log_writeln();
         hardware_set_gpio_pin_mode(i, config.gpio_pin_mode[i]);
     }
 }
@@ -461,6 +462,7 @@ void config_print()
     for (int i = 0; i < HARDWARE_GPIO_PIN_COUNT; i++) {
         log_write(F("    "));
         config_print_one_gpio_pin_config(i);
+        log_writeln();
     }
     log_write(F("  Robot ID: "));
     log_write((const __FlashStringHelper *)config_robot_name_by_id[config.robot_id]);
