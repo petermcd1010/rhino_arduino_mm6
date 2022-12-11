@@ -163,7 +163,7 @@ int command_config_gpio_pin_mode(char *args, size_t args_nbytes)
 
     nbytes = parse_string_in_table(p, 1, command_table, command_table_nentries, (int *)&gpio_mode);
     if (gpio_mode == -1) {
-        log_writeln(F("Invalid gpio mode. Mode should be 'i', 'z', or 'o'."));
+        log_writeln(F("Invalid GPIO mode. Mode should be 'i', 'z', or 'o'."));
         cancel = true;
     }
 
@@ -180,7 +180,7 @@ int command_config_gpio_pin_mode(char *args, size_t args_nbytes)
     // Validate.
 
     if ((gpio_pin < 0) || (gpio_pin >= HARDWARE_GPIO_PIN_COUNT)) {
-        log_writeln(F("Invalid gpio pin number %d. Pin number should be in the range [0, %d]."), gpio_pin, HARDWARE_GPIO_PIN_COUNT - 1);
+        log_writeln(F("Invalid GPIO pin number %d. GPIO pin number should be in the range [0, %d]."), gpio_pin, HARDWARE_GPIO_PIN_COUNT - 1);
         cancel = true;
     }
 
@@ -1011,7 +1011,7 @@ int command_set_gpio_pin_output(char *args, size_t args_nbytes)
     // Validate.
 
     if ((gpio_pin < 0) || (gpio_pin >= HARDWARE_GPIO_PIN_COUNT)) {
-        log_writeln(F("Invalid gpio pin number %d. Pin number should be in the range [0, %d]."), gpio_pin, HARDWARE_GPIO_PIN_COUNT - 1);
+        log_writeln(F("Invalid GPIO pin number %d. GPIO pin number should be in the range [0, %d]."), gpio_pin, HARDWARE_GPIO_PIN_COUNT - 1);
         cancel = true;
     }
 
@@ -1034,7 +1034,7 @@ int command_set_gpio_pin_output(char *args, size_t args_nbytes)
 
 static void poll_gpio_pins_break_handler(void)
 {
-    log_writeln(F("Break detected. Stopping polling of gpio pins."));
+    log_writeln(F("Break detected. Stopping polling of GPIO pins."));
 
     sm_set_next_state(exit_to_state);
 

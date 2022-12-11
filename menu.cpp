@@ -167,6 +167,7 @@ static void extended_menu_set_gpio_pin_output(void)
     bool all_input = true;
 
     int first_output_pin = -1;
+
     for (int i = 0; i < HARDWARE_GPIO_PIN_COUNT; i++) {
         if (hardware_get_gpio_pin_mode(i) == HARDWARE_GPIO_PIN_MODE_OUTPUT) {
             all_input = false;
@@ -211,6 +212,7 @@ static void print_waypoint_options(bool print_step)
     log_writeln(F("  %sK pin <ENTER> -- Wait for IO pin triggered."), s);
     log_writeln(F("  %sL [motorids] <ENTER> -- Calibrate home switches and limits of motorids or enabled motors."), s);
     log_writeln(F("  %sO [motorids] <ENTER> --  Calibrate home switches of motorids or enabled motors."), s);
+    log_writeln(F("  %sP pin 1/0 <ENTER> --  Set GPIO pin to 1/0 (or high/true/on/low/false/off)."), s);
     log_writeln(F("  %sW milliseconds <ENTER> -- Wait milliseconds."), s);
     log_write(F(">"));
 }

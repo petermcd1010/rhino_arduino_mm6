@@ -17,6 +17,7 @@ typedef enum {
     WAYPOINT_COMMAND_WAIT_GPIO_PIN                      = 'K',
     WAYPOINT_COMMAND_CALIBRATE_HOME_SWITCHES_AND_LIMITS = 'L',
     WAYPOINT_COMMAND_CALIBRATE_HOME_SWITCHES            = 'O',
+    WAYPOINT_COMMAND_SET_GPIO_PIN_OUTPUT                = 'P',
     WAYPOINT_COMMAND_WAIT_MILLIS                        = 'W',
 } waypoint_command_t;
 

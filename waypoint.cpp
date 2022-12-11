@@ -242,9 +242,15 @@ void waypoint_print(int index)
             log_writeln(F("."));
         }
         break;
+    case WAYPOINT_COMMAND_SET_GPIO_PIN_OUTPUT:
+        log_write(F("Set GPIO pin %d to "), waypoint.io_goto.gpio_pin & 0x7fff);
+        if (waypoint.io_goto.gpio_pin & 0x8000)
+          log_writeln(F("1/high"));
+        else
+          log_writeln(F("0/low"));
+        break;
     case WAYPOINT_COMMAND_WAIT_MILLIS:
-        log_writeln(F("Wait %ld milliseconds."),
-                    waypoint.wait_millis);
+        log_writeln(F("Wait %ld milliseconds."), waypoint.wait_millis);
         break;
     default:
         log_writeln(F("waypoint.command == %d"), waypoint.command);
@@ -413,6 +419,10 @@ static void run(void)
     case WAYPOINT_COMMAND_CALIBRATE_HOME_SWITCHES:
         // Sets up state machine to start calibrating.
         calibrate_home_switch(waypoint.enabled_motors_mask, 100);
+        current_index++;
+        break;
+    case WAYPOINT_COMMAND_SET_GPIO_PIN_OUTPUT:
+        hardware_set_gpio_pin_output(waypoint.io_goto.gpio_pin & 0x7fff, waypoint.io_goto.gpio_pin & 0x8000 ? true : false);
         current_index++;
         break;
     case WAYPOINT_COMMAND_WAIT_MILLIS:

@@ -457,10 +457,11 @@ size_t parse_waypoint(char *buf, size_t buf_nbytes, waypoint_t *out_waypoint)
     p += nbytes;
 
     int entry_num = -1;
-    char *command_table[] = { "A", "B", "C", "D", "E", "G", "J", "K", "L", "O", "W" };
-    const int command_table_nentries = 11;
+    char *command_table[] = { "A", "B", "C", "D", "E", "G", "J", "K", "L", "O", "P", "W" };
+    const int command_table_nentries = 12;
     int goto_step = -1;
     int gpio_pin = -1;
+    bool is_high = false;
     long int millis = -1;
     int enabled_motors_mask = -1;
 
@@ -476,7 +477,7 @@ size_t parse_waypoint(char *buf, size_t buf_nbytes, waypoint_t *out_waypoint)
     p += nbytes;
 
     switch (command_table[entry_num][0]) {
-    case 'A':  // Set waypoint step to move motors to exactly current positions.
+    case 'A':  // Move motors to exactly current positions.
         if (buf_nbytes != 0)
             goto error;
         out_waypoint->command = WAYPOINT_COMMAND_MOVE_AT;
@@ -484,7 +485,7 @@ size_t parse_waypoint(char *buf, size_t buf_nbytes, waypoint_t *out_waypoint)
             out_waypoint->motor[i] = motor_get_encoder((motor_id_t)i);
         }
         break;
-    case 'B':  // Set waypoint step to move motors to within 1 encoder value of current positions.
+    case 'B':  // Move motors to within 1 encoder value of current positions.
         if (buf_nbytes != 0)
             goto error;
         out_waypoint->command = WAYPOINT_COMMAND_MOVE_BESIDE;
@@ -492,7 +493,7 @@ size_t parse_waypoint(char *buf, size_t buf_nbytes, waypoint_t *out_waypoint)
             out_waypoint->motor[i] = motor_get_encoder((motor_id_t)i);
         }
         break;
-    case 'C':  // Set waypoint step to move motors to within 30 encoder values of current positions.
+    case 'C':  // Move motors to within 30 encoder values of current positions.
         if (buf_nbytes != 0)
             goto error;
         out_waypoint->command = WAYPOINT_COMMAND_MOVE_CLOSE;
@@ -500,7 +501,7 @@ size_t parse_waypoint(char *buf, size_t buf_nbytes, waypoint_t *out_waypoint)
             out_waypoint->motor[i] = motor_get_encoder((motor_id_t)i);
         }
         break;
-    case 'D':  // Set waypoint step to move motors to within 200 encoder values current positions.
+    case 'D':  // Move motors to within 200 encoder values current positions.
         if (buf_nbytes != 0)
             goto error;
         out_waypoint->command = WAYPOINT_COMMAND_MOVE_APPROACHING;
@@ -518,7 +519,7 @@ size_t parse_waypoint(char *buf, size_t buf_nbytes, waypoint_t *out_waypoint)
         out_waypoint->command = WAYPOINT_COMMAND_SET_ENABLED_MOTORS;
         out_waypoint->enabled_motors_mask = enabled_motors_mask;
         break;
-    case 'G':  // Set waypoint step to goto step.
+    case 'G':  // Goto step.
         nbytes = parse_int(p, buf_nbytes, &goto_step);
         if (nbytes == 0)
             goto error;
@@ -533,7 +534,7 @@ size_t parse_waypoint(char *buf, size_t buf_nbytes, waypoint_t *out_waypoint)
         out_waypoint->command = WAYPOINT_COMMAND_GOTO_STEP;
         out_waypoint->io_goto.step = goto_step;
         break;
-    case 'J':  // Set waypoint step so if IO pin triggered, goto step.
+    case 'J':  // If IO pin triggered, goto step.
         nbytes = parse_int(p, buf_nbytes, &gpio_pin);
         if (nbytes == 0)
             goto error;
@@ -555,7 +556,7 @@ size_t parse_waypoint(char *buf, size_t buf_nbytes, waypoint_t *out_waypoint)
         out_waypoint->io_goto.gpio_pin = gpio_pin;
         out_waypoint->io_goto.step = goto_step;
         break;
-    case 'K':  // Set waypoint step to wait for IO pin triggered.
+    case 'K':  // Wait for IO pin triggered.
         nbytes = parse_int(p, buf_nbytes, &gpio_pin);
         if (nbytes == 0)
             goto error;
@@ -566,7 +567,7 @@ size_t parse_waypoint(char *buf, size_t buf_nbytes, waypoint_t *out_waypoint)
         out_waypoint->command = WAYPOINT_COMMAND_WAIT_GPIO_PIN;
         out_waypoint->io_goto.gpio_pin = gpio_pin;
         break;
-    case 'L':  // Se twaypoint step to calibrate home switches and limits.
+    case 'L':  // Calibrate home switches and limits.
         nbytes = parse_motor_ids(p, buf_nbytes, &enabled_motors_mask);
         buf_nbytes -= nbytes;
         p += nbytes;
@@ -576,7 +577,7 @@ size_t parse_waypoint(char *buf, size_t buf_nbytes, waypoint_t *out_waypoint)
         out_waypoint->command = WAYPOINT_COMMAND_CALIBRATE_HOME_SWITCHES_AND_LIMITS;
         out_waypoint->enabled_motors_mask = enabled_motors_mask;
         break;
-    case 'O':  // Set waypoint step to calibrate home switches.
+    case 'O':  // calibrate home switches.
         nbytes = parse_motor_ids(p, buf_nbytes, &enabled_motors_mask);
         buf_nbytes -= nbytes;
         p += nbytes;
@@ -586,10 +587,41 @@ size_t parse_waypoint(char *buf, size_t buf_nbytes, waypoint_t *out_waypoint)
         out_waypoint->command = WAYPOINT_COMMAND_CALIBRATE_HOME_SWITCHES;
         out_waypoint->enabled_motors_mask = enabled_motors_mask;
         break;
-    case 'W':  // Set waypoint step to wait milliseconds.
+    case 'P':  // Set GPIO pin output.
+        nbytes = parse_int(p, buf_nbytes, &gpio_pin);
+        if (nbytes == 0)
+            goto error;
+
+        buf_nbytes -= nbytes;
+        p += nbytes;
+
+        if (gpio_pin < 0 || gpio_pin >= HARDWARE_GPIO_PIN_COUNT) {
+            log_writeln(F("ERROR: Invalid GPIO pin number %d. Pin number should be in the range [0, %d]."), gpio_pin, HARDWARE_GPIO_PIN_COUNT - 1);
+            goto error;
+        }
+
+        if (hardware_get_gpio_pin_mode(gpio_pin) != HARDWARE_GPIO_PIN_MODE_OUTPUT) {
+            log_writeln(F("ERROR: GPIO pin %d is is not configured for output."), gpio_pin);
+            goto error;
+        }
+
+        nbytes = parse_bool(p, buf_nbytes, &is_high);
+        if (nbytes == 0)
+            goto error;
+
+        buf_nbytes -= nbytes;
+        p += nbytes;
+
+        out_waypoint->command = WAYPOINT_COMMAND_SET_GPIO_PIN_OUTPUT;
+        if (is_high)
+            gpio_pin |= 0x8000;
+        out_waypoint->io_goto.gpio_pin = gpio_pin;
+        break;
+    case 'W':  // Wait milliseconds.
         nbytes = parse_long_int(p, buf_nbytes, &millis);
         if (nbytes == 0)
             goto error;
+
         buf_nbytes -= nbytes;
         p += nbytes;
 
