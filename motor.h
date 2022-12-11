@@ -65,6 +65,7 @@ int motor_get_current_draw(motor_id_t motor_id);
 bool motor_stall_triggered(motor_id_t motor_id);
 void motor_clear_stall(motor_id_t motor_id);
 void motor_disable_all(void);
+void motor_stop_all(void);  // Set targets to current positions, but don't disable.
 void motor_set_enabled(motor_id_t motor_id, bool enable);
 bool motor_get_enabled(motor_id_t motor_id);
 int motor_get_enabled_mask(void);
