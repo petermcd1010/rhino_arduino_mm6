@@ -188,6 +188,14 @@ void motor_disable_all(void)
     log_writeln(F("All motors disabled."));
 }
 
+void motor_stop_all(void)
+{
+    for (int i = MOTOR_ID_A; i < MOTOR_ID_COUNT; i++) {
+        motor_set_target_encoder((motor_id_t)i, motor_get_encoder(i));
+    }
+    log_writeln(F("All motor targets set to current positions."));
+}
+
 void motor_set_enabled(motor_id_t motor_id, bool enabled)
 {
     assert((motor_id >= 0) && (motor_id < MOTOR_ID_COUNT));

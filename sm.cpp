@@ -219,6 +219,8 @@ static void process_all_input()
             log_writeln(F("<CTRL+C>"));
             if (current_state.break_handler)
                 current_state.break_handler();
+            else
+                motor_stop_all();
         } else if (!have_command) {
             if (input_char == ASCII_RETURN) {
                 log_writeln();
