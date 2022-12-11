@@ -245,9 +245,9 @@ void waypoint_print(int index)
     case WAYPOINT_COMMAND_SET_GPIO_PIN_OUTPUT:
         log_write(F("Set GPIO pin %d to "), waypoint.io_goto.gpio_pin & 0x7fff);
         if (waypoint.io_goto.gpio_pin & 0x8000)
-          log_writeln(F("1/high"));
+            log_writeln(F("1/high"));
         else
-          log_writeln(F("0/low"));
+            log_writeln(F("0/low"));
         break;
     case WAYPOINT_COMMAND_WAIT_MILLIS:
         log_writeln(F("Wait %ld milliseconds."), waypoint.wait_millis);

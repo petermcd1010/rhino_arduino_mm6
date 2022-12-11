@@ -402,7 +402,7 @@ void config_set_gpio_pin_mode(hardware_gpio_pin_t gpio_pin, hardware_gpio_pin_mo
     modified = true;
 }
 
-void config_print_one(motor_id_t motor_id)
+void config_print_one_motor(motor_id_t motor_id)
 {
     assert(motor_id >= 0 && motor_id < MOTOR_ID_COUNT);
 
@@ -425,19 +425,22 @@ void config_print_one(motor_id_t motor_id)
     else
         log_writeln(F("."));
 
-    dtostrf(m->encoders_per_degree, 3, 2, str);
-    log_write(F("           Angle encoders/degree: %s, "), str);
+    if (m->encoders_per_degree == 0.0) {
+        log_writeln(F("           Angle encoders/degree: Not configured."));
+    } else {
+        dtostrf(m->encoders_per_degree, 3, 2, str);
+        log_write(F("           Angle encoders/degree: %s, "), str);
 
-    dtostrf(m->angle_offset, 3, 2, str);
-    log_write(F("offset: %s, "), str);
+        dtostrf(m->angle_offset, 3, 2, str);
+        log_write(F("offset: %s, "), str);
 
-    dtostrf(config_motor_encoders_to_angle(motor_id, m->min_encoder), 3, 2, str);
-    log_write(F("min: %s, "), str);
+        dtostrf(config_motor_encoders_to_angle(motor_id, m->min_encoder), 3, 2, str);
+        log_write(F("min: %s, "), str);
 
-    dtostrf(config_motor_encoders_to_angle(motor_id, m->max_encoder), 3, 2, str);
-    log_writeln(F("max: %s."), str);
+        dtostrf(config_motor_encoders_to_angle(motor_id, m->max_encoder), 3, 2, str);
+        log_writeln(F("max: %s."), str);
+    }
 
-    dtostrf(m->angle_offset, 3, 2, str);
     log_write(F("           Motor orientation: %s, polarity: %s, stall current threshold: "),
               m->orientation == MOTOR_ORIENTATION_NOT_INVERTED ? "not inverted" : "inverted",
               m->forward_polarity == LOW ? "not reversed" : "reversed",
@@ -470,7 +473,7 @@ void config_print()
     log_writeln(F("  Robot serial: '%s'."), config.robot_serial);
     log_writeln(F("  Robot name: '%s'."), config.robot_name);
     for (int i = 0; i < MOTOR_ID_COUNT; i++) {
-        config_print_one(i);
+        config_print_one_motor(i);
     }
     log_writeln(F("  Waypoints: %d of maximum %d waypoints saved."), waypoint_get_used_count(), waypoint_get_max_count());
 }
