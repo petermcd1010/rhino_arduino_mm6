@@ -20,6 +20,8 @@ static sm_state_t exit_to_state = { 0 };  // Transition to this state when done 
 static int current_index = 0;
 static waypoint_t current_waypoint = { 0 };
 static int steps_remaining = 0;
+static bool wait_millis_run = false;
+static long waypoint_run_start_millis = 0;
 
 static void break_handler(void);
 static void start(void);
@@ -160,16 +162,17 @@ void waypoint_delete(int index)
     EEPROM.put(get_eeprom_address(index), waypoint);
 }
 
-static void print_move(char *to_string, waypoint_t waypoint)
+static void print_move(char *to_string, waypoint_t waypoint, int mask = -1)
 {
-    log_writeln(F("Move %s a:%d b:%d c:%d d:%d e:%d f:%d."),
-                to_string,
-                (int)waypoint.motor[0],
-                (int)waypoint.motor[1],
-                (int)waypoint.motor[2],
-                (int)waypoint.motor[3],
-                (int)waypoint.motor[4],
-                (int)waypoint.motor[5]);
+    assert(to_string);
+    // TODO: Put to_string in PROGMEM.
+
+    log_write(F("Move %s"), to_string);
+    for (int i = 0; i < MOTOR_ID_COUNT; i++) {
+        if (mask & (1 << i))
+            log_write(F(" %c:%d"), 'A' + i, (int)waypoint.motor[i]);
+    }
+    log_writeln(F("."));
 }
 
 static void print_enabled_motors(int mask)
@@ -180,27 +183,27 @@ static void print_enabled_motors(int mask)
     }
 }
 
-void waypoint_print(int index)
+void waypoint_print(int index, int enabled_motors_mask = -1)
 {
     assert(index >= 0);
     assert(index < waypoint_get_max_count());
 
     waypoint_t waypoint = waypoint_get(index);
 
-    log_write(F("%d: "), index);
+    log_write(F("%d. "), index);
 
     switch (waypoint.command) {
     case WAYPOINT_COMMAND_MOVE_AT:
-        print_move("to", waypoint);
+        print_move("to", waypoint, enabled_motors_mask);
         break;
     case WAYPOINT_COMMAND_MOVE_BESIDE:
-        print_move("within 1 encoder of", waypoint);
+        print_move("within 1 encoder of", waypoint, enabled_motors_mask);
         break;
     case WAYPOINT_COMMAND_MOVE_CLOSE:
-        print_move("within 32 encoders of", waypoint);
+        print_move("within 32 encoders of", waypoint, enabled_motors_mask);
         break;
     case WAYPOINT_COMMAND_MOVE_APPROACHING:
-        print_move("within 200 encoders of", waypoint);
+        print_move("within 200 encoders of", waypoint, enabled_motors_mask);
         break;
     case WAYPOINT_COMMAND_SET_ENABLED_MOTORS:
         if (waypoint.enabled_motors_mask == 0) {
@@ -276,10 +279,14 @@ void waypoint_run(int start_index, int count)
 
     current_index = start_index;
     steps_remaining = count;
+    wait_millis_run = false;
+    waypoint_run_start_millis = millis();
 
+    // TODO: Sometimes ends up motors_off when running/rerunning. Should it be motors_on?
+    // For now changed to sm_state_motors_on_enter.
     exit_to_state = sm_get_state();
     if (!exit_to_state.run)
-        exit_to_state = sm_state_motors_off_enter;  // If executed from boot, .run will be NULL.
+        exit_to_state = sm_state_motors_on_enter;  // If executed from boot, .run will be NULL.
 
     sm_set_next_state(state_waypoint_start);
 }
@@ -358,7 +365,6 @@ static void run(void)
 
     static waypoint_t waypoint = { 0 };
 
-    static bool wait_millis_run = false;
     static unsigned long wait_millis_start = -1;     // millis() returns unsigned_long.
     static int prev_waypoint_index = -1;
 
@@ -371,7 +377,10 @@ static void run(void)
     if (prev_waypoint_index != current_index) {
         waypoint = waypoint_get(current_index);
         if (waypoint.command != -1) {
-            waypoint_print(current_index);
+            char time_str[15];
+            dtostrf((float)(millis() - waypoint_run_start_millis) / 1000.0, 0, 3, time_str);
+            log_write(F("%s: "), time_str);
+            waypoint_print(current_index, motor_get_enabled_mask());
             if ((prev_waypoint_index != -1) && (steps_remaining > 0))
                 steps_remaining--;
         }
@@ -386,10 +395,8 @@ static void run(void)
     case WAYPOINT_COMMAND_MOVE_BESIDE:     // Fallthrough.
     case WAYPOINT_COMMAND_MOVE_CLOSE:     // Fallthrough.
     case WAYPOINT_COMMAND_MOVE_APPROACHING:
-        if (check_progress(waypoint))
-            current_index++;
-        else
-            set_target_waypoint(waypoint);  // TODO: Only set when index changed.
+        set_target_waypoint(waypoint);
+        current_index++;
         break;
     case WAYPOINT_COMMAND_GOTO_STEP:
         current_index = waypoint.io_goto.step;
@@ -446,7 +453,7 @@ static void run(void)
         }
 
         if (millis() - wait_millis_start >= waypoint.wait_millis) {
-            wait_millis_run = false;;
+            wait_millis_run = false;
             current_index++;
         }
         break;
@@ -459,11 +466,17 @@ static void run(void)
 
 static void stop(void)
 {
-    current_index = -1;
+    current_index = 0;
+    steps_remaining = 0;
+    wait_millis_run = false;
 
-    motor_disable_all();
+    motor_stop_all();
     memset(&current_waypoint, 0, sizeof(waypoint_t));
-    log_writeln(F("Done running waypoint sequence."));
+
+    char time_str[15];
+
+    dtostrf((float)(millis() - waypoint_run_start_millis) / 1000.0, 0, 3, time_str);
+    log_writeln(F("%s. Done running waypoint sequence."), time_str);
 
     sm_set_next_state(exit_to_state);
 }
