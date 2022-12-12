@@ -31,7 +31,7 @@ typedef struct __attribute__((packed)) {
             int step;  // Step to potentially goto.
         } io_goto;
         unsigned long wait_millis;  // For wait command.
-        float         motor[MOTOR_ID_COUNT];
+        float         motor[MOTOR_ID_COUNT];  // TODO: Change from int to float.
     };
 } waypoint_t;
 
@@ -42,6 +42,6 @@ void waypoint_set(int index, waypoint_t waypoint);
 void waypoint_insert_before(int index, waypoint_t waypoint);
 int waypoint_append(waypoint_t waypoint);  // Returns index that contains waypoint.
 void waypoint_delete(int index);
-void waypoint_print(int index);
+void waypoint_print(int index, int enabled_motors_mask = -1);
 void waypoint_print_all_used(void);
 void waypoint_run(int start_index, int count);  // If count == -1, then run until done.
