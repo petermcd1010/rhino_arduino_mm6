@@ -525,17 +525,36 @@ size_t parse_waypoint(char *buf, size_t buf_nbytes, waypoint_t *out_waypoint)
             goto error;
         buf_nbytes -= nbytes;
         p += nbytes;
-        if (buf_nbytes != 0)
-            goto error;
+
         if (goto_step >= waypoint_get_max_count()) {
             log_writeln(F("ERROR: Goto index greater than max index %d."), waypoint_get_max_count());
             goto error;
         }
+
+        if (buf_nbytes != 0)
+            goto error;
+
         out_waypoint->command = WAYPOINT_COMMAND_GOTO_STEP;
         out_waypoint->io_goto.step = goto_step;
         break;
-    case 'J':  // If IO pin triggered, goto step.
+    case 'J':  // If GPIO pin value, goto step.
         nbytes = parse_int(p, buf_nbytes, &gpio_pin);
+        if (nbytes == 0)
+            goto error;
+        buf_nbytes -= nbytes;
+        p += nbytes;
+
+        if (gpio_pin < 0 || gpio_pin >= HARDWARE_GPIO_PIN_COUNT) {
+            log_writeln(F("ERROR: Invalid GPIO pin number %d. Pin number should be in the range [0, %d]."), gpio_pin, HARDWARE_GPIO_PIN_COUNT - 1);
+            goto error;
+        }
+
+        if (hardware_get_gpio_pin_mode(gpio_pin) == HARDWARE_GPIO_PIN_MODE_OUTPUT) {
+            log_writeln(F("ERROR: GPIO pin %d is is not configured for input."), gpio_pin);
+            goto error;
+        }
+
+        nbytes = parse_bool(p, buf_nbytes, &is_high);
         if (nbytes == 0)
             goto error;
         buf_nbytes -= nbytes;
@@ -546,26 +565,52 @@ size_t parse_waypoint(char *buf, size_t buf_nbytes, waypoint_t *out_waypoint)
             goto error;
         buf_nbytes -= nbytes;
         p += nbytes;
-        if (buf_nbytes != 0)
-            goto error;
+
         if (goto_step >= waypoint_get_max_count()) {
             log_writeln(F("ERROR: Goto index greater than max index %d."), waypoint_get_max_count());
             goto error;
         }
+
+        if (buf_nbytes != 0)
+            goto error;
+
         out_waypoint->command = WAYPOINT_COMMAND_IF_GPIO_PIN_GOTO_STEP;
-        out_waypoint->io_goto.gpio_pin = gpio_pin;
+        out_waypoint->io_goto.gpio_pin = gpio_pin | (is_high ? 0x8000 : 0);
         out_waypoint->io_goto.step = goto_step;
         break;
-    case 'K':  // Wait for IO pin triggered.
+    case 'K':  // Wait for GPIO pin value.
         nbytes = parse_int(p, buf_nbytes, &gpio_pin);
         if (nbytes == 0)
             goto error;
         buf_nbytes -= nbytes;
         p += nbytes;
+
+        if (gpio_pin < 0 || gpio_pin >= HARDWARE_GPIO_PIN_COUNT) {
+            log_writeln(F("ERROR: Invalid GPIO pin number %d. Pin number should be in the range [0, %d]."), gpio_pin, HARDWARE_GPIO_PIN_COUNT - 1);
+            goto error;
+        }
+
+        if (hardware_get_gpio_pin_mode(gpio_pin) == HARDWARE_GPIO_PIN_MODE_OUTPUT) {
+            log_writeln(F("ERROR: GPIO pin %d is is not configured for input."), gpio_pin);
+            goto error;
+        }
+
+        if (goto_step >= waypoint_get_max_count()) {
+            log_writeln(F("ERROR: Goto index greater than max index %d."), waypoint_get_max_count());
+            goto error;
+        }
+
+        nbytes = parse_bool(p, buf_nbytes, &is_high);
+        if (nbytes == 0)
+            goto error;
+        buf_nbytes -= nbytes;
+        p += nbytes;
+
         if (buf_nbytes != 0)
             goto error;
+
         out_waypoint->command = WAYPOINT_COMMAND_WAIT_GPIO_PIN;
-        out_waypoint->io_goto.gpio_pin = gpio_pin;
+        out_waypoint->io_goto.gpio_pin = gpio_pin | (is_high ? 0x8000 : 0);
         break;
     case 'L':  // Calibrate home switches and limits.
         nbytes = parse_motor_ids(p, buf_nbytes, &enabled_motors_mask);
