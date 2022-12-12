@@ -208,11 +208,11 @@ static void print_waypoint_options(bool print_step)
     log_writeln(F("  %sD <ENTER> -- Move motors to within 200 encoder values current positions."), s);
     log_writeln(F("  %sE [motorids] -- Enable selected motors. Disables all motors if none specified."), s);
     log_writeln(F("  %sG step <ENTER> -- Goto step."), s);
-    log_writeln(F("  %sJ pin step <ENTER> -- If IO pin triggered, goto step."), s);
-    log_writeln(F("  %sK pin <ENTER> -- Wait for IO pin triggered."), s);
+    log_writeln(F("  %sJ pin 0/1 step <ENTER> -- If GPIO pin is 0 or 1, goto step."), s);
+    log_writeln(F("  %sK pin 0/1 <ENTER> -- Wait for GPIO pin to be 0 or 1."), s);
     log_writeln(F("  %sL [motorids] <ENTER> -- Calibrate home switches and limits of motorids or enabled motors."), s);
     log_writeln(F("  %sO [motorids] <ENTER> --  Calibrate home switches of motorids or enabled motors."), s);
-    log_writeln(F("  %sP pin 1/0 <ENTER> --  Set GPIO pin to 1/0 (or high/true/on/low/false/off)."), s);
+    log_writeln(F("  %sP pin 0/1 <ENTER> --  Set GPIO pin to 0 or 1."), s);
     log_writeln(F("  %sW milliseconds <ENTER> -- Wait milliseconds."), s);
     log_write(F(">"));
 }

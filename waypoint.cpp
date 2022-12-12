@@ -216,13 +216,15 @@ void waypoint_print(int index)
                     waypoint.io_goto.step);
         break;
     case WAYPOINT_COMMAND_IF_GPIO_PIN_GOTO_STEP:
-        log_writeln(F("If GPIO pin %d then goto %d."),
-                    waypoint.io_goto.gpio_pin,
+        log_writeln(F("If GPIO pin %d == %d then goto %d."),
+                    waypoint.io_goto.gpio_pin & 0x7fff,
+                    (waypoint.io_goto.gpio_pin & 0x8000) ? 1 : 0,
                     waypoint.io_goto.step);
         break;
     case WAYPOINT_COMMAND_WAIT_GPIO_PIN:
-        log_writeln(F("Wait GPIO pin %d."),
-                    waypoint.io_goto.gpio_pin);
+        log_writeln(F("Wait GPIO pin %d == %d."),
+                    waypoint.io_goto.gpio_pin & 0x7fff,
+                    (waypoint.io_goto.gpio_pin & 0x8000) ? 1 : 0);
         break;
     case WAYPOINT_COMMAND_CALIBRATE_HOME_SWITCHES_AND_LIMITS:
         if (waypoint.enabled_motors_mask == 0) {
@@ -243,11 +245,8 @@ void waypoint_print(int index)
         }
         break;
     case WAYPOINT_COMMAND_SET_GPIO_PIN_OUTPUT:
-        log_write(F("Set GPIO pin %d to "), waypoint.io_goto.gpio_pin & 0x7fff);
-        if (waypoint.io_goto.gpio_pin & 0x8000)
-            log_writeln(F("1/high"));
-        else
-            log_writeln(F("0/low"));
+        log_writeln(F("Set GPIO pin %d to %d."), waypoint.io_goto.gpio_pin & 0x7fff,
+                    (waypoint.io_goto.gpio_pin & 0x8000) ? 1 : 0);
         break;
     case WAYPOINT_COMMAND_WAIT_MILLIS:
         log_writeln(F("Wait %ld milliseconds."), waypoint.wait_millis);
@@ -400,14 +399,24 @@ static void run(void)
         current_index++;
         break;
     case WAYPOINT_COMMAND_IF_GPIO_PIN_GOTO_STEP:
-        if (hardware_get_gpio_pin_pressed(waypoint.io_goto.gpio_pin)) {
-            log_writeln(F("GPIO pin %d triggered."), waypoint.io_goto.gpio_pin);
+        if (hardware_get_gpio_pin_mode(waypoint.io_goto.gpio_pin & 0x7fff) == HARDWARE_GPIO_PIN_MODE_OUTPUT) {
+            log_writeln(F("ERROR: GPIO pin %d is not set for input. Canceling waypoint sequence."), waypoint.io_goto.gpio_pin & 0x7fff);
+            steps_remaining = 0;
+            break;
+        }
+        if (hardware_get_gpio_pin_pressed(waypoint.io_goto.gpio_pin & 0x7fff) == ((waypoint.io_goto.gpio_pin & 0x8000) ? true : false)) {
+            log_writeln(F("  GPIO pin %d == %d."), waypoint.io_goto.gpio_pin & 0x7fff, waypoint.io_goto.gpio_pin & 0x8000 ? 1 :0);
             current_index = waypoint.io_goto.step;
         }
         break;
     case WAYPOINT_COMMAND_WAIT_GPIO_PIN:
-        if (hardware_get_gpio_pin_pressed(waypoint.io_goto.gpio_pin)) {
-            log_writeln(F("GPIO pin %d triggered."), waypoint.io_goto.gpio_pin);
+        if (hardware_get_gpio_pin_mode(waypoint.io_goto.gpio_pin & 0x7fff) == HARDWARE_GPIO_PIN_MODE_OUTPUT) {
+            log_writeln(F("ERROR: GPIO pin %d is not set for input. Canceling waypoint sequence."), waypoint.io_goto.gpio_pin & 0x7fff);
+            steps_remaining = 0;
+            break;
+        }
+        if (hardware_get_gpio_pin_pressed(waypoint.io_goto.gpio_pin & 0x7fff) == ((waypoint.io_goto.gpio_pin & 0x8000) ? true : false)) {
+            log_writeln(F("  GPIO pin %d == %d."), waypoint.io_goto.gpio_pin & 0x7fff, waypoint.io_goto.gpio_pin & 0x8000 ? 1 :0);
             current_index++;
         }
         break;
@@ -422,6 +431,11 @@ static void run(void)
         current_index++;
         break;
     case WAYPOINT_COMMAND_SET_GPIO_PIN_OUTPUT:
+        if (hardware_get_gpio_pin_mode(waypoint.io_goto.gpio_pin & 0x7fff) != HARDWARE_GPIO_PIN_MODE_OUTPUT) {
+            log_writeln(F("ERROR: GPIO pin %d is not set for output. Canceling waypoint sequence."), waypoint.io_goto.gpio_pin & 0x7fff);
+            steps_remaining = 0;
+            break;
+        }
         hardware_set_gpio_pin_output(waypoint.io_goto.gpio_pin & 0x7fff, waypoint.io_goto.gpio_pin & 0x8000 ? true : false);
         current_index++;
         break;
