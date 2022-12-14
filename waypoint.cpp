@@ -278,7 +278,7 @@ void waypoint_run(int start_index, int count)
     log_writeln(F("waypoint_run starting at step %d count %d"), start_index, count);
 
     current_index = start_index;
-    steps_remaining = count;
+    steps_remaining = count;  // -1 will run until sequence complete or error..
     wait_millis_run = false;
     waypoint_run_start_millis = millis();
 
@@ -294,7 +294,7 @@ void waypoint_run(int start_index, int count)
 static void break_handler(void)
 {
     log_writeln(F("Break detected. Stopping waypoint sequence."));
-    motor_disable_all();
+    motor_stop_all();
 
     sm_set_next_state(state_waypoint_stop);
 }
@@ -368,6 +368,7 @@ static void run(void)
     static unsigned long wait_millis_start = -1;     // millis() returns unsigned_long.
     static int prev_waypoint_index = -1;
 
+
     if ((current_index >= waypoint_get_max_count()) || (steps_remaining == 0)) {
         prev_waypoint_index = -1;
         sm_set_next_state(state_waypoint_stop);
@@ -381,8 +382,6 @@ static void run(void)
             dtostrf((float)(millis() - waypoint_run_start_millis) / 1000.0, 0, 3, time_str);
             log_write(F("%s: "), time_str);
             waypoint_print(current_index, motor_get_enabled_mask());
-            if ((prev_waypoint_index != -1) && (steps_remaining > 0))
-                steps_remaining--;
         }
         prev_waypoint_index = current_index;
     }
@@ -397,13 +396,16 @@ static void run(void)
     case WAYPOINT_COMMAND_MOVE_APPROACHING:
         set_target_waypoint(waypoint);
         current_index++;
+        steps_remaining--;
         break;
     case WAYPOINT_COMMAND_GOTO_STEP:
         current_index = waypoint.io_goto.step;
+        steps_remaining--;
         break;
     case WAYPOINT_COMMAND_SET_ENABLED_MOTORS:
         motor_set_enabled_mask(waypoint.enabled_motors_mask);
         current_index++;
+        steps_remaining--;
         break;
     case WAYPOINT_COMMAND_IF_GPIO_PIN_GOTO_STEP:
         if (hardware_get_gpio_pin_mode(waypoint.io_goto.gpio_pin & 0x7fff) == HARDWARE_GPIO_PIN_MODE_OUTPUT) {
@@ -414,6 +416,7 @@ static void run(void)
         if (hardware_get_gpio_pin_pressed(waypoint.io_goto.gpio_pin & 0x7fff) == ((waypoint.io_goto.gpio_pin & 0x8000) ? true : false)) {
             log_writeln(F("  GPIO pin %d == %d."), waypoint.io_goto.gpio_pin & 0x7fff, waypoint.io_goto.gpio_pin & 0x8000 ? 1 :0);
             current_index = waypoint.io_goto.step;
+            steps_remaining--;
         }
         break;
     case WAYPOINT_COMMAND_WAIT_GPIO_PIN:
@@ -425,17 +428,20 @@ static void run(void)
         if (hardware_get_gpio_pin_pressed(waypoint.io_goto.gpio_pin & 0x7fff) == ((waypoint.io_goto.gpio_pin & 0x8000) ? true : false)) {
             log_writeln(F("  GPIO pin %d == %d."), waypoint.io_goto.gpio_pin & 0x7fff, waypoint.io_goto.gpio_pin & 0x8000 ? 1 :0);
             current_index++;
+            steps_remaining--;
         }
         break;
     case WAYPOINT_COMMAND_CALIBRATE_HOME_SWITCHES_AND_LIMITS:
         // Sets up state machine to start calibrating.
         calibrate_home_switch_and_limits(waypoint.enabled_motors_mask, 100);
         current_index++;
+        steps_remaining--;
         break;
     case WAYPOINT_COMMAND_CALIBRATE_HOME_SWITCHES:
         // Sets up state machine to start calibrating.
         calibrate_home_switch(waypoint.enabled_motors_mask, 100);
         current_index++;
+        steps_remaining--;
         break;
     case WAYPOINT_COMMAND_SET_GPIO_PIN_OUTPUT:
         if (hardware_get_gpio_pin_mode(waypoint.io_goto.gpio_pin & 0x7fff) != HARDWARE_GPIO_PIN_MODE_OUTPUT) {
@@ -445,6 +451,7 @@ static void run(void)
         }
         hardware_set_gpio_pin_output(waypoint.io_goto.gpio_pin & 0x7fff, waypoint.io_goto.gpio_pin & 0x8000 ? true : false);
         current_index++;
+        steps_remaining--;
         break;
     case WAYPOINT_COMMAND_WAIT_MILLIS:
         if (wait_millis_run == false) {
@@ -455,6 +462,7 @@ static void run(void)
         if (millis() - wait_millis_start >= waypoint.wait_millis) {
             wait_millis_run = false;
             current_index++;
+            steps_remaining--;
         }
         break;
     default:

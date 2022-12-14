@@ -44,4 +44,4 @@ int waypoint_append(waypoint_t waypoint);  // Returns index that contains waypoi
 void waypoint_delete(int index);
 void waypoint_print(int index, int enabled_motors_mask = -1);
 void waypoint_print_all_used(void);
-void waypoint_run(int start_index, int count);  // If count == -1, then run until done.
+void waypoint_run(int start_index, int count);  // If count == -1, then run until waypoint sequence complete or error.
