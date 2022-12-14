@@ -255,8 +255,7 @@ void waypoint_print(int index, int enabled_motors_mask = -1)
         log_writeln(F("Wait %ld milliseconds."), waypoint.wait_millis);
         break;
     default:
-        log_writeln(F("waypoint.command == %d"), waypoint.command);
-        assert(false);
+        log_writeln(F("Bad waypoint.command %d."), waypoint.command);
         break;
     }
 }
