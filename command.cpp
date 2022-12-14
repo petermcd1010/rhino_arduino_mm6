@@ -1313,6 +1313,9 @@ int command_waypoint_set(char *args, size_t args_nbytes)
 
     size_t nbytes = parse_step_and_waypoint(p, args_nbytes, &step, &waypoint);
 
+    if (nbytes <= 0)
+        return nbytes;
+
     args_nbytes -= nbytes;
     p += nbytes;
     if (args_nbytes > 0)
@@ -1335,6 +1338,9 @@ int command_waypoint_insert_before(char *args, size_t args_nbytes)
 
     size_t nbytes = parse_step_and_waypoint(p, args_nbytes, &step, &waypoint);
 
+    if (nbytes <= 0)
+        return nbytes;
+
     args_nbytes -= nbytes;
     p += nbytes;
     if (args_nbytes > 0)
@@ -1355,6 +1361,9 @@ int command_waypoint_append(char *args, size_t args_nbytes)
     waypoint_t waypoint = { 0 };
 
     size_t nbytes = parse_waypoint(p, args_nbytes, &waypoint);
+
+    if (nbytes <= 0)
+        return nbytes;                 // parse_waypoint emits error message.
 
     args_nbytes -= nbytes;
     p += nbytes;
