@@ -110,11 +110,10 @@ void hardware_set_gpio_pin_mode(hardware_gpio_pin_t gpio_pin, hardware_gpio_pin_
         pinMode(arduino_pin_by_index[gpio_pin], INPUT);
     else if (gpio_mode == HARDWARE_GPIO_PIN_MODE_INPUT_PULLUP)
         pinMode(arduino_pin_by_index[gpio_pin], INPUT_PULLUP);
-    else if (gpio_mode == HARDWARE_GPIO_PIN_MODE_OUTPUT) {
+    else if (gpio_mode == HARDWARE_GPIO_PIN_MODE_OUTPUT)
         pinMode(arduino_pin_by_index[gpio_pin], OUTPUT);
-    } else {
+    else
         assert(false);
-    }
 }
 
 hardware_gpio_pin_mode_t hardware_get_gpio_pin_mode(hardware_gpio_pin_t gpio_pin)
