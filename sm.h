@@ -11,7 +11,6 @@ typedef struct {
     struct {
         int  encoder;
         bool switch_triggered;
-        bool thermal_overload_detected;
     } motor[MOTOR_ID_COUNT];
 } status_t;
 

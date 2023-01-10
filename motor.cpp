@@ -153,33 +153,6 @@ static bool get_thermal_overload_active(motor_id_t motor_id)
     return digitalRead(motor_pinout[motor_id].in_thermal_overload) == 0;
 }
 
-bool motor_get_thermal_overload_detected(motor_id_t motor_id)
-{
-    assert((motor_id >= 0) && (motor_id < MOTOR_ID_COUNT));
-
-    if (motor[motor_id].error_flags & MOTOR_ERROR_FLAG_THERMAL_OVERLOAD_DETECTED)
-        return true;
-
-    return false;
-}
-
-bool motor_get_thermal_overload_detected(void)
-{
-    for (int i = 0; i < MOTOR_ID_COUNT; i++) {
-        if (motor_get_thermal_overload_detected((motor_id_t)i))
-            return true;
-    }
-
-    return false;
-}
-
-void motor_clear_thermal_overload(motor_id_t motor_id)
-{
-    assert((motor_id >= 0) && (motor_id < MOTOR_ID_COUNT));
-
-    motor[motor_id].error_flags &= ~MOTOR_ERROR_FLAG_THERMAL_OVERLOAD_DETECTED;
-}
-
 int motor_get_current(motor_id_t motor_id)
 {
     assert((motor_id >= 0) && (motor_id < MOTOR_ID_COUNT));
@@ -426,22 +399,23 @@ void motor_dump(motor_id_t motor_id)
                 motor[motor_id].progress);
 }
 
-void motor_set_user_error(bool enable)
+void motor_set_error_flag(motor_id_t motor_id, motor_error_flag_t motor_error_flag)
 {
-    if (enable)
-        motor[0].error_flags |= MOTOR_ERROR_FLAG_USER_FLAG;
-    else
-        motor[0].error_flags &= ~MOTOR_ERROR_FLAG_USER_FLAG;
+    assert((motor_id >= 0) && (motor_id < MOTOR_ID_COUNT));
+    assert(motor_error_flag >= 0);
+
+    cli();
+    motor[motor_id].error_flags |= motor_error_flag;
+    sei();
 }
 
 int motor_get_and_clear_error_flags(motor_id_t motor_id)
 {
     assert((motor_id >= 0) && (motor_id < MOTOR_ID_COUNT));
 
-    unsigned char ret = 0;
-
     cli();
-    ret = motor[motor_id].error_flags;
+    unsigned char ret = motor[motor_id].error_flags;
+
     motor[motor_id].error_flags = 0;
     sei();
 
@@ -615,14 +589,14 @@ ISR(TIMER1_COMPA_vect) {
             // It's easy to get invalid quadrature encoder readings at boot. So motor_id is initialized to
             // MOTOR_ID_COUNT (and then quickly changed to MOTOR_ID_A below), to avoid triggering invalid
             // encoder transitions errors at boot.
-            motor[qe_motor_id].error_flags |= MOTOR_ERROR_FLAG_INVALID_ENCODER_TRANSITION;
+            motor_set_error_flag(qe_motor_id, MOTOR_ERROR_FLAG_INVALID_ENCODER_TRANSITION);
         }
         noinit_data.motor[qe_motor_id].previous_quadrature_encoder = qe_state;
 
         check_home_switch(qe_motor_id);
 
         if (get_thermal_overload_active(qe_motor_id))
-            motor[qe_motor_id].error_flags |= MOTOR_ERROR_FLAG_THERMAL_OVERLOAD_DETECTED;
+            motor_set_error_flag(qe_motor_id, MOTOR_ERROR_FLAG_THERMAL_OVERLOAD_DETECTED);
 
         if (motor[qe_motor_id].encoders_per_second_counts++ == (2000 / MOTOR_ID_COUNT / 3)) {
             // ISR runs at 2kHz and round-robins the six motors, Every 1/3 of a second
@@ -673,7 +647,7 @@ ISR(TIMER1_COMPA_vect) {
         if ((config.motor[motor_id].stall_current_threshold) != 0 &&
             (motor[motor_id].current > config.motor[motor_id].stall_current_threshold)) {
             if (motor[motor_id].target_encoder == noinit_data.motor[motor_id].encoder) {
-                motor[motor_id].error_flags |= MOTOR_ERROR_FLAG_UNEXPECTED_STALL_CURRENT_THRESHOLD_EXCEEDED;
+                motor_set_error_flag(motor_id, MOTOR_ERROR_FLAG_UNEXPECTED_STALL_CURRENT_THRESHOLD_EXCEEDED);
             } else if (!config.motor[motor_id].is_gripper) {
                 // For Motors other than the gripper, High Current means
                 // that the motor is in a stall situation. To unstall,

@@ -82,8 +82,6 @@ void gather_status(status_t *status)
     for (int i = 0; i < MOTOR_ID_COUNT; i++) {
         status->motor[i].encoder = motor_get_encoder((motor_id_t)i);
         status->motor[i].switch_triggered = motor_is_home_triggered((motor_id_t)i);
-        status->motor[i].thermal_overload_detected = motor_get_thermal_overload_detected((motor_id_t)i);
-        motor_clear_thermal_overload((motor_id_t)i);
     }
 }
 
@@ -416,7 +414,7 @@ void sm_error_enter(void)
     next_state = { 0 };
 
     motor_disable_all();
-    motor_set_user_error(true);
+    motor_set_error_flag(MOTOR_ID_A, MOTOR_ERROR_FLAG_USER_FLAG);
 
     sm_set_next_state(sm_state_error_execute);
 }

@@ -29,7 +29,7 @@ typedef enum {
 } motor_progress_t;
 
 typedef enum {
-    MOTOR_ERROR_FLAG_USER_FLAG                                   = 1 << 0, // Hacky way to indicate the state machine is in ERROR, so LED blinks accordingly.
+    MOTOR_ERROR_FLAG_USER_FLAG                                   = 1 << 0, // Hacky way to indicate the state machine is in ERROR, so LED blinks quickly.
     MOTOR_ERROR_FLAG_THERMAL_OVERLOAD_DETECTED                   = 1 << 1,
     MOTOR_ERROR_FLAG_INVALID_ENCODER_TRANSITION                  = 1 << 2, // only 0->1->3->2 and 0->2->3->1 are valid.
     MOTOR_ERROR_FLAG_OPPOSITE_DIRECTION                          = 1 << 3,
@@ -77,9 +77,6 @@ extern motor_t motor[MOTOR_ID_COUNT];
 void motor_clear_ram_data(void);  // Clears data cached in RAM between boots.
 
 void motor_init_all(void);
-bool motor_get_thermal_overload_detected(motor_id_t motor_id);
-bool motor_get_thermal_overload_detected();
-void motor_clear_thermal_overload(motor_id_t motor_id);
 int motor_get_current(motor_id_t motor_id);
 bool motor_stall_triggered(motor_id_t motor_id);
 void motor_clear_stall(motor_id_t motor_id);
@@ -103,6 +100,6 @@ int motor_get_max_velocity_percent(motor_id_t motor_id);
 bool motor_is_home_triggered(motor_id_t motor_id);
 bool motor_is_home_triggered_debounced(motor_id_t motor_id);
 void motor_dump(motor_id_t motor_id);
-void motor_set_user_error(bool enable);  // Will blink LED quickly to notify user of issue.
+void motor_set_error_flag(motor_id_t motor_id, motor_error_flag_t error_flag);
 int motor_get_and_clear_error_flags(motor_id_t motor_id);
 void motor_log_error_flags(unsigned char error_flags);

@@ -30,8 +30,6 @@ static bool check_system_integrity()
     if (previous_ok)
         ok = config_check();
 
-    ok = motor_get_thermal_overload_detected() ? false : ok;
-
     for (int i = 0; i < MOTOR_ID_COUNT; i++) {
         unsigned char error_flags = motor_get_and_clear_error_flags(i);
 
