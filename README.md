@@ -6,7 +6,7 @@ This software is intended for hobbyists and experimenters and may be useful for 
 
 ## Rhino Robots
 
-![Rhino Robots image](robots.png)
+[![Arduino Robot Control](https://user-images.githubusercontent.com/39977360/208218280-c486106f-3dde-4b0c-94fe-75af42436de9.gif)](https://www.youtube.com/watch?v=jSTG7T9-4lo&feature=youtu.be)
 
 Sandhu Machine Design Inc. of Champaign, Illinois produced a [series](http://www.theoldrobots.com/rhinoarm.html) of servo-controlled Rhino Robots in the 1980s. These robots were scaled down versions of their industrial counterparts (less expensive and less poweful). They were great for teaching and made their way into many instructional courses on robotics.
 
