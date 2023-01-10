@@ -29,15 +29,14 @@ typedef enum {
 } motor_progress_t;
 
 typedef enum {
-    MOTOR_ERROR_FLAG_USER_FLAG                                   = 1 << 0, // Hacky way to indicate the state machine is in ERROR, so LED blinks quickly.
-    MOTOR_ERROR_FLAG_THERMAL_OVERLOAD_DETECTED                   = 1 << 1,
-    MOTOR_ERROR_FLAG_INVALID_ENCODER_TRANSITION                  = 1 << 2, // only 0->1->3->2 and 0->2->3->1 are valid.
-    MOTOR_ERROR_FLAG_OPPOSITE_DIRECTION                          = 1 << 3,
-    MOTOR_ERROR_FLAG_UNEXPECTED_HOME_SWITCH_ENCODER              = 1 << 4,
-    MOTOR_ERROR_FLAG_UNEXPECTED_STALL_CURRENT_THRESHOLD_EXCEEDED = 1 << 5,
-} motor_error_flag_t;
+    MOTOR_ERROR_THERMAL_OVERLOAD_DETECTED = 0,  // Motor drive chip reports 145°C (junction temperature) exceeded.
+    MOTOR_ERROR_INVALID_ENCODER_TRANSITION,  // Quadrature encoder reading didn't match what the previous or next encoder reading should be.
+    MOTOR_ERROR_UNEXPECTED_STALL_CURRENT_THRESHOLD_EXCEEDED,  // The motor is at its target, but the current threshold was exceeded.
+    MOTOR_ERROR_OTHER,  // Hacky way to indicate the state machine is in ERROR, so LED blinks quickly.
+    MOTOR_ERROR_COUNT
+} motor_error_t;
 
-const int MOTOR_ERROR_FLAG_COUNT = 6;
+extern const char *const motor_error_name_by_id[MOTOR_ERROR_COUNT];
 
 // Mechanical orientation based on motor installation side.
 typedef enum {
@@ -100,6 +99,5 @@ int motor_get_max_velocity_percent(motor_id_t motor_id);
 bool motor_is_home_triggered(motor_id_t motor_id);
 bool motor_is_home_triggered_debounced(motor_id_t motor_id);
 void motor_dump(motor_id_t motor_id);
-void motor_set_error_flag(motor_id_t motor_id, motor_error_flag_t error_flag);
+void motor_set_error(motor_id_t motor_id, motor_error_t error_id);
 int motor_get_and_clear_error_flags(motor_id_t motor_id);
-void motor_log_error_flags(unsigned char error_flags);

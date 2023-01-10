@@ -40,6 +40,18 @@ static const int motor_min_velocity = -motor_max_velocity;
 
 static int enabled_motors_mask = 0;
 
+static const char error_name_thermal_overload_detected[] PROGMEM = "thermal overload detected";
+static const char error_name_invalid_quadrature_encoder_transition[] PROGMEM = "invalid quadrature encoder transition";
+static const char error_name_stall_current_threshold_exceeded[] PROGMEM = "stall current threshold exceeded";
+static const char error_name_other[] PROGMEM = "other error";
+
+const char *const motor_error_name_by_id[MOTOR_ERROR_COUNT] = {
+    error_name_thermal_overload_detected,
+    error_name_invalid_quadrature_encoder_transition,
+    error_name_stall_current_threshold_exceeded,
+    error_name_other
+};
+
 // Configuration stored in RAM and saved across reset/reboot that don't include a power-cycle of the board.
 
 typedef struct {
@@ -399,13 +411,13 @@ void motor_dump(motor_id_t motor_id)
                 motor[motor_id].progress);
 }
 
-void motor_set_error_flag(motor_id_t motor_id, motor_error_flag_t motor_error_flag)
+void motor_set_error(motor_id_t motor_id, motor_error_t motor_error_id)
 {
     assert((motor_id >= 0) && (motor_id < MOTOR_ID_COUNT));
-    assert(motor_error_flag >= 0);
+    assert((motor_error_id >= 0) && (motor_error_id < MOTOR_ERROR_COUNT));
 
     cli();
-    motor[motor_id].error_flags |= motor_error_flag;
+    motor[motor_id].error_flags |= (1 << motor_error_id);
     sei();
 }
 
@@ -420,26 +432,6 @@ int motor_get_and_clear_error_flags(motor_id_t motor_id)
     sei();
 
     return ret;
-}
-
-
-void motor_log_error_flags(unsigned char error_flags)
-{
-    if (error_flags == 0)
-        return;
-
-    // TODO: Fix this so it works correctly if more than one error_flags bit is set.
-
-    if (error_flags & MOTOR_ERROR_FLAG_THERMAL_OVERLOAD_DETECTED)
-        log_write(F("thermal overload detected."));
-    if (error_flags & MOTOR_ERROR_FLAG_INVALID_ENCODER_TRANSITION)
-        log_write(F("invalid quadrature encoder transition."));  // TODO: These shouldn't happen when moving at high velocity, but are.
-    if (error_flags & MOTOR_ERROR_FLAG_OPPOSITE_DIRECTION)
-        log_write(F("direction opposite of expectation."));
-    if (error_flags & MOTOR_ERROR_FLAG_UNEXPECTED_HOME_SWITCH_ENCODER)
-        log_write(F("unexpected home switch encoder."));
-    if (error_flags & MOTOR_ERROR_FLAG_UNEXPECTED_STALL_CURRENT_THRESHOLD_EXCEEDED)
-        log_write(F("stall current threshold exceeded."));
 }
 
 static void maybe_blink_led(void)
@@ -589,14 +581,14 @@ ISR(TIMER1_COMPA_vect) {
             // It's easy to get invalid quadrature encoder readings at boot. So motor_id is initialized to
             // MOTOR_ID_COUNT (and then quickly changed to MOTOR_ID_A below), to avoid triggering invalid
             // encoder transitions errors at boot.
-            motor_set_error_flag(qe_motor_id, MOTOR_ERROR_FLAG_INVALID_ENCODER_TRANSITION);
+            motor_set_error(qe_motor_id, MOTOR_ERROR_INVALID_ENCODER_TRANSITION);
         }
         noinit_data.motor[qe_motor_id].previous_quadrature_encoder = qe_state;
 
         check_home_switch(qe_motor_id);
 
         if (get_thermal_overload_active(qe_motor_id))
-            motor_set_error_flag(qe_motor_id, MOTOR_ERROR_FLAG_THERMAL_OVERLOAD_DETECTED);
+            motor_set_error(qe_motor_id, MOTOR_ERROR_THERMAL_OVERLOAD_DETECTED);
 
         if (motor[qe_motor_id].encoders_per_second_counts++ == (2000 / MOTOR_ID_COUNT / 3)) {
             // ISR runs at 2kHz and round-robins the six motors, Every 1/3 of a second
@@ -647,7 +639,7 @@ ISR(TIMER1_COMPA_vect) {
         if ((config.motor[motor_id].stall_current_threshold) != 0 &&
             (motor[motor_id].current > config.motor[motor_id].stall_current_threshold)) {
             if (motor[motor_id].target_encoder == noinit_data.motor[motor_id].encoder) {
-                motor_set_error_flag(motor_id, MOTOR_ERROR_FLAG_UNEXPECTED_STALL_CURRENT_THRESHOLD_EXCEEDED);
+                motor_set_error(motor_id, MOTOR_ERROR_UNEXPECTED_STALL_CURRENT_THRESHOLD_EXCEEDED);
             } else if (!config.motor[motor_id].is_gripper) {
                 // For Motors other than the gripper, High Current means
                 // that the motor is in a stall situation. To unstall,

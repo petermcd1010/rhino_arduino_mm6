@@ -34,17 +34,17 @@ static bool check_system_integrity()
         unsigned char error_flags = motor_get_and_clear_error_flags(i);
 
         if (error_flags != prev_error_flags[i]) {
-            for (int j = 0; j < MOTOR_ERROR_FLAG_COUNT; j++) {
+            for (int j = 0; j < MOTOR_ERROR_COUNT; j++) {
                 int error_bit = 1 << j;
                 if ((error_flags & error_bit) != (prev_error_flags[i] & error_bit)) {
                     log_writeln();
                     log_write(error_flags & error_bit ? F("*ERROR TRIGGERED*") : F("*ERROR CLEARED*"));
                     log_write(F(" Motor %c: "), 'A' + i);
-                    motor_log_error_flags(error_bit);
-                    log_writeln();
+                    log_write((const __FlashStringHelper *)motor_error_name_by_id[j]);
+                    log_writeln(F("."));
                 }
 
-                if ((error_flags & error_bit) == MOTOR_ERROR_FLAG_THERMAL_OVERLOAD_DETECTED)
+                if ((error_flags & error_bit) == (1 << MOTOR_ERROR_THERMAL_OVERLOAD_DETECTED))
                     ok = false;
             }
             prev_error_flags[i] = error_flags;

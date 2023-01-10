@@ -414,7 +414,7 @@ void sm_error_enter(void)
     next_state = { 0 };
 
     motor_disable_all();
-    motor_set_error_flag(MOTOR_ID_A, MOTOR_ERROR_FLAG_USER_FLAG);
+    motor_set_error(MOTOR_ID_A, MOTOR_ERROR_OTHER);
 
     sm_set_next_state(sm_state_error_execute);
 }
