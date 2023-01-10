@@ -15,6 +15,9 @@ SCRIPT_PATH=`pwd`;
 
 cd $SCRIPT_PATH
 
-uncrustify --no-backup -c uncrustify.cfg *.h *.cpp *.ino
+for file in *.h *.cpp *.ino
+do
+  uncrustify --no-backup -c uncrustify.cfg $file
+done
 
 exit 0
