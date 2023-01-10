@@ -17,8 +17,8 @@ static bool calibrate_limits = false;
 static int passing_motor_ids_mask = 0;
 static int motor_ids_mask = 0;
 static motor_id_t motor_id = (motor_id_t)-1;
-static int prev_max_speed_percent = 0;
-static int max_speed_percent = 0;
+static int prev_max_velocity_percent = 0;
+static int max_velocity_percent = 0;
 static int prev_min_encoder = 0;
 static int prev_max_encoder = 0;
 
@@ -247,8 +247,8 @@ static void calibrate_one_enter(void)
     motor_set_enabled_mask(1 << motor_id);
     motor_set_home_encoder(motor_id, motor_get_encoder(motor_id));
 
-    prev_max_speed_percent = motor_get_max_speed_percent(motor_id);
-    motor_set_max_speed_percent(motor_id, max_speed_percent);
+    prev_max_velocity_percent = motor_get_max_velocity_percent(motor_id);
+    motor_set_max_velocity_percent(motor_id, max_velocity_percent);
     motor_clear_stall(motor_id);
 
     if (!calibrate_limits && motor_is_home_triggered_debounced(motor_id))
@@ -555,7 +555,7 @@ static void calibrate_one_done(void)
     motor[motor_id].home_reverse_on_encoder = INT_MIN;
     motor[motor_id].home_reverse_off_encoder = INT_MIN;
 
-    motor_set_max_speed_percent(motor_id, prev_max_speed_percent);
+    motor_set_max_velocity_percent(motor_id, prev_max_velocity_percent);
 
     motor_id = (motor_id_t)((int)motor_id + 1);
 
@@ -596,7 +596,7 @@ static void break_handler(void)
     exit_sm();
 }
 
-static void prepare_to_calibrate(int in_motor_ids_mask, int in_max_speed_percent, bool in_calibrate_limits)
+static void prepare_to_calibrate(int in_motor_ids_mask, int in_max_valocity_percent, bool in_calibrate_limits)
 {
     assert((in_motor_ids_mask >= 0) && (in_motor_ids_mask <= MOTOR_IDS_MASK));
 
@@ -604,18 +604,18 @@ static void prepare_to_calibrate(int in_motor_ids_mask, int in_max_speed_percent
     motor_ids_mask = in_motor_ids_mask;
     passing_motor_ids_mask = 0;
     motor_id = (motor_id_t)0;
-    max_speed_percent = in_max_speed_percent;
+    max_velocity_percent = in_max_valocity_percent;
     exit_motor_ids_mask = motor_get_enabled_mask();
     exit_to_state = sm_get_state();
     sm_set_next_state(state_calibrate_all);
 }
 
-void calibrate_home_switch_and_limits(int in_motor_ids_mask, int in_max_speed_percent)
+void calibrate_home_switch_and_limits(int in_motor_ids_mask, int in_max_velocity_percent)
 {
-    prepare_to_calibrate(in_motor_ids_mask, in_max_speed_percent, true);
+    prepare_to_calibrate(in_motor_ids_mask, in_max_velocity_percent, true);
 }
 
-void calibrate_home_switch(int in_motor_ids_mask, int in_max_speed_percent)
+void calibrate_home_switch(int in_motor_ids_mask, int in_max_velocity_percent)
 {
-    prepare_to_calibrate(in_motor_ids_mask, in_max_speed_percent, false);
+    prepare_to_calibrate(in_motor_ids_mask, in_max_velocity_percent, false);
 }

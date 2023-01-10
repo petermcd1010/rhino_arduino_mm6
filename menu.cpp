@@ -331,9 +331,9 @@ const menu_item_t config_menu[] PROGMEM = {
 };
 
 static const char CM_C[] PROGMEM = "calibrate home switches and limits";
-static const char CH_C[] PROGMEM = "[motorids [max-speed-percent]] -- Calibrate home switches (zeros) motor limits.";
+static const char CH_C[] PROGMEM = "[motorids [max-velocity-percent]] -- Calibrate home switches (zeros) motor limits.";
 static const char CM_W[] PROGMEM = "calibrate home switches";
-static const char CH_W[] PROGMEM = "[motorids [max-speed-percent]] -- Calibrate home switches (zeros).";
+static const char CH_W[] PROGMEM = "[motorids [max-velocity-percent]] -- Calibrate home switches (zeros).";
 
 const menu_item_t calibration_menu[] PROGMEM = {
     { '1', MM_1,    NULL,                 NULL,      false, command_print_config,              MH_1    },

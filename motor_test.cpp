@@ -57,10 +57,10 @@ static void half_wiggle(void)
         // Initialize when start_ms == 0;
         start_ms = millis();
         half_wiggle_start_encoder = motor_get_encoder(motor_id);
-        motor_set_speed(motor_id, half_wiggle_velocity);
+        motor_set_velocity(motor_id, half_wiggle_velocity);
         log_write(F("on"));
     } else if (abs(motor_get_encoder(motor_id) - half_wiggle_start_encoder) > desired_encoder_delta) {
-        motor_set_speed(motor_id, 0);
+        motor_set_velocity(motor_id, 0);
         motor_set_enabled(motor_id, false);
         log_write(F(", off,"));
         start_ms = 0;  // Initialize wait_stop.

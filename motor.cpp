@@ -33,10 +33,10 @@ static const motor_pinout_t motor_pinout[MOTOR_ID_COUNT] = {
 
 motor_t motor[MOTOR_ID_COUNT] = { 0 };  // Intentionally not static, so can be accessed globally.
 
-// The speed sign bit is used to set the LMD18200 direction pin. So the PWM register accepts 0-255 for + and -.
-static const int motor_min_speed = -255;
-static const int motor_max_speed = 255;
+// The velocity sign bit is used to set the LMD18200 direction pin. So the PWM register accepts 0-255 for + and -.
 static const int motor_min_pwm = 55;
+static const int motor_max_velocity = 255 - motor_min_pwm;
+static const int motor_min_velocity = -motor_max_velocity;
 
 static int enabled_motors_mask = 0;
 
@@ -106,7 +106,7 @@ static void init_motor(motor_id_t motor_id)
         //   So the motor orientation is used to correct that.
         //     The values for the Motor orientation are set by the setup.
         //       Since the not-inverted and inverted orientation are used to invert the position the values are 1 or -1
-        motor_set_max_speed_percent((motor_id_t)motor_id, 100);
+        motor_set_max_velocity_percent((motor_id_t)motor_id, 100);
         motor[motor_id].prev_home_triggered = motor_is_home_triggered((motor_id_t)motor_id);
         motor[motor_id].prev_home_triggered_millis = millis();
         motor[motor_id].prev_home_triggered_encoder = INT_MAX;
@@ -223,11 +223,11 @@ void motor_set_enabled(motor_id_t motor_id, bool enabled)
         return;
 
     if (enabled) {
-        motor_set_speed(motor_id, motor_max_speed);
+        motor_set_velocity(motor_id, motor_max_velocity);
         digitalWrite(motor_pinout[motor_id].out_brake, LOW);
         enabled_motors_mask |= 1 << (int)motor_id;
     } else {
-        motor_set_speed(motor_id, 0);
+        motor_set_velocity(motor_id, 0);
         digitalWrite(motor_pinout[motor_id].out_brake, HIGH);
         enabled_motors_mask &= ~(1 << (int)motor_id);
     }
@@ -352,10 +352,10 @@ bool motor_is_moving(motor_id_t motor_id)
     return motor[motor_id].target_encoder != noinit_data.motor[motor_id].encoder;
 }
 
-void motor_set_speed(motor_id_t motor_id, int speed)
+void motor_set_velocity(motor_id_t motor_id, int velocity)
 {
     assert((motor_id >= 0) && (motor_id < MOTOR_ID_COUNT));
-    assert((speed >= motor_min_speed) && (speed <= motor_max_speed));
+    assert((velocity >= motor_min_velocity) && (velocity <= motor_max_velocity));
 
     if (!motor[motor_id].enabled) {
         motor[motor_id].pwm = 0;
@@ -363,36 +363,36 @@ void motor_set_speed(motor_id_t motor_id, int speed)
         return;
     }
 
-    // Convert speed's +/- 255 value to PWM and Direction.
-    if (speed == 0) {
+    // Convert velocity's +/- 255 value to PWM and Direction.
+    if (velocity == 0) {
         motor[motor_id].pwm = 0;
     } else {
-        // TODO: Cleanup/refactor speed, max_speed to be 0-100.
-        unsigned int pwm = abs(speed) + motor_min_pwm;
-        unsigned int max_pwm = abs(motor[motor_id].max_speed) + motor_min_pwm;
+        // TODO: Cleanup/refactor velocity, max_velocity to be 0-100.
+        unsigned int pwm = abs(velocity) + motor_min_pwm;
+        unsigned int max_pwm = abs(motor[motor_id].max_velocity) + motor_min_pwm;
         pwm = (pwm > max_pwm) ? max_pwm : pwm;
         pwm = (pwm < motor_min_pwm) ? motor_min_pwm : pwm;
         motor[motor_id].pwm = pwm;
     }
 
-    digitalWrite(motor_pinout[motor_id].out_direction, speed >= 0 ? config.motor[motor_id].forward_polarity : !config.motor[motor_id].forward_polarity);
+    digitalWrite(motor_pinout[motor_id].out_direction, velocity >= 0 ? config.motor[motor_id].forward_polarity : !config.motor[motor_id].forward_polarity);
     analogWrite(motor_pinout[motor_id].out_pwm, motor[motor_id].pwm);
-    motor[motor_id].speed = speed;
+    motor[motor_id].velocity = velocity;
 }
 
-void motor_set_max_speed_percent(motor_id_t motor_id, int max_speed_percent)
+void motor_set_max_velocity_percent(motor_id_t motor_id, int max_velocity_percent)
 {
     assert((motor_id >= 0) && (motor_id < MOTOR_ID_COUNT));
-    assert((max_speed_percent >= 0.0f) && (max_speed_percent <= 100.0f));
+    assert((max_velocity_percent >= 0.0f) && (max_velocity_percent <= 100.0f));
 
-    motor[motor_id].max_speed = (motor_max_speed * max_speed_percent) / 100;
+    motor[motor_id].max_velocity = (motor_max_velocity * max_velocity_percent) / 100;
 }
 
-int motor_get_max_speed_percent(motor_id_t motor_id)
+int motor_get_max_velocity_percent(motor_id_t motor_id)
 {
     assert((motor_id >= 0) && (motor_id < MOTOR_ID_COUNT));
 
-    return motor[motor_id].max_speed * 100 / motor_max_speed;
+    return motor[motor_id].max_velocity * 100 / motor_max_velocity;
 }
 
 bool motor_is_home_triggered(motor_id_t motor_id)
@@ -411,12 +411,12 @@ void motor_dump(motor_id_t motor_id)
 {
     assert((motor_id >= 0) && (motor_id < MOTOR_ID_COUNT));
 
-    log_writeln(F("%c: encoder:%d qe_prev:%d, speed:%d target_speed:%d orientation:%d prev_dir:%d pid_dvalue:%d pid_perror:%d target_encoder:%d current:%d progress:%d"),
+    log_writeln(F("%c: encoder:%d qe_prev:%d, velocity:%d target_velocity:%d orientation:%d prev_dir:%d pid_dvalue:%d pid_perror:%d target_encoder:%d current:%d progress:%d"),
                 'A' + motor_id,
                 noinit_data.motor[motor_id].encoder,
                 noinit_data.motor[motor_id].previous_quadrature_encoder,
-                motor[motor_id].speed,
-                motor[motor_id].target_speed,
+                motor[motor_id].velocity,
+                motor[motor_id].target_velocity,
                 config.motor[motor_id].orientation,
                 motor[motor_id].previous_direction,
                 motor[motor_id].pid_dvalue,
@@ -459,7 +459,7 @@ void motor_log_error_flags(unsigned char error_flags)
     if (error_flags & MOTOR_ERROR_FLAG_THERMAL_OVERLOAD_DETECTED)
         log_write(F("thermal overload detected."));
     if (error_flags & MOTOR_ERROR_FLAG_INVALID_ENCODER_TRANSITION)
-        log_write(F("invalid quadrature encoder transition."));  // TODO: These shouldn't happen when moving at high speed, but are.
+        log_write(F("invalid quadrature encoder transition."));  // TODO: These shouldn't happen when moving at high velocity, but are.
     if (error_flags & MOTOR_ERROR_FLAG_OPPOSITE_DIRECTION)
         log_write(F("direction opposite of expectation."));
     if (error_flags & MOTOR_ERROR_FLAG_UNEXPECTED_HOME_SWITCH_ENCODER)
@@ -722,21 +722,21 @@ ISR(TIMER1_COMPA_vect) {
         motor[motor_id].pid_perror = pid_perror;  // Save.
 
         //==========================================================
-        // Calc the Target Speed from the Proportional Error
-        // The target speed is just the difference between the
+        // Calc the target velocity from the Proportional Error
+        // The target velocity is just the difference between the
         //  Current Position and the Target Position (with limits).
-        // Results in a speed of +/- 255.
+        // Results in a velocity of +/- 255.
         //==========================================================
         if (pid_perror > max_error) {
-            motor[motor_id].target_speed = max_error;
+            motor[motor_id].target_velocity = max_error;
             // Set the Status that indicates that the Motor is more than 200 clicks from target.
             motor[motor_id].progress = MOTOR_PROGRESS_ON_WAY_TO_TARGET;
         } else if (pid_perror < min_error) {
-            motor[motor_id].target_speed = min_error;
+            motor[motor_id].target_velocity = min_error;
             // Set the Status that indicates that the Motor is more than 200 clicks from target.
             motor[motor_id].progress = MOTOR_PROGRESS_ON_WAY_TO_TARGET;
         } else if (pid_perror > 0) {  // TODO: Refactor to combine pid_perror > 0 and < 0 cases.
-            motor[motor_id].target_speed = motor[motor_id].pid_perror + (motor[motor_id].pid_dvalue / 6);
+            motor[motor_id].target_velocity = motor[motor_id].pid_perror + (motor[motor_id].pid_dvalue / 6);
             if (pid_perror < 2)
                 // Set the Status that indicates that the Motor is 1 click from target
                 motor[motor_id].progress = MOTOR_PROGRESS_BESIDE_TARGET;
@@ -747,7 +747,7 @@ ISR(TIMER1_COMPA_vect) {
                 // Set the Status that indicates that the Motor is 30-200 clicks from target
                 motor[motor_id].progress = MOTOR_PROGRESS_APPROACHING_TARGET;
         } else if (pid_perror < 0) {
-            motor[motor_id].target_speed = motor[motor_id].pid_perror - (motor[motor_id].pid_dvalue / 6), -255;  // TODO: Check.
+            motor[motor_id].target_velocity = motor[motor_id].pid_perror - (motor[motor_id].pid_dvalue / 6), -255;  // TODO: Check.
             if (pid_perror > -2)
                 // Set the Status that indicates that the Motor is 1 click from target
                 motor[motor_id].progress = MOTOR_PROGRESS_BESIDE_TARGET;
@@ -758,7 +758,7 @@ ISR(TIMER1_COMPA_vect) {
                 // Set the Status that indicates that the Motor is 30-200 clicks from target
                 motor[motor_id].progress = MOTOR_PROGRESS_APPROACHING_TARGET;
         } else {
-            motor[motor_id].target_speed = 0;
+            motor[motor_id].target_velocity = 0;
             motor[motor_id].progress = MOTOR_PROGRESS_AT_TARGET;  // Clear the flag that indicates that the Motor is in motion.
             // Motor_PID[motor_id] = 0;  // Turn off motor_id's PID.
         }
@@ -768,31 +768,30 @@ ISR(TIMER1_COMPA_vect) {
         //==========================================================
         if (motor[motor_id].enabled) {
             //============================================
-            // Ramp Up/Down Current Speed to Target Speed.
-            // Prevents the motors from jumping from dead
-            //  stop to full speed and vice-versa
+            // Ramp up/down the present velocity to target velocity.
+            // Prevents the motors from jumping from dead stop to full velocity and vice-versa
             //============================================
-            int CurrentSpeedChanged = 0;
-            if (motor[motor_id].target_speed > motor[motor_id].speed) {
-                if (motor[motor_id].speed < (255 - motor_min_pwm)) {
-                    motor[motor_id].speed++;  // if the target is higher, then inc up to the target.
-                    if (motor[motor_id].target_speed > motor[motor_id].speed)
-                        if (motor[motor_id].speed < (255 - motor_min_pwm))
-                            motor[motor_id].speed++;  // if the target is higher, then inc up to the target a second time.
-                    CurrentSpeedChanged = 1;
+            int velocity_changed = 0;
+            if (motor[motor_id].target_velocity > motor[motor_id].velocity) {
+                if (motor[motor_id].velocity < (255 - motor_min_pwm)) {
+                    motor[motor_id].velocity++;  // if the target is higher, then inc up to the target.
+                    if (motor[motor_id].target_velocity > motor[motor_id].velocity)
+                        if (motor[motor_id].velocity < (255 - motor_min_pwm))
+                            motor[motor_id].velocity++;  // if the target is higher, then inc up to the target a second time.
+                    velocity_changed = 1;
                 }
-            } else if (motor[motor_id].target_speed < motor[motor_id].speed) {
-                if (motor[motor_id].speed > -(255 - motor_min_pwm)) {
-                    motor[motor_id].speed--;  // if the target is lower, then inc down to the target.
-                    if (motor[motor_id].target_speed < motor[motor_id].speed)
-                        if (motor[motor_id].speed > -(255 - motor_min_pwm))
-                            motor[motor_id].speed--;  // if the target is lower, then inc down to the target a second time.
-                    CurrentSpeedChanged = 1;
+            } else if (motor[motor_id].target_velocity < motor[motor_id].velocity) {
+                if (motor[motor_id].velocity > -(255 - motor_min_pwm)) {
+                    motor[motor_id].velocity--;  // if the target is lower, then inc down to the target.
+                    if (motor[motor_id].target_velocity < motor[motor_id].velocity)
+                        if (motor[motor_id].velocity > -(255 - motor_min_pwm))
+                            motor[motor_id].velocity--;  // if the target is lower, then inc down to the target a second time.
+                    velocity_changed = 1;
                 }
             }
 
-            if (CurrentSpeedChanged == 1)
-                motor_set_speed(motor_id, motor[motor_id].speed);
+            if (velocity_changed == 1)
+                motor_set_velocity(motor_id, motor[motor_id].velocity);
         }
     }
 }

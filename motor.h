@@ -47,9 +47,9 @@ typedef enum {
 
 typedef struct {
     bool             enabled;
-    int              max_speed;
-    int              target_speed;
-    int              speed;
+    int              max_velocity;
+    int              target_velocity;
+    int              velocity;
     int              pwm;
     int              previous_direction;
     int              pid_dvalue;
@@ -97,9 +97,9 @@ void motor_set_target_angle(motor_id_t motor_id, float angle);
 float motor_get_percent(motor_id_t motor_id);
 void motor_set_target_percent(motor_id_t motor_id, float percent);
 bool motor_is_moving(motor_id_t motor_id);
-void motor_set_speed(motor_id_t motor_id, int speed);  // For speed in [motor_min_speed, motor_max_speed]. Sets to 0 if not enabled.
-void motor_set_max_speed_percent(motor_id_t motor_id, int max_speed_percent);
-int motor_get_max_speed_percent(motor_id_t motor_id);
+void motor_set_velocity(motor_id_t motor_id, int velocity);  // For velocity in [motor_min_velocity, motor_max_velocity]. Sets to 0 if not enabled.
+void motor_set_max_velocity_percent(motor_id_t motor_id, int max_velocity_percent);
+int motor_get_max_velocity_percent(motor_id_t motor_id);
 bool motor_is_home_triggered(motor_id_t motor_id);
 bool motor_is_home_triggered_debounced(motor_id_t motor_id);
 void motor_dump(motor_id_t motor_id);

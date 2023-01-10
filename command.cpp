@@ -492,7 +492,7 @@ static int calibrate_home_and_or_limits(char *args, size_t args_nbytes, bool cal
     int motor_ids_mask = 0;
     char *p = args;
     bool cancel = false;
-    int max_speed_percent = 50;
+    int max_velocity_percent = 50;
 
     // Read.
 
@@ -508,7 +508,7 @@ static int calibrate_home_and_or_limits(char *args, size_t args_nbytes, bool cal
         motor_ids_mask = motor_get_enabled_mask();  // If user didn't specify, select all enabled motors.
 
     if (motor_ids_mask != 0) {
-        nbytes = parse_int(p, args_nbytes, &max_speed_percent);
+        nbytes = parse_int(p, args_nbytes, &max_velocity_percent);
         args_nbytes -= nbytes;
         p += nbytes;
     }
@@ -518,8 +518,8 @@ static int calibrate_home_and_or_limits(char *args, size_t args_nbytes, bool cal
 
     // Validate.
 
-    if ((max_speed_percent < 0) || (max_speed_percent > 100)) {
-        log_writeln(F("  Max speed percent must be between 0 and 100."));
+    if ((max_velocity_percent < 0) || (max_velocity_percent > 100)) {
+        log_writeln(F("  Max velocity percent must be between 0 and 100."));
         cancel = true;
     }
 
@@ -556,12 +556,12 @@ static int calibrate_home_and_or_limits(char *args, size_t args_nbytes, bool cal
         if (motor_ids_mask & (1 << i))
             log_write(F("%c"), 'A' + i);
     }
-    log_writeln(F(" at %d%% of maximum speed."), max_speed_percent);
+    log_writeln(F(" at %d%% of maximum velocity."), max_velocity_percent);
 
     if (calibrate_limits)
-        calibrate_home_switch_and_limits(motor_ids_mask, max_speed_percent);
+        calibrate_home_switch_and_limits(motor_ids_mask, max_velocity_percent);
     else
-        calibrate_home_switch(motor_ids_mask, max_speed_percent);
+        calibrate_home_switch(motor_ids_mask, max_velocity_percent);
 
     return p - args;
 }
@@ -754,7 +754,7 @@ int command_print_motor_status(char *args, size_t args_nbytes)
 
         char angle_str[15] = {};
         dtostrf(motor_get_angle((motor_id_t)i), 3, 2, angle_str);
-        log_writeln(F("  %c%s: home:%d sta:%d enc:%d tar:%d err:%d spd:%d PWM:%d cur:%d hs:%d,%d,%d,%d->%d angle:%s thermal:%d"),
+        log_writeln(F("  %c%s: home:%d sta:%d enc:%d tar:%d err:%d vel:%d PWM:%d cur:%d hs:%d,%d,%d,%d->%d angle:%s thermal:%d"),
                     'A' + i,
                     ((motor_get_enabled_mask() & (1 << i)) == 0) ? " [not enabled]" : "",
                     motor[i].home_triggered_debounced,  // home switch.
@@ -763,8 +763,8 @@ int command_print_motor_status(char *args, size_t args_nbytes)
                     motor_get_encoder((motor_id_t)i) * config.motor[i].orientation,  // enc.
                     motor[i].target_encoder * config.motor[i].orientation,  // tar.
                     motor[i].pid_perror * config.motor[i].orientation,  // err.
-                    motor[i].speed * config.motor[i].orientation,  // spd.
-                    /* motor[i].target_speed, */  // tspd.
+                    motor[i].velocity * config.motor[i].orientation,  // vel.
+                    /* motor[i].target_velocity, */  // tspd.
                     motor[i].pwm,
                     motor[i].current,  // cur.
                     motor[i].home_reverse_off_encoder,  // hs.

@@ -6,5 +6,5 @@
 
 #include "motor.h"
 
-void calibrate_home_switch_and_limits(int motor_ids_mask, int max_speed_percent);
-void calibrate_home_switch(int motor_ids_mask, int max_speed_percent);
+void calibrate_home_switch_and_limits(int motor_ids_mask, int max_velocity_percent);
+void calibrate_home_switch(int motor_ids_mask, int max_velocity_percent);
