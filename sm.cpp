@@ -313,7 +313,7 @@ void sm_init(void)
     if (self_test_success) {
         config_print();
         log_writeln();
-        motor_init_all();
+        motor_init();
     }
 
     menu_help();

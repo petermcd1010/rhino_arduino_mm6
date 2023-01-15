@@ -746,33 +746,13 @@ int command_print_motor_status(char *args, size_t args_nbytes)
     p += nbytes;
 
     if (motor_ids_mask == 0)
-        motor_ids_mask = 0x3f;
+        motor_ids_mask = MOTOR_IDS_MASK;
 
     for (int i = 0; i < MOTOR_ID_COUNT; i++) {
         if ((motor_ids_mask & (1 << i)) == 0)
             continue;
 
-        char angle_str[15] = {};
-        dtostrf(motor_get_angle((motor_id_t)i), 3, 2, angle_str);
-        log_writeln(F("  %c%s: home:%d sta:%d enc:%d tar:%d err:%d vel:%d PWM:%d cur:%d hs:%d,%d,%d,%d->%d angle:%s"),
-                    'A' + i,
-                    ((motor_get_enabled_mask() & (1 << i)) == 0) ? " [not enabled]" : "",
-                    motor[i].home_triggered_debounced,  // home switch.
-                    motor[i].progress,  // sta. Report whether or not the Motor has reached the target location.
-                    /* motor_get_encoder(iMotor), */  // pos.
-                    motor_get_encoder((motor_id_t)i) * config.motor[i].orientation,  // enc.
-                    motor[i].target_encoder * config.motor[i].orientation,  // tar.
-                    motor[i].pid_perror * config.motor[i].orientation,  // err.
-                    motor[i].velocity * config.motor[i].orientation,  // vel.
-                    /* motor[i].target_velocity, */  // tspd.
-                    motor[i].pwm,
-                    motor[i].current,  // cur.
-                    motor[i].home_reverse_off_encoder,  // hs.
-                    motor[i].home_forward_on_encoder,  // hs.
-                    motor[i].home_reverse_on_encoder,  // hs.
-                    motor[i].home_forward_off_encoder,  // hs.
-                    (motor[i].home_forward_off_encoder + motor[i].home_reverse_on_encoder + motor[i].home_forward_on_encoder + motor[i].home_reverse_off_encoder) / 4,  // hs.
-                    angle_str);
+        motor_dump(i);
     }
 
     if (args_nbytes > 0)

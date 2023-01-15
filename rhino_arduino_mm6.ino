@@ -59,10 +59,11 @@ void loop()
 {
     // https://www.arduino.cc/reference/en/language/structure/sketch/loop/.
 
-    static bool previous_check_system_integrity_ok = true;
+    static bool prev_ok = true;
+    bool ok = check_system_integrity();
 
-    if (previous_check_system_integrity_ok && !check_system_integrity()) {
-        previous_check_system_integrity_ok = false;
+    if (prev_ok && !ok) {
+        prev_ok = false;
         sm_set_next_state(sm_state_error_enter);
         log_writeln(F("ERROR: System integrity check failed. Reboot or power-cycle system."));
     }

@@ -4,7 +4,6 @@
  */
 
 #include <limits.h>
-#include <stdlib.h>
 #include "config.h"
 #include "hardware.h"
 #include "log.h"
@@ -16,7 +15,7 @@ typedef struct {
     unsigned short out_pwm;            // Digital.
     unsigned short out_brake;          // Digital. LOW = disable brake. HIGH = enable brake.
     unsigned short in_current;         // Analog. 377uA/A. What's the resistance?
-    unsigned short in_thermal_overload;  // Digital. Becomes active at 145C. Chip shuts off at 170C.
+    unsigned short in_thermal_overload;    // Digital. Becomes active at 145C. Chip shuts off at 170C.
     unsigned short in_home_switch;     // Digital. LOW = home switch triggered. HIGH = home switch not triggered.
     unsigned short in_quadrature_encoder_a;  // Digital.
     unsigned short in_quadrature_encoder_b;  // Digital.
@@ -40,7 +39,7 @@ static const int motor_min_velocity = -motor_max_velocity;
 
 static int enabled_motors_mask = 0;
 
-static const char error_name_thermal_overload_detected[] PROGMEM = "thermal overload detected";
+static const char error_name_thermal_overload_detected[] PROGMEM = "thermal overload";
 static const char error_name_invalid_quadrature_encoder_transition[] PROGMEM = "invalid quadrature encoder transition";
 static const char error_name_stall_current_threshold_exceeded[] PROGMEM = "stall current threshold exceeded";
 static const char error_name_other[] PROGMEM = "other error";
@@ -53,40 +52,38 @@ const char *const motor_error_name_by_id[MOTOR_ERROR_COUNT] = {
 };
 
 // Configuration stored in RAM and saved across reset/reboot that don't include a power-cycle of the board.
+const int prev_encoder_state_init_value = -1;
 
-typedef struct {
+static struct {
     // nbytes, version, magic are used to verify valid data.
     size_t nbytes;
     int    version;
     int    magic;
     struct {
-        int previous_quadrature_encoder;
+        int prev_encoder_state;
         int encoder;
     } motor[MOTOR_ID_COUNT];
-} noinit_data_t;
+} persistent_ram_data __attribute__((section(".noinit")));  // NOT reset to 0 when the CPU is reset.
 
-static noinit_data_t noinit_data __attribute__((section(".noinit")));  // NOT reset to 0 when the CPU is reset.
-
-void motor_clear_ram_data(void)
+void motor_clear_persistent_ram_data(void)
 {
-    // External to motor.cpp, call it ram_data instead of noinit_data.
-    memset(&noinit_data, 0, sizeof(noinit_data_t));
+    memset(&persistent_ram_data, 0, sizeof(persistent_ram_data));
 }
 
-static void check_noinit_data(void)
+static void check_persistent_ram_data(void)
 {
     // Zero out saved variables on power cycle. On reset, these values are NOT erased.
-    const int noinit_data_version = 2;
-    const int noinit_data_magic = 0xABCD1234;
+    const int persistent_ram_data_version = 2;
+    const int persistent_ram_data_magic = 0xABCD1234;
 
-    if ((noinit_data.nbytes != sizeof(noinit_data_t) || (noinit_data.version != noinit_data_version) || (noinit_data.magic != noinit_data_magic))) {
-        log_writeln(F("Initializing noinit data."));
-        noinit_data.nbytes = sizeof(noinit_data_t);
-        noinit_data.version = noinit_data_version;
-        noinit_data.magic = noinit_data_magic;
+    if ((persistent_ram_data.nbytes != sizeof(persistent_ram_data) || (persistent_ram_data.version != persistent_ram_data_version) || (persistent_ram_data.magic != persistent_ram_data_magic))) {
+        log_writeln(F("Initializing persistent RAM data."));
+        persistent_ram_data.nbytes = sizeof(persistent_ram_data);
+        persistent_ram_data.version = persistent_ram_data_version;
+        persistent_ram_data.magic = persistent_ram_data_magic;
         for (int i = 0; i < MOTOR_ID_COUNT; i++) {
-            noinit_data.motor[i].encoder = 0;
-            noinit_data.motor[i].previous_quadrature_encoder = 0;
+            persistent_ram_data.motor[i].encoder = 0;
+            persistent_ram_data.motor[i].prev_encoder_state = prev_encoder_state_init_value;
         }
     } else {
         log_writeln(F("Detected reset without RAM clear. Reusing in-RAM motor encoder values."));
@@ -127,9 +124,9 @@ static void init_motor(motor_id_t motor_id)
     motor_set_enabled(motor_id, false);
 }
 
-void motor_init_all(void)
+void motor_init(void)
 {
-    check_noinit_data();
+    check_persistent_ram_data();
 
     for (int i = 0; i < MOTOR_ID_COUNT; i++) {
         init_motor((motor_id_t)i);
@@ -218,7 +215,7 @@ void motor_set_enabled(motor_id_t motor_id, bool enabled)
     }
 
     motor[motor_id].home_triggered_debounced = motor_is_home_triggered(motor_id);
-    motor[motor_id].target_encoder = noinit_data.motor[motor_id].encoder;
+    motor[motor_id].target_encoder = persistent_ram_data.motor[motor_id].encoder;
     motor[motor_id].pid_perror = 0;
     motor[motor_id].pid_dvalue = 0;
     motor[motor_id].enabled = enabled;
@@ -262,7 +259,7 @@ void motor_set_home_encoder(motor_id_t motor_id, int home_encoder)
 {
     assert((motor_id >= 0) && (motor_id < MOTOR_ID_COUNT));
 
-    noinit_data.motor[motor_id].encoder -= home_encoder;
+    persistent_ram_data.motor[motor_id].encoder -= home_encoder;
     motor[motor_id].target_encoder -= home_encoder;
 }
 
@@ -270,7 +267,7 @@ int motor_get_encoder(motor_id_t motor_id)
 {
     assert((motor_id >= 0) && (motor_id < MOTOR_ID_COUNT));
 
-    return noinit_data.motor[motor_id].encoder * config.motor[motor_id].orientation;
+    return persistent_ram_data.motor[motor_id].encoder * config.motor[motor_id].orientation;
 }
 
 void motor_set_target_encoder(motor_id_t motor_id, int encoder)
@@ -283,7 +280,6 @@ void motor_set_target_encoder(motor_id_t motor_id, int encoder)
     encoder = encoder = max(config.motor[motor_id].min_encoder, min(config.motor[motor_id].max_encoder, encoder));
 
     motor[motor_id].target_encoder = encoder * config.motor[motor_id].orientation;
-    motor[motor_id].progress = MOTOR_PROGRESS_ON_WAY_TO_TARGET;
     motor[motor_id].encoders_per_second = 0;
 }
 
@@ -334,7 +330,7 @@ bool motor_is_moving(motor_id_t motor_id)
     if (!motor_get_enabled(motor_id))
         return false;
 
-    return motor[motor_id].target_encoder != noinit_data.motor[motor_id].encoder;
+    return motor[motor_id].target_encoder != persistent_ram_data.motor[motor_id].encoder;
 }
 
 void motor_set_velocity(motor_id_t motor_id, int velocity)
@@ -396,19 +392,18 @@ void motor_dump(motor_id_t motor_id)
 {
     assert((motor_id >= 0) && (motor_id < MOTOR_ID_COUNT));
 
-    log_writeln(F("%c: encoder:%d qe_prev:%d, velocity:%d target_velocity:%d orientation:%d prev_dir:%d pid_dvalue:%d pid_perror:%d target_encoder:%d current:%d progress:%d"),
+    log_writeln(F("%c: encoder:%d qe_prev:%d, velocity:%d target_velocity:%d orientation:%d prev_dir:%d pid_dvalue:%d pid_perror:%d target_encoder:%d current:%d"),
                 'A' + motor_id,
-                noinit_data.motor[motor_id].encoder,
-                noinit_data.motor[motor_id].previous_quadrature_encoder,
+                persistent_ram_data.motor[motor_id].encoder,
+                persistent_ram_data.motor[motor_id].prev_encoder_state,
                 motor[motor_id].velocity,
                 motor[motor_id].target_velocity,
                 config.motor[motor_id].orientation,
-                motor[motor_id].previous_direction,
+                motor[motor_id].prev_direction,
                 motor[motor_id].pid_dvalue,
                 motor[motor_id].pid_perror,
                 motor[motor_id].target_encoder,
-                motor[motor_id].current,
-                motor[motor_id].progress);
+                motor[motor_id].current);
 }
 
 void motor_set_error(motor_id_t motor_id, motor_error_t motor_error_id)
@@ -513,7 +508,7 @@ static void check_home_switch(motor_id_t motor_id)
     if (home_triggered != m->prev_home_triggered) {
         m->prev_home_triggered = home_triggered;
         m->prev_home_triggered_millis = millis();
-        m->prev_home_triggered_encoder = noinit_data.motor[motor_id].encoder;
+        m->prev_home_triggered_encoder = persistent_ram_data.motor[motor_id].encoder;
     }
 
     // TODO: Tighten debounce timing. Example:
@@ -528,12 +523,12 @@ static void check_home_switch(motor_id_t motor_id)
 
     if (home_triggered_debounced != m->home_triggered_debounced) {
         int encoder = m->prev_home_triggered_encoder;
-        if (m->previous_direction == 1) {
+        if (m->prev_direction == 1) {
             if (home_triggered_debounced)
                 m->home_forward_on_encoder = encoder;
             else
                 m->home_forward_off_encoder = encoder;
-        } else if (m->previous_direction == -1) {
+        } else if (m->prev_direction == -1) {
             if (home_triggered_debounced)
                 m->home_reverse_on_encoder = encoder;
             else
@@ -558,23 +553,23 @@ ISR(TIMER1_COMPA_vect) {
         int qe_value_b = digitalRead(motor_pinout[qe_motor_id].in_quadrature_encoder_b);
         int qe_state = qe_value_a + (qe_value_b << 1);  // 0-3.
 
-        if (qe_state == noinit_data.motor[qe_motor_id].previous_quadrature_encoder) {
+        if (qe_state == persistent_ram_data.motor[qe_motor_id].prev_encoder_state) {
             // Same state as last time through loop.
             motor[qe_motor_id].pid_dvalue++;
             if (motor[qe_motor_id].pid_dvalue > 10000)
                 motor[qe_motor_id].pid_dvalue = 10000;
-        } else if (qe_state == qe_inc_states[noinit_data.motor[qe_motor_id].previous_quadrature_encoder]) {
+        } else if (qe_state == qe_inc_states[persistent_ram_data.motor[qe_motor_id].prev_encoder_state]) {
             // Quadrature encoder reading indicates moving in positive direction.
-            motor[qe_motor_id].previous_direction = 1;
-            if (noinit_data.motor[qe_motor_id].encoder != INT_MAX) {
-                noinit_data.motor[qe_motor_id].encoder++;
+            motor[qe_motor_id].prev_direction = 1;
+            if (persistent_ram_data.motor[qe_motor_id].encoder != INT_MAX) {
+                persistent_ram_data.motor[qe_motor_id].encoder++;
                 motor[qe_motor_id].pid_dvalue = 0;
             }
-        } else if (qe_state == qe_dec_states[noinit_data.motor[qe_motor_id].previous_quadrature_encoder]) {
+        } else if (qe_state == qe_dec_states[persistent_ram_data.motor[qe_motor_id].prev_encoder_state]) {
             // Quadrature encoder reading indicates moving in negative direction.
-            motor[qe_motor_id].previous_direction = -1;
-            if (noinit_data.motor[qe_motor_id].encoder != INT_MIN) {
-                noinit_data.motor[qe_motor_id].encoder--;
+            motor[qe_motor_id].prev_direction = -1;
+            if (persistent_ram_data.motor[qe_motor_id].encoder != INT_MIN) {
+                persistent_ram_data.motor[qe_motor_id].encoder--;
                 motor[qe_motor_id].pid_dvalue = 0;
             }
         } else if (motor_id != MOTOR_ID_COUNT) {
@@ -583,7 +578,7 @@ ISR(TIMER1_COMPA_vect) {
             // encoder transitions errors at boot.
             motor_set_error(qe_motor_id, MOTOR_ERROR_INVALID_ENCODER_TRANSITION);
         }
-        noinit_data.motor[qe_motor_id].previous_quadrature_encoder = qe_state;
+        persistent_ram_data.motor[qe_motor_id].prev_encoder_state = qe_state;
 
         check_home_switch(qe_motor_id);
 
@@ -594,9 +589,9 @@ ISR(TIMER1_COMPA_vect) {
             // ISR runs at 2kHz and round-robins the six motors, Every 1/3 of a second
 
             // Update encoders_per_second.
-            motor[qe_motor_id].encoders_per_second = noinit_data.motor[qe_motor_id].encoder - motor[qe_motor_id].encoders_per_second_start_encoder;
+            motor[qe_motor_id].encoders_per_second = persistent_ram_data.motor[qe_motor_id].encoder - motor[qe_motor_id].encoders_per_second_start_encoder;
             motor[qe_motor_id].encoders_per_second *= 3;
-            motor[qe_motor_id].encoders_per_second_start_encoder = noinit_data.motor[qe_motor_id].encoder;
+            motor[qe_motor_id].encoders_per_second_start_encoder = persistent_ram_data.motor[qe_motor_id].encoder;
             motor[qe_motor_id].encoders_per_second_counts = 0;
 
             // Update current draw.
@@ -625,7 +620,7 @@ ISR(TIMER1_COMPA_vect) {
         // The IntMotor PID is NOT running.
         // ( =1230 instead of =0 is just to kill the routine for now because it isn't doing what it needs to do.)
         motor[motor_id].pid_dvalue = 0;  // Clear the PID DValue for this motor.
-        int intMDiff = abs(motor[motor_id].target_encoder - noinit_data.motor[motor_id].encoder);
+        int intMDiff = abs(motor[motor_id].target_encoder - persistent_ram_data.motor[motor_id].encoder);
         // if (intMDiff > 3)
         //    Motor_PID[motor_id] = 1;   // Turn on the PID for this Motor.
     } else {
@@ -638,7 +633,7 @@ ISR(TIMER1_COMPA_vect) {
 
         if ((config.motor[motor_id].stall_current_threshold) != 0 &&
             (motor[motor_id].current > config.motor[motor_id].stall_current_threshold)) {
-            if (motor[motor_id].target_encoder == noinit_data.motor[motor_id].encoder) {
+            if (motor[motor_id].target_encoder == persistent_ram_data.motor[motor_id].encoder) {
                 motor_set_error(motor_id, MOTOR_ERROR_UNEXPECTED_STALL_CURRENT_THRESHOLD_EXCEEDED);
             } else if (!config.motor[motor_id].is_gripper) {
                 // For Motors other than the gripper, High Current means
@@ -647,10 +642,10 @@ ISR(TIMER1_COMPA_vect) {
                 // current position.
                 const int destall_delta = 50;
 
-                if (motor[motor_id].previous_direction == 1)
-                    motor[motor_id].target_encoder = noinit_data.motor[motor_id].encoder - destall_delta;
-                else if (motor[motor_id].previous_direction == -1)
-                    motor[motor_id].target_encoder = noinit_data.motor[motor_id].encoder + destall_delta;
+                if (motor[motor_id].prev_direction == 1)
+                    motor[motor_id].target_encoder = persistent_ram_data.motor[motor_id].encoder - destall_delta;
+                else if (motor[motor_id].prev_direction == -1)
+                    motor[motor_id].target_encoder = persistent_ram_data.motor[motor_id].encoder + destall_delta;
                 motor[motor_id].current = 0;  // Prevent retriggering until next time current is read.
                 motor[motor_id].stall_triggered = true;
             } else if (motor[motor_id].current > config.motor[motor_id].stall_current_threshold) {
@@ -662,11 +657,11 @@ ISR(TIMER1_COMPA_vect) {
                 static int gripper_stall_encoder = INT_MAX;
                 static unsigned long gripper_stall_start_ms = 0;
 
-                if (abs(noinit_data.motor[motor_id].encoder - gripper_stall_encoder) > 3) {
-                    gripper_stall_encoder = noinit_data.motor[motor_id].encoder;
+                if (abs(persistent_ram_data.motor[motor_id].encoder - gripper_stall_encoder) > 3) {
+                    gripper_stall_encoder = persistent_ram_data.motor[motor_id].encoder;
                     gripper_stall_start_ms = millis();
                 } else if (millis() - gripper_stall_start_ms > 250) {
-                    motor[motor_id].target_encoder = noinit_data.motor[motor_id].encoder;
+                    motor[motor_id].target_encoder = persistent_ram_data.motor[motor_id].encoder;
                     gripper_stall_start_ms = millis();
                 }
             }
@@ -677,7 +672,7 @@ ISR(TIMER1_COMPA_vect) {
         //==========================================================
         int pid_perror = 0;
         int target = motor[motor_id].target_encoder;
-        int encoder = -noinit_data.motor[motor_id].encoder;
+        int encoder = -persistent_ram_data.motor[motor_id].encoder;
         if ((encoder > 0) && (target > INT_MAX - encoder))
             pid_perror = INT_MAX;      // Handle overflow by clamping to INT_MAX.
         else if ((encoder < 0) && (target < INT_MIN - encoder))
@@ -693,41 +688,17 @@ ISR(TIMER1_COMPA_vect) {
         //  Current Position and the Target Position (with limits).
         // Results in a velocity of +/- 255.
         //==========================================================
-        if (pid_perror > max_error) {
+        if (pid_perror > max_error)
             motor[motor_id].target_velocity = max_error;
-            // Set the Status that indicates that the Motor is more than 200 clicks from target.
-            motor[motor_id].progress = MOTOR_PROGRESS_ON_WAY_TO_TARGET;
-        } else if (pid_perror < min_error) {
+        else if (pid_perror < min_error)
             motor[motor_id].target_velocity = min_error;
-            // Set the Status that indicates that the Motor is more than 200 clicks from target.
-            motor[motor_id].progress = MOTOR_PROGRESS_ON_WAY_TO_TARGET;
-        } else if (pid_perror > 0) {  // TODO: Refactor to combine pid_perror > 0 and < 0 cases.
+        else if (pid_perror > 0)       // TODO: Refactor to combine pid_perror > 0 and < 0 cases.
             motor[motor_id].target_velocity = motor[motor_id].pid_perror + (motor[motor_id].pid_dvalue / 6);
-            if (pid_perror < 2)
-                // Set the Status that indicates that the Motor is 1 click from target
-                motor[motor_id].progress = MOTOR_PROGRESS_BESIDE_TARGET;
-            else if (pid_perror < 30)
-                // Set the Status that indicates that the Motor is 2-29 clicks from target
-                motor[motor_id].progress = MOTOR_PROGRESS_NEAR_TARGET;
-            else
-                // Set the Status that indicates that the Motor is 30-200 clicks from target
-                motor[motor_id].progress = MOTOR_PROGRESS_APPROACHING_TARGET;
-        } else if (pid_perror < 0) {
+        else if (pid_perror < 0)
             motor[motor_id].target_velocity = motor[motor_id].pid_perror - (motor[motor_id].pid_dvalue / 6), -255;  // TODO: Check.
-            if (pid_perror > -2)
-                // Set the Status that indicates that the Motor is 1 click from target
-                motor[motor_id].progress = MOTOR_PROGRESS_BESIDE_TARGET;
-            else if (pid_perror > -30)
-                // Set the Status that indicates that the Motor is 2-29 clicks from target
-                motor[motor_id].progress = MOTOR_PROGRESS_NEAR_TARGET;
-            else
-                // Set the Status that indicates that the Motor is 30-200 clicks from target
-                motor[motor_id].progress = MOTOR_PROGRESS_APPROACHING_TARGET;
-        } else {
+        else
             motor[motor_id].target_velocity = 0;
-            motor[motor_id].progress = MOTOR_PROGRESS_AT_TARGET;  // Clear the flag that indicates that the Motor is in motion.
-            // Motor_PID[motor_id] = 0;  // Turn off motor_id's PID.
-        }
+        // Motor_PID[motor_id] = 0;  // Turn off motor_id's PID.
 
         //==========================================================
         // PID (Currenty Just the P)

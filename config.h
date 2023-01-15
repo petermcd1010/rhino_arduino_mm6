@@ -34,8 +34,8 @@ typedef enum {
     CONFIG_BOOT_MODE_DEFAULT         = CONFIG_BOOT_MODE_WAIT_USER_INPUT
 } config_boot_mode_t;
 
-extern const char *const config_robot_name_by_id[CONFIG_ROBOT_ID_COUNT];
-extern const char *const config_boot_mode_by_id[CONFIG_BOOT_MODE_COUNT];
+extern const char *const config_robot_name_by_id[CONFIG_ROBOT_ID_COUNT];  // Returns a PROGMEM F-string.
+extern const char *const config_boot_mode_by_id[CONFIG_BOOT_MODE_COUNT];  // Returns a PROGMEM F-string.
 
 typedef struct __attribute__((packed)) {
     bool is_configured;

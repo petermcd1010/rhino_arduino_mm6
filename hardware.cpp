@@ -58,7 +58,7 @@ void hardware_erase_eeprom(void)
 void hardware_factory_reset(void)
 {
     motor_disable_all();
-    motor_clear_ram_data();
+    motor_clear_persistent_ram_data();
     hardware_erase_eeprom();
 }
 

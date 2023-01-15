@@ -5,8 +5,6 @@
  * See the LICENSE file in the root directory of this project for copyright and licensing details.
  */
 
-#include <Arduino.h>
-
 typedef enum {
     MOTOR_ID_A = 0,
     MOTOR_ID_B,
@@ -19,14 +17,6 @@ typedef enum {
 
 // Sum of all powers of 2 of an n-bit number is 2^n-1.
 #define MOTOR_IDS_MASK ((1 << MOTOR_ID_COUNT) - 1)
-
-typedef enum {
-    MOTOR_PROGRESS_AT_TARGET = 0,
-    MOTOR_PROGRESS_BESIDE_TARGET,  // Within 1 click.
-    MOTOR_PROGRESS_NEAR_TARGET,  // between 2 and 30 clicks.
-    MOTOR_PROGRESS_APPROACHING_TARGET,  // between 30 and 200 clicks.
-    MOTOR_PROGRESS_ON_WAY_TO_TARGET,  // More than 200 clicks away.
-} motor_progress_t;
 
 typedef enum {
     MOTOR_ERROR_THERMAL_OVERLOAD_DETECTED = 0,  // Motor drive chip reports 145°C (junction temperature) exceeded.
@@ -45,37 +35,37 @@ typedef enum {
 } motor_orientation_t;
 
 typedef struct {
-    bool             enabled;
-    int              max_velocity;
-    int              target_velocity;
-    int              velocity;
-    int              pwm;
-    int              previous_direction;
-    int              pid_dvalue;
-    int              pid_perror;   // Proportional Error (Difference between Current and Target)
-    int              target_encoder;
-    int              current;   // TODO: units? counts?
-    bool             stall_triggered;   // If current >= stall_current once, remains true until cleared.
-    motor_progress_t progress;
-    int              encoders_per_second;    // Updated 3x/second.
-    int              encoders_per_second_counts;
-    int              encoders_per_second_start_encoder;
-    bool             prev_home_triggered;    // Switch value last time transition detected.
-    unsigned long    prev_home_triggered_millis;    // Time last transition detected.
-    int              prev_home_triggered_encoder;    // Encoder value last time transition detected.
-    bool             home_triggered_debounced;   // Debounced switch value.
-    int              home_forward_on_encoder;   // Home switch forward direction high value.
-    int              home_forward_off_encoder;   // Home switch forward direction low value.
-    int              home_reverse_on_encoder;   // Home switch reverse direction high value.
-    int              home_reverse_off_encoder;   // Home switch reverse direction low value.
-    unsigned char    error_flags;    // Once set, error flags must be cleared by user code.
+    bool          enabled;
+    int           max_velocity;
+    int           target_velocity;
+    int           velocity;
+    int           pwm;
+    int           prev_direction;
+    int           pid_dvalue;
+    int           pid_perror;      // Proportional Error (Difference between Current and Target)
+    int           target_encoder;
+    int           current;      // TODO: units? counts?
+    bool          stall_triggered;      // If current >= stall_current once, remains true until cleared.
+    int           progress;
+    int           encoders_per_second;       // Updated 3x/second.
+    int           encoders_per_second_counts;
+    int           encoders_per_second_start_encoder;
+    bool          prev_home_triggered;       // Switch value last time transition detected.
+    unsigned long prev_home_triggered_millis;    // Time last transition detected.
+    int           prev_home_triggered_encoder;       // Encoder value last time transition detected.
+    bool          home_triggered_debounced;      // Debounced switch value.
+    int           home_forward_on_encoder;      // Home switch forward direction high value.
+    int           home_forward_off_encoder;      // Home switch forward direction low value.
+    int           home_reverse_on_encoder;      // Home switch reverse direction high value.
+    int           home_reverse_off_encoder;      // Home switch reverse direction low value.
+    unsigned char error_flags;    // Once set, error flags must be cleared by user code.
 } motor_t;
 
 extern motor_t motor[MOTOR_ID_COUNT];
 
-void motor_clear_ram_data(void);  // Clears data cached in RAM between boots.
+void motor_clear_persistent_ram_data(void);  // Clears data cached in RAM between boots.
 
-void motor_init_all(void);
+void motor_init(void);
 int motor_get_current(motor_id_t motor_id);
 bool motor_stall_triggered(motor_id_t motor_id);
 void motor_clear_stall(motor_id_t motor_id);
