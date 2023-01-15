@@ -50,10 +50,10 @@ typedef struct {
     int           encoders_per_second;       // Updated 3x/second.
     int           encoders_per_second_counts;
     int           encoders_per_second_start_encoder;
-    bool          prev_home_triggered;       // Switch value last time transition detected.
-    unsigned long prev_home_triggered_millis;    // Time last transition detected.
-    int           prev_home_triggered_encoder;       // Encoder value last time transition detected.
-    bool          home_triggered_debounced;      // Debounced switch value.
+    bool          prev_home_is_pressed;       // Switch value last time transition detected.
+    unsigned long prev_home_millis;    // Time last transition detected.
+    int           prev_home_encoder;       // Encoder value last time transition detected.
+    bool          home_is_pressed_debounced;      // Debounced switch value.
     int           home_forward_on_encoder;      // Home switch forward direction high value.
     int           home_forward_off_encoder;      // Home switch forward direction low value.
     int           home_reverse_on_encoder;      // Home switch reverse direction high value.
@@ -86,8 +86,8 @@ bool motor_is_moving(motor_id_t motor_id);
 void motor_set_velocity(motor_id_t motor_id, int velocity);  // For velocity in [motor_min_velocity, motor_max_velocity]. Sets to 0 if not enabled.
 void motor_set_max_velocity_percent(motor_id_t motor_id, int max_velocity_percent);
 int motor_get_max_velocity_percent(motor_id_t motor_id);
-bool motor_is_home_triggered(motor_id_t motor_id);
-bool motor_is_home_triggered_debounced(motor_id_t motor_id);
+bool motor_home_is_pressed(motor_id_t motor_id);
+bool motor_home_is_pressed_debounced(motor_id_t motor_id);
 void motor_dump(motor_id_t motor_id);
 void motor_set_error(motor_id_t motor_id, motor_error_t error_id);
 int motor_get_and_clear_error_flags(motor_id_t motor_id);

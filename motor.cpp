@@ -116,10 +116,10 @@ static void init_motor(motor_id_t motor_id)
         //     The values for the Motor orientation are set by the setup.
         //       Since the not-inverted and inverted orientation are used to invert the position the values are 1 or -1
         motor_set_max_velocity_percent((motor_id_t)motor_id, 100);
-        motor[motor_id].prev_home_triggered = motor_is_home_triggered((motor_id_t)motor_id);
-        motor[motor_id].prev_home_triggered_millis = millis();
-        motor[motor_id].prev_home_triggered_encoder = INT_MAX;
-        motor[motor_id].home_triggered_debounced = motor[motor_id].prev_home_triggered;
+        motor[motor_id].prev_home_is_pressed = motor_home_is_pressed((motor_id_t)motor_id);
+        motor[motor_id].prev_home_millis = millis();
+        motor[motor_id].prev_home_encoder = INT_MAX;
+        motor[motor_id].home_is_pressed_debounced = motor[motor_id].prev_home_is_pressed;
     }
     motor_set_enabled(motor_id, false);
 }
@@ -214,7 +214,7 @@ void motor_set_enabled(motor_id_t motor_id, bool enabled)
         enabled_motors_mask &= ~(1 << (int)motor_id);
     }
 
-    motor[motor_id].home_triggered_debounced = motor_is_home_triggered(motor_id);
+    motor[motor_id].home_is_pressed_debounced = motor_home_is_pressed(motor_id);
     motor[motor_id].target_encoder = persistent_ram_data.motor[motor_id].encoder;
     motor[motor_id].pid_perror = 0;
     motor[motor_id].pid_dvalue = 0;
@@ -376,16 +376,16 @@ int motor_get_max_velocity_percent(motor_id_t motor_id)
     return motor[motor_id].max_velocity * 100 / motor_max_velocity;
 }
 
-bool motor_is_home_triggered(motor_id_t motor_id)
+bool motor_home_is_pressed(motor_id_t motor_id)
 {
     assert((motor_id >= 0) && (motor_id < MOTOR_ID_COUNT));
     return !digitalRead(motor_pinout[motor_id].in_home_switch);  // The switches are active LOW, so invert.
 }
 
-bool motor_is_home_triggered_debounced(motor_id_t motor_id)
+bool motor_home_is_pressed_debounced(motor_id_t motor_id)
 {
     assert((motor_id >= 0) && (motor_id < MOTOR_ID_COUNT));
-    return motor[motor_id].home_triggered_debounced;
+    return motor[motor_id].home_is_pressed_debounced;
 }
 
 void motor_dump(motor_id_t motor_id)
@@ -500,20 +500,20 @@ static void check_home_switch(motor_id_t motor_id)
 
     motor_t *m = &motor[motor_id];
 
-    bool home_triggered_debounced = motor_is_home_triggered_debounced(motor_id);
-    bool home_triggered = motor_is_home_triggered(motor_id);
+    bool home_triggered_debounced = motor_home_is_pressed_debounced(motor_id);
+    bool home_triggered = motor_home_is_pressed(motor_id);
 
     unsigned const debounce_delay_millis = 50;
 
-    if (home_triggered != m->prev_home_triggered) {
-        m->prev_home_triggered = home_triggered;
-        m->prev_home_triggered_millis = millis();
-        m->prev_home_triggered_encoder = persistent_ram_data.motor[motor_id].encoder;
+    if (home_triggered != m->prev_home_is_pressed) {
+        m->prev_home_is_pressed = home_triggered;
+        m->prev_home_millis = millis();
+        m->prev_home_encoder = persistent_ram_data.motor[motor_id].encoder;
     }
 
     // TODO: Tighten debounce timing. Example:
     // https://stackoverflow.com/questions/48434575/switch-debouncing-logic-in-c
-    if ((millis() - m->prev_home_triggered_millis) > debounce_delay_millis)
+    if ((millis() - m->prev_home_millis) > debounce_delay_millis)
         home_triggered_debounced = home_triggered;
 
     // See if the home switch has changed from on to off or off to on.
@@ -521,8 +521,8 @@ static void check_home_switch(motor_id_t motor_id)
     //  - The on and off locations when the motor is moving forward.
     //  - The on and off locations when the motor is moving reverse.
 
-    if (home_triggered_debounced != m->home_triggered_debounced) {
-        int encoder = m->prev_home_triggered_encoder;
+    if (home_triggered_debounced != m->home_is_pressed_debounced) {
+        int encoder = m->prev_home_encoder;
         if (m->prev_direction == 1) {
             if (home_triggered_debounced)
                 m->home_forward_on_encoder = encoder;
@@ -534,7 +534,7 @@ static void check_home_switch(motor_id_t motor_id)
             else
                 m->home_reverse_off_encoder = encoder;
         }
-        m->home_triggered_debounced = home_triggered_debounced;
+        m->home_is_pressed_debounced = home_triggered_debounced;
     }
 }
 

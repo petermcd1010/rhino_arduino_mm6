@@ -81,7 +81,7 @@ void gather_status(status_t *status)
 
     for (int i = 0; i < MOTOR_ID_COUNT; i++) {
         status->motor[i].encoder = motor_get_encoder((motor_id_t)i);
-        status->motor[i].switch_triggered = motor_is_home_triggered((motor_id_t)i);
+        status->motor[i].switch_triggered = motor_home_is_pressed((motor_id_t)i);
     }
 }
 

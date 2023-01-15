@@ -251,7 +251,7 @@ static void calibrate_one_enter(void)
     motor_set_max_velocity_percent(motor_id, max_velocity_percent);
     motor_clear_stall(motor_id);
 
-    if (!calibrate_limits && motor_is_home_triggered_debounced(motor_id))
+    if (!calibrate_limits && motor_home_is_pressed_debounced(motor_id))
         transition_to_calibrate_one_reverse_then_forward();
     else if (motor_get_encoder(motor_id) <= 0)
         transition_to_calibrate_one_forward();
@@ -468,8 +468,8 @@ static void calibrate_one_go_home(void)
     int encoder = motor_get_encoder(motor_id);
     int encoder_delta = motor_get_target_encoder(motor_id) - encoder;
 
-    if ((encoder_delta == 0) || (motor_is_home_triggered_debounced(motor_id) && (encoder_delta < 5))) {
-        if (!motor_is_home_triggered_debounced(motor_id)) {
+    if ((encoder_delta == 0) || (motor_home_is_pressed_debounced(motor_id) && (encoder_delta < 5))) {
+        if (!motor_home_is_pressed_debounced(motor_id)) {
             sm_set_next_state(state_calibrate_one_failed);
         } else {
             if (calibrate_limits) {

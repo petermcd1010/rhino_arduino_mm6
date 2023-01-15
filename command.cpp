@@ -661,7 +661,7 @@ static void go_home(void)
     if (all_home) {
         for (int i = 0; i < MOTOR_ID_COUNT; i++) {
             bool selected = ((go_home_motor_ids_mask & (1 << i)) != 0);
-            if (selected && (!motor_is_home_triggered_debounced((motor_id_t)i)))
+            if (selected && (!motor_home_is_pressed_debounced((motor_id_t)i)))
                 log_writeln(F("WARNING: Motor %c arrived home, but home switch not triggered."), 'A' + i);
         }
 
