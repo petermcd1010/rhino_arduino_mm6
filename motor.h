@@ -46,13 +46,12 @@ typedef struct {
     int           target_encoder;
     int           current;      // TODO: units? counts?
     bool          stall_triggered;      // If current >= stall_current once, remains true until cleared.
-    int           progress;
     int           encoders_per_second;       // Updated 3x/second.
     int           encoders_per_second_counts;
     int           encoders_per_second_start_encoder;
-    bool          prev_home_is_pressed;       // Switch value last time transition detected.
-    unsigned long prev_home_millis;    // Time last transition detected.
-    int           prev_home_encoder;       // Encoder value last time transition detected.
+    bool          prev_home_is_pressed;       // Switch value last time inversion detected.
+    unsigned long prev_home_millis;    // Time last inversion detected.
+    int           prev_home_encoder;       // Encoder value last time inversion detected.
     bool          home_is_pressed_debounced;      // Debounced switch value.
     int           home_forward_on_encoder;      // Home switch forward direction high value.
     int           home_forward_off_encoder;      // Home switch forward direction low value.
@@ -65,7 +64,7 @@ extern motor_t motor[MOTOR_ID_COUNT];
 
 void motor_clear_persistent_ram_data(void);  // Clears data cached in RAM between boots.
 
-void motor_init(void);
+void motor_init(void);  // Initializes all motors, ISRs, etc.
 int motor_get_current(motor_id_t motor_id);
 bool motor_stall_triggered(motor_id_t motor_id);
 void motor_clear_stall(motor_id_t motor_id);

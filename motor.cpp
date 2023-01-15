@@ -95,32 +95,27 @@ static void init_motor(motor_id_t motor_id)
 {
     assert((motor_id >= 0) && (motor_id < MOTOR_ID_COUNT));
 
-    // Configure and initialize outputs.
+    // Configure and initialize GPIO outputs.
     pinMode(motor_pinout[motor_id].out_brake, OUTPUT);
     pinMode(motor_pinout[motor_id].out_direction, OUTPUT);
     pinMode(motor_pinout[motor_id].out_pwm, OUTPUT);
     digitalWrite(motor_pinout[motor_id].out_direction, config.motor[motor_id].forward_polarity);
 
-    // Configure inputs.
+    // Configure GPIO inputs.
     pinMode(motor_pinout[motor_id].in_current, INPUT);
     pinMode(motor_pinout[motor_id].in_thermal_overload, INPUT_PULLUP);
     pinMode(motor_pinout[motor_id].in_home_switch, INPUT_PULLUP);
     pinMode(motor_pinout[motor_id].in_quadrature_encoder_a, INPUT_PULLUP);
     pinMode(motor_pinout[motor_id].in_quadrature_encoder_b, INPUT_PULLUP);
 
-    for (int motor_id = 0; motor_id < MOTOR_ID_COUNT; motor_id++) {
-        memset(&motor[motor_id], 0, sizeof(motor_t));
-        // Motor orientation is used to contol which way the motors turn in responce to the Positions.
-        //   Each Rhino Robot may have the motor assembled on either side - which winds up reversing the motors direction mechanically.
-        //   So the motor orientation is used to correct that.
-        //     The values for the Motor orientation are set by the setup.
-        //       Since the not-inverted and inverted orientation are used to invert the position the values are 1 or -1
-        motor_set_max_velocity_percent((motor_id_t)motor_id, 100);
-        motor[motor_id].prev_home_is_pressed = motor_home_is_pressed((motor_id_t)motor_id);
-        motor[motor_id].prev_home_millis = millis();
-        motor[motor_id].prev_home_encoder = INT_MAX;
-        motor[motor_id].home_is_pressed_debounced = motor[motor_id].prev_home_is_pressed;
-    }
+    // Initialize motor state.
+    memset(&motor[motor_id], 0, sizeof(motor_t));
+    motor_set_max_velocity_percent((motor_id_t)motor_id, 100);
+    motor[motor_id].prev_home_is_pressed = motor_home_is_pressed((motor_id_t)motor_id);
+    motor[motor_id].prev_home_millis = millis();
+    motor[motor_id].prev_home_encoder = INT_MAX;
+    motor[motor_id].home_is_pressed_debounced = motor[motor_id].prev_home_is_pressed;
+
     motor_set_enabled(motor_id, false);
 }
 
@@ -129,9 +124,11 @@ void motor_init(void)
     check_persistent_ram_data();
 
     for (int i = 0; i < MOTOR_ID_COUNT; i++) {
-        init_motor((motor_id_t)i);
+        init_motor(i);
     }
 
+    // Timer setup: Allows preceise timed measurements of the quadrature encoders and switches.
+    // Good info at https://oscarliang.com/arduino-timer-and-interrupt-tutorial/.
     // Timer setup: Allows preceise timed measurements of the quadrature encoder.
     cli();  // Disable interrupts.
 
@@ -167,11 +164,7 @@ int motor_get_current(motor_id_t motor_id)
     assert((motor_id >= 0) && (motor_id < MOTOR_ID_COUNT));
 
     // LMD18200 datasheet says 377uA/A. What's the resistance?
-    int a = analogRead(motor_pinout[motor_id].in_current);  // 0 - 1023.
-
-    pinMode(motor_pinout[motor_id].in_current, INPUT);
-
-    return a;
+    return analogRead(motor_pinout[motor_id].in_current);  // 0 - 1023.
 }
 
 bool motor_stall_triggered(motor_id_t motor_id)
@@ -248,7 +241,7 @@ static int get_num_enabled(void)
     int num_enabled = 0;
 
     for (int i = 0; i < MOTOR_ID_COUNT; i++) {
-        if (motor_get_enabled((motor_id_t)i))
+        if (enabled_motors_mask & (1 << i))
             num_enabled++;
     }
 
@@ -259,6 +252,7 @@ void motor_set_home_encoder(motor_id_t motor_id, int home_encoder)
 {
     assert((motor_id >= 0) && (motor_id < MOTOR_ID_COUNT));
 
+    // TODO: Determine if/how orientation should be considered here.
     persistent_ram_data.motor[motor_id].encoder -= home_encoder;
     motor[motor_id].target_encoder -= home_encoder;
 }
@@ -379,7 +373,7 @@ int motor_get_max_velocity_percent(motor_id_t motor_id)
 bool motor_home_is_pressed(motor_id_t motor_id)
 {
     assert((motor_id >= 0) && (motor_id < MOTOR_ID_COUNT));
-    return !digitalRead(motor_pinout[motor_id].in_home_switch);  // The switches are active LOW, so invert.
+    return !digitalRead(motor_pinout[motor_id].in_home_switch);  // Home switches are active LOW, so invert.
 }
 
 bool motor_home_is_pressed_debounced(motor_id_t motor_id)
@@ -392,18 +386,31 @@ void motor_dump(motor_id_t motor_id)
 {
     assert((motor_id >= 0) && (motor_id < MOTOR_ID_COUNT));
 
-    log_writeln(F("%c: encoder:%d qe_prev:%d, velocity:%d target_velocity:%d orientation:%d prev_dir:%d pid_dvalue:%d pid_perror:%d target_encoder:%d current:%d"),
+    char angle_str[15] = {};
+
+    dtostrf(motor_get_angle(motor_id), 3, 2, angle_str);
+
+    int orientation = config.motor[motor_id].orientation;
+
+    log_writeln(F("  %c%s: enc:%d target_enc:%d perror:%d dvalue:%d vel:%d orient:%d prev_dir: %d PWM:%d cur:%d is_home:%d hs:%d,%d,%d,%d->%d angle:%s"),
                 'A' + motor_id,
-                persistent_ram_data.motor[motor_id].encoder,
-                persistent_ram_data.motor[motor_id].prev_encoder_state,
-                motor[motor_id].velocity,
-                motor[motor_id].target_velocity,
-                config.motor[motor_id].orientation,
-                motor[motor_id].prev_direction,
+                ((motor_get_enabled_mask() & (1 << motor_id)) == 0) ? " [not enabled]" : "",
+                motor_get_encoder(motor_id),
+                motor[motor_id].target_encoder * orientation,
+                motor[motor_id].pid_perror * orientation,
                 motor[motor_id].pid_dvalue,
-                motor[motor_id].pid_perror,
-                motor[motor_id].target_encoder,
-                motor[motor_id].current);
+                motor[motor_id].velocity * orientation,
+                orientation,
+                motor[motor_id].prev_direction,
+                motor[motor_id].pwm,
+                motor[motor_id].current,
+                motor[motor_id].home_is_pressed_debounced,
+                motor[motor_id].home_reverse_off_encoder,
+                motor[motor_id].home_forward_on_encoder,
+                motor[motor_id].home_reverse_on_encoder,
+                motor[motor_id].home_forward_off_encoder,
+                (motor[motor_id].home_forward_off_encoder + motor[motor_id].home_reverse_on_encoder + motor[motor_id].home_forward_on_encoder + motor[motor_id].home_reverse_off_encoder) / 4,
+                angle_str);
 }
 
 void motor_set_error(motor_id_t motor_id, motor_error_t motor_error_id)
