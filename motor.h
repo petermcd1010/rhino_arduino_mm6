@@ -37,7 +37,6 @@ typedef enum {
 typedef struct {
     bool          enabled;
     int           max_velocity;
-    int           target_velocity;
     int           velocity;
     int           pwm;
     int           prev_direction;
@@ -46,9 +45,6 @@ typedef struct {
     int           target_encoder;
     int           current;      // TODO: units? counts?
     bool          stall_triggered;      // If current >= stall_current once, remains true until cleared.
-    int           encoders_per_second;       // Updated 3x/second.
-    int           encoders_per_second_counts;
-    int           encoders_per_second_start_encoder;
     bool          prev_home_is_pressed;       // Switch value last time inversion detected.
     unsigned long prev_home_millis;    // Time last inversion detected.
     int           prev_home_encoder;       // Encoder value last time inversion detected.

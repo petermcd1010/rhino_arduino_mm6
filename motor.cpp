@@ -127,23 +127,23 @@ void motor_init(void)
         init_motor(i);
     }
 
-    // Timer setup: Allows preceise timed measurements of the quadrature encoders and switches.
-    // Good info at https://oscarliang.com/arduino-timer-and-interrupt-tutorial/.
     // Timer setup: Allows preceise timed measurements of the quadrature encoder.
-    cli();  // Disable interrupts.
 
-    // Configure timer1 interrupt at 1kHz.
-    TCCR1A = 0;  // Set entire TCCR1A register to 0.
-    TCCR1B = 0;  // Same for TCCR1B.
-    TCNT1 = 0;  // Initialize counter value to 0.
-
-    // Set timer count for 2khz increments.
-    OCR1A = 1000;  // = (16*10^6) / (2000*8) - 1
-
-    TCCR1B |= (1 << WGM12);  // Turn on CTC mode.
-    TCCR1B |= (1 << CS11);  // Set CS11 bit for 8 prescaler.
-    TIMSK1 |= (1 << OCIE1A);  // Enable timer compare interrupt.
-    sei();  // Enable interrupts.
+    // From http://www.8bit-era.cz/arduino-timer-interrupts-calculator.html
+    // TIMER 1 for interrupt frequency 2000 Hz:
+    cli();  // stop interrupts
+    TCCR1A = 0;  // set entire TCCR1A register to 0
+    TCCR1B = 0;  // same for TCCR1B
+    TCNT1 = 0;  // initialize counter value to 0
+    // set compare match register for 2000 Hz increments
+    OCR1A = 7999;  // = 16000000 / (1 * 2000) - 1 (must be <65536)
+    // turn on CTC mode
+    TCCR1B |= (1 << WGM12);
+    // Set CS12, CS11 and CS10 bits for 1 prescaler
+    TCCR1B |= (0 << CS12) | (0 << CS11) | (1 << CS10);
+    // enable timer compare interrupt
+    TIMSK1 |= (1 << OCIE1A);
+    sei();  // allow interrupts
 }
 
 static bool get_thermal_overload_active(motor_id_t motor_id)
@@ -274,7 +274,6 @@ void motor_set_target_encoder(motor_id_t motor_id, int encoder)
     encoder = encoder = max(config.motor[motor_id].min_encoder, min(config.motor[motor_id].max_encoder, encoder));
 
     motor[motor_id].target_encoder = encoder * config.motor[motor_id].orientation;
-    motor[motor_id].encoders_per_second = 0;
 }
 
 int motor_get_target_encoder(motor_id_t motor_id)
@@ -345,8 +344,7 @@ void motor_set_velocity(motor_id_t motor_id, int velocity)
         // TODO: Cleanup/refactor velocity, max_velocity to be 0-100.
         unsigned int pwm = abs(velocity) + motor_min_pwm;
         unsigned int max_pwm = abs(motor[motor_id].max_velocity) + motor_min_pwm;
-        pwm = (pwm > max_pwm) ? max_pwm : pwm;
-        pwm = (pwm < motor_min_pwm) ? motor_min_pwm : pwm;
+        pwm = max(min(pwm, max_pwm), motor_min_pwm);
         motor[motor_id].pwm = pwm;
     }
 
@@ -436,306 +434,255 @@ int motor_get_and_clear_error_flags(motor_id_t motor_id)
     return ret;
 }
 
-static void maybe_blink_led(void)
+static void isr_read_encoder(motor_id_t i)
 {
-    static int led_counter = 0;
+    /* To understand the quadrature encoder state_to_{next,prev}_value[]:
+     *   If the previous reading was 0, and the new reading is 1, the direction is +1.
+     *   If the previous reading was 0, and the new reading is 2, the direction is -1.
+     *   If the previous reading was 1, and the new reading is 3, the direction is +1.
+     *   If the previous reading was 1, and the new reading is 0, the direction is -1.
+     *   etc.
+     */
+    const unsigned char state_to_next_value[] = { 1, 3, 0, 2 };
+    const unsigned char state_to_prev_value[] = { 2, 0, 3, 1 };
 
-    bool motor_error = false;
+    unsigned char quadrature_encoder_a = digitalRead(motor_pinout[i].in_quadrature_encoder_a);
+    unsigned char quadrature_encoder_b = digitalRead(motor_pinout[i].in_quadrature_encoder_b);
+    unsigned char encoder_state = quadrature_encoder_a + (quadrature_encoder_b << 1);  // Is in [0, 3].
 
-    for (int i = 0; i < MOTOR_ID_COUNT; i++) {
-        if (motor[i].error_flags != 0)
-            motor_error = true;
+    if (encoder_state == state_to_next_value[persistent_ram_data.motor[i].prev_encoder_state]) {
+        motor[i].prev_direction = +1;
+        if (persistent_ram_data.motor[i].encoder != INT_MAX) {
+            persistent_ram_data.motor[i].encoder++;
+            motor[i].pid_dvalue = 0;
+        }
+    } else if (encoder_state == state_to_prev_value[persistent_ram_data.motor[i].prev_encoder_state]) {
+        motor[i].prev_direction = -1;
+        if (persistent_ram_data.motor[i].encoder != INT_MIN) {
+            persistent_ram_data.motor[i].encoder--;
+            motor[i].pid_dvalue = 0;
+        }
+    } else if (encoder_state == persistent_ram_data.motor[i].prev_encoder_state) {
+        // No movement detected.
+        // TOOD !!: motor[i].previous_direction = 0; ??
+        motor[i].pid_dvalue++;
+        if (motor[i].pid_dvalue > 10000)
+            motor[i].pid_dvalue = 10000;
+    } else {
+        // Only set an error if persistent ram data wasn't just initialized.
+        if (persistent_ram_data.motor[i].prev_encoder_state != prev_encoder_state_init_value)
+            motor_set_error(i, MOTOR_ERROR_INVALID_ENCODER_TRANSITION);
     }
 
-    if (motor_error) {
-        // Blink S-O-S if there's an error.
-        bool led_state;
-        const int len = 225;
-        switch (led_counter) {
-        case len * 0:  // dot.
-        case len * 2:  // dot.
-        case len * 4:  // dot.
-        case len * 8:  // dash.
-        case len * 12:  // dash.
-        case len * 16:  // dash.
-        case len * 23:  // dot.
-        case len * 25:  // dot.
-        case len * 27:  // dot.
-            hardware_set_led_enabled(true);
-            hardware_set_speaker_enabled(true);
-            led_counter++;
-            break;
-        case len * 1:  // space after first dot.
-        case len * 3:  // space after second dot.
-        case len * 5:  // space after third dot (3x between words).
-        case len * 11:  // space after first dash.
-        case len * 15:  // space after second dash.
-        case len * 20:  // space after third dash.
-        case len * 24:  // space after fourth dot (3x between words).
-        case len * 26:  // space after fifth dot.
-        case len * 28:  // space after sixth dot.
-            hardware_set_led_enabled(false);
-            hardware_set_speaker_enabled(false);
-            led_counter++;
-            break;
-        default:
-            led_counter++;
-            if (led_counter > len * 35) // len*35 = len*28 + 7.
-                led_counter = 0;
-            break;
-        }
+    persistent_ram_data.motor[i].prev_encoder_state = encoder_state;
+}
+
+static void isr_read_home_switch(motor_id_t motor_id)
+{
+    motor_t *m = &motor[motor_id];
+
+    bool is_pressed = !digitalRead(motor_pinout[motor_id].in_home_switch);  // Switch reads active-low when pressed.
+
+    if (is_pressed != m->prev_home_is_pressed) {
+        // Switch reading inverted from previous reading, record the new reading, time, and encoder.
+        m->prev_home_is_pressed = is_pressed;
+        m->prev_home_millis = millis();
+        m->prev_home_encoder = persistent_ram_data.motor[motor_id].encoder;
         return;
     }
 
-    if (motor_get_enabled_mask() == 0) {
-        hardware_set_led_enabled(false);
-        hardware_set_speaker_enabled(false);
-    } else {
-        led_counter++;
-        if (led_counter > 1000) {
-            bool led_state = !hardware_get_led_enabled();
-            hardware_set_led_enabled(led_state);
-            hardware_set_speaker_enabled(led_state);
-            led_counter = 0;
-        }
-    }
-}
+    if (is_pressed == m->home_is_pressed_debounced)
+        return;                        // No inversion (or inverted an even number of times), so return directly.
 
-static void check_home_switch(motor_id_t motor_id)
-{
-    assert((motor_id >= 0) && (motor_id < MOTOR_ID_COUNT));
+    const unsigned debounce_delay_millis = 50;  // Empirically determined.
 
-    motor_t *m = &motor[motor_id];
+    if ((millis() - m->prev_home_millis) <= debounce_delay_millis)
+        return;                        // Not enough time has elapsed to debounce the switch reading, so return directly.
 
-    bool home_triggered_debounced = motor_home_is_pressed_debounced(motor_id);
-    bool home_triggered = motor_home_is_pressed(motor_id);
+    m->home_is_pressed_debounced = is_pressed;
 
-    unsigned const debounce_delay_millis = 50;
-
-    if (home_triggered != m->prev_home_is_pressed) {
-        m->prev_home_is_pressed = home_triggered;
-        m->prev_home_millis = millis();
-        m->prev_home_encoder = persistent_ram_data.motor[motor_id].encoder;
-    }
-
-    // TODO: Tighten debounce timing. Example:
-    // https://stackoverflow.com/questions/48434575/switch-debouncing-logic-in-c
-    if ((millis() - m->prev_home_millis) > debounce_delay_millis)
-        home_triggered_debounced = home_triggered;
-
-    // See if the home switch has changed from on to off or off to on.
     // There are 4 different motor positions stored for the home switches:
-    //  - The on and off locations when the motor is moving forward.
-    //  - The on and off locations when the motor is moving reverse.
+    //   The on and off locations when the motor is moving forward.
+    //   The on and off locations when the motor is moving reverse.
 
-    if (home_triggered_debounced != m->home_is_pressed_debounced) {
-        int encoder = m->prev_home_encoder;
-        if (m->prev_direction == 1) {
-            if (home_triggered_debounced)
-                m->home_forward_on_encoder = encoder;
-            else
-                m->home_forward_off_encoder = encoder;
-        } else if (m->prev_direction == -1) {
-            if (home_triggered_debounced)
-                m->home_reverse_on_encoder = encoder;
-            else
-                m->home_reverse_off_encoder = encoder;
-        }
-        m->home_is_pressed_debounced = home_triggered_debounced;
+    int encoder = m->prev_home_encoder;
+
+    if (m->prev_direction == 1) {
+        if (is_pressed)
+            m->home_forward_on_encoder = encoder;
+        else
+            m->home_forward_off_encoder = encoder;
+    } else if (m->prev_direction == -1) {
+        if (is_pressed)
+            m->home_reverse_on_encoder = encoder;
+        else
+            m->home_reverse_off_encoder = encoder;
     }
 }
 
-// Interrupt routine that interrupts the main program at freq of 2kHz.
-ISR(TIMER1_COMPA_vect) {
-    static motor_id_t motor_id = MOTOR_ID_COUNT;
-
-    const int max_error = 255 - motor_min_pwm;
-    const int min_error = -(255 - motor_min_pwm);
-    const int qe_inc_states[] = { 1, 3, 0, 2 };  // 01 -> 11 -> 00 -> 10.
-    const int qe_dec_states[] = { 2, 0, 3, 1 };  // 10 -> 00 -> 11 -> 01.
-
-    for (motor_id_t qe_motor_id = (motor_id_t)0; qe_motor_id < MOTOR_ID_COUNT; qe_motor_id = motor_id_t(qe_motor_id + 1)) {
-        // Quadrature Encoders - read at rate of 2kHz.
-        int qe_value_a = digitalRead(motor_pinout[qe_motor_id].in_quadrature_encoder_a);
-        int qe_value_b = digitalRead(motor_pinout[qe_motor_id].in_quadrature_encoder_b);
-        int qe_state = qe_value_a + (qe_value_b << 1);  // 0-3.
-
-        if (qe_state == persistent_ram_data.motor[qe_motor_id].prev_encoder_state) {
-            // Same state as last time through loop.
-            motor[qe_motor_id].pid_dvalue++;
-            if (motor[qe_motor_id].pid_dvalue > 10000)
-                motor[qe_motor_id].pid_dvalue = 10000;
-        } else if (qe_state == qe_inc_states[persistent_ram_data.motor[qe_motor_id].prev_encoder_state]) {
-            // Quadrature encoder reading indicates moving in positive direction.
-            motor[qe_motor_id].prev_direction = 1;
-            if (persistent_ram_data.motor[qe_motor_id].encoder != INT_MAX) {
-                persistent_ram_data.motor[qe_motor_id].encoder++;
-                motor[qe_motor_id].pid_dvalue = 0;
-            }
-        } else if (qe_state == qe_dec_states[persistent_ram_data.motor[qe_motor_id].prev_encoder_state]) {
-            // Quadrature encoder reading indicates moving in negative direction.
-            motor[qe_motor_id].prev_direction = -1;
-            if (persistent_ram_data.motor[qe_motor_id].encoder != INT_MIN) {
-                persistent_ram_data.motor[qe_motor_id].encoder--;
-                motor[qe_motor_id].pid_dvalue = 0;
-            }
-        } else if (motor_id != MOTOR_ID_COUNT) {
-            // It's easy to get invalid quadrature encoder readings at boot. So motor_id is initialized to
-            // MOTOR_ID_COUNT (and then quickly changed to MOTOR_ID_A below), to avoid triggering invalid
-            // encoder transitions errors at boot.
-            motor_set_error(qe_motor_id, MOTOR_ERROR_INVALID_ENCODER_TRANSITION);
-        }
-        persistent_ram_data.motor[qe_motor_id].prev_encoder_state = qe_state;
-
-        check_home_switch(qe_motor_id);
-
-        if (get_thermal_overload_active(qe_motor_id))
-            motor_set_error(qe_motor_id, MOTOR_ERROR_THERMAL_OVERLOAD_DETECTED);
-
-        if (motor[qe_motor_id].encoders_per_second_counts++ == (2000 / MOTOR_ID_COUNT / 3)) {
-            // ISR runs at 2kHz and round-robins the six motors, Every 1/3 of a second
-
-            // Update encoders_per_second.
-            motor[qe_motor_id].encoders_per_second = persistent_ram_data.motor[qe_motor_id].encoder - motor[qe_motor_id].encoders_per_second_start_encoder;
-            motor[qe_motor_id].encoders_per_second *= 3;
-            motor[qe_motor_id].encoders_per_second_start_encoder = persistent_ram_data.motor[qe_motor_id].encoder;
-            motor[qe_motor_id].encoders_per_second_counts = 0;
-
-            // Update current draw.
-            motor[qe_motor_id].current = motor_get_current(qe_motor_id);
-        }
+static void isr_read_all_encoders_and_home_switches(void)
+{
+    for (motor_id_t i = 0; i < MOTOR_ID_COUNT; i = motor_id_t(i + 1)) {
+        isr_read_encoder(i);
+        isr_read_home_switch(i);
     }
+}
 
-    maybe_blink_led();
-    hardware_debounce_buttons();
-
-    //==========================================================
-    // Calculate Motor status values.
-    //==========================================================
-    // Calculate only one motor per interupt - rate of 333Hz
-    // This is done by stepping motor_id once per interupt.
-    // motor_id is then used to specifiy which motor to do
-    // calculations on.
-    //==========================================================
-    motor_id = motor_id_t(motor_id + 1);
-    if (motor_id >= MOTOR_ID_COUNT)
-        motor_id = MOTOR_ID_A;
-
-    //==========================================================
-    // See if the Motor PID needs to be turned on.
+static void isr_check_pid_enable(motor_id_t motor_id)
+{
+    // TODO: implement.
+    // Check if the Motor PID needs to be turned on or off.
     if (false) {
         // The IntMotor PID is NOT running.
-        // ( =1230 instead of =0 is just to kill the routine for now because it isn't doing what it needs to do.)
+        // (just kill the routine for now because it isn't doing what it needs to do.)
         motor[motor_id].pid_dvalue = 0;  // Clear the PID DValue for this motor.
         int intMDiff = abs(motor[motor_id].target_encoder - persistent_ram_data.motor[motor_id].encoder);
         // if (intMDiff > 3)
         //    Motor_PID[motor_id] = 1;   // Turn on the PID for this Motor.
-    } else {
-        // Brakes are not on - so the IntMotor is running.
-        //==========================================================
-        // Check for stall.
-        // Note that the Gripper is excluded because it needs to
-        // apply tension on whatever it is gripping.
-        //==========================================================
+    }
+}
 
-        if ((config.motor[motor_id].stall_current_threshold) != 0 &&
-            (motor[motor_id].current > config.motor[motor_id].stall_current_threshold)) {
-            if (motor[motor_id].target_encoder == persistent_ram_data.motor[motor_id].encoder) {
-                motor_set_error(motor_id, MOTOR_ERROR_UNEXPECTED_STALL_CURRENT_THRESHOLD_EXCEEDED);
-            } else if (!config.motor[motor_id].is_gripper) {
-                // For Motors other than the gripper, High Current means
-                // that the motor is in a stall situation. To unstall,
-                // the target position is set back a bit from the
-                // current position.
-                const int destall_delta = 50;
+static void isr_check_thermal_overload(motor_id_t motor_id)
+{
+    if (get_thermal_overload_active(motor_id))
+        motor_set_error(motor_id, MOTOR_ERROR_THERMAL_OVERLOAD_DETECTED);
+}
 
-                if (motor[motor_id].prev_direction == 1)
-                    motor[motor_id].target_encoder = persistent_ram_data.motor[motor_id].encoder - destall_delta;
-                else if (motor[motor_id].prev_direction == -1)
-                    motor[motor_id].target_encoder = persistent_ram_data.motor[motor_id].encoder + destall_delta;
-                motor[motor_id].current = 0;  // Prevent retriggering until next time current is read.
-                motor[motor_id].stall_triggered = true;
-            } else if (motor[motor_id].current > config.motor[motor_id].stall_current_threshold) {
-                // The gripper motor is a special case where high current means that the gripper is gripping
-                // something. Create gripper pressure on by setting the target position to the currernt
-                // position. This will cause the PWM to drop to off, and if the relaxed gripper opens a
-                // little, it will turn back on but at a much lower PWM duty cycle.
+static void isr_check_is_stalled(motor_id_t motor_id)
+{
+    motor[motor_id].current = motor_get_current(motor_id);  // Update current reading even if disabled.
 
-                static int gripper_stall_encoder = INT_MAX;
-                static unsigned long gripper_stall_start_ms = 0;
+    // stall_current_threshold <= 0 disables checking stall current.
+    if ((config.motor[motor_id].stall_current_threshold) <= 0 || (motor[motor_id].current <= config.motor[motor_id].stall_current_threshold))
+        return;
 
-                if (abs(persistent_ram_data.motor[motor_id].encoder - gripper_stall_encoder) > 3) {
-                    gripper_stall_encoder = persistent_ram_data.motor[motor_id].encoder;
-                    gripper_stall_start_ms = millis();
-                } else if (millis() - gripper_stall_start_ms > 250) {
-                    motor[motor_id].target_encoder = persistent_ram_data.motor[motor_id].encoder;
-                    gripper_stall_start_ms = millis();
-                }
-            }
+    if ((!motor[motor_id].enabled) || (motor[motor_id].target_encoder == persistent_ram_data.motor[motor_id].encoder)) {
+        // If the motor is disabled, but the threshold is exceeded, trigger an error.
+        // Or, if the motor is at its target, but the threshold is exceeded, trigger an error.
+        motor_set_error(motor_id, MOTOR_ERROR_UNEXPECTED_STALL_CURRENT_THRESHOLD_EXCEEDED);
+        return;
+    }
+
+    if (config.motor[motor_id].is_gripper) {
+        // The gripper motor is a special case where high current means that the gripper is gripping
+        // something. Create gripper pressure on by setting the target position to the currernt
+        // position. This will cause the PWM to drop to off, and if the relaxed gripper opens a
+        // little, it will turn back on but at a much lower PWM duty cycle.
+
+        static int gripper_stall_encoder = INT_MAX;
+        static unsigned long gripper_stall_start_ms = 0;
+
+        if (abs(persistent_ram_data.motor[motor_id].encoder - gripper_stall_encoder) > 3) {
+            gripper_stall_encoder = persistent_ram_data.motor[motor_id].encoder;
+            gripper_stall_start_ms = millis();
+        } else if (millis() - gripper_stall_start_ms > 250) {
+            motor[motor_id].target_encoder = persistent_ram_data.motor[motor_id].encoder;
+            gripper_stall_start_ms = millis();
         }
+        return;
+    }
 
-        //==========================================================
-        // Calculate PID Proportional Error
-        //==========================================================
-        int pid_perror = 0;
-        int target = motor[motor_id].target_encoder;
-        int encoder = -persistent_ram_data.motor[motor_id].encoder;
-        if ((encoder > 0) && (target > INT_MAX - encoder))
-            pid_perror = INT_MAX;      // Handle overflow by clamping to INT_MAX.
-        else if ((encoder < 0) && (target < INT_MIN - encoder))
-            pid_perror = INT_MIN;      // Handle underflow by clamping to INT_MIN.
-        else
-            pid_perror = target + encoder;
+    // For Motors other than the gripper, high current means that the motor is in a stall situation. To unstall,
+    // the target position is set back a bit from the current position.
+    const int destall_encoder_delta = 50;
 
-        motor[motor_id].pid_perror = pid_perror;  // Save.
+    log_writeln(F("unstalling"));
 
-        //==========================================================
-        // Calc the target velocity from the Proportional Error
-        // The target velocity is just the difference between the
-        //  Current Position and the Target Position (with limits).
-        // Results in a velocity of +/- 255.
-        //==========================================================
-        if (pid_perror > max_error)
-            motor[motor_id].target_velocity = max_error;
-        else if (pid_perror < min_error)
-            motor[motor_id].target_velocity = min_error;
-        else if (pid_perror > 0)       // TODO: Refactor to combine pid_perror > 0 and < 0 cases.
-            motor[motor_id].target_velocity = motor[motor_id].pid_perror + (motor[motor_id].pid_dvalue / 6);
-        else if (pid_perror < 0)
-            motor[motor_id].target_velocity = motor[motor_id].pid_perror - (motor[motor_id].pid_dvalue / 6), -255;  // TODO: Check.
-        else
-            motor[motor_id].target_velocity = 0;
-        // Motor_PID[motor_id] = 0;  // Turn off motor_id's PID.
+    motor[motor_id].target_encoder = persistent_ram_data.motor[motor_id].encoder + (destall_encoder_delta * -motor[motor_id].prev_direction);
+    motor[motor_id].current = 0;  // Prevent retriggering until next time current is read.
+    motor[motor_id].stall_triggered = true;
+}
 
-        //==========================================================
-        // PID (Currenty Just the P)
-        //==========================================================
-        if (motor[motor_id].enabled) {
-            //============================================
-            // Ramp up/down the present velocity to target velocity.
-            // Prevents the motors from jumping from dead stop to full velocity and vice-versa
-            //============================================
-            int velocity_changed = 0;
-            if (motor[motor_id].target_velocity > motor[motor_id].velocity) {
-                if (motor[motor_id].velocity < (255 - motor_min_pwm)) {
-                    motor[motor_id].velocity++;  // if the target is higher, then inc up to the target.
-                    if (motor[motor_id].target_velocity > motor[motor_id].velocity)
-                        if (motor[motor_id].velocity < (255 - motor_min_pwm))
-                            motor[motor_id].velocity++;  // if the target is higher, then inc up to the target a second time.
-                    velocity_changed = 1;
-                }
-            } else if (motor[motor_id].target_velocity < motor[motor_id].velocity) {
-                if (motor[motor_id].velocity > -(255 - motor_min_pwm)) {
-                    motor[motor_id].velocity--;  // if the target is lower, then inc down to the target.
-                    if (motor[motor_id].target_velocity < motor[motor_id].velocity)
-                        if (motor[motor_id].velocity > -(255 - motor_min_pwm))
-                            motor[motor_id].velocity--;  // if the target is lower, then inc down to the target a second time.
-                    velocity_changed = 1;
-                }
-            }
+static void isr_calculate_pid_values(motor_id_t motor_id)
+{
+    if (!motor[motor_id].enabled)
+        return;
 
-            if (velocity_changed == 1)
-                motor_set_velocity(motor_id, motor[motor_id].velocity);
+    // Calculate proportional error.
+    int32_t pid_perror = (int32_t)motor[motor_id].target_encoder - (int32_t)persistent_ram_data.motor[motor_id].encoder;
+
+    pid_perror = min(INT_MAX, max(INT_MIN, pid_perror));
+    motor[motor_id].pid_perror = pid_perror;
+
+    // Calculate the target velocity from the proportional error. The target velocity is just the difference between the
+    // current position and the target position clamped to [-255, 255].
+    int target_velocity = min(motor_max_velocity, max(motor_min_velocity, pid_perror));
+
+    if (target_velocity == motor[motor_id].velocity)
+        return;
+
+    // TODO: Make this a proper proporitional controller.
+    int velocity = motor[motor_id].velocity;
+
+    velocity += ((target_velocity > velocity) ? 1 : -1);  // Ramp to target_velocity.
+    if (target_velocity > velocity)
+        velocity++;
+    else if (target_velocity < velocity)
+        velocity--;
+
+    velocity = min(motor_max_velocity, max(motor_min_velocity, velocity));
+    motor_set_velocity(motor_id, velocity);
+}
+
+static void isr_process_next_motor(void)
+{
+    static motor_id_t motor_id = MOTOR_ID_A;
+
+    isr_check_pid_enable(motor_id);
+    isr_check_thermal_overload(motor_id);
+    isr_check_is_stalled(motor_id);
+    isr_calculate_pid_values(motor_id);
+
+    motor_id = motor_id_t(motor_id + 1);
+    if (motor_id >= MOTOR_ID_COUNT)
+        motor_id = MOTOR_ID_A;
+}
+
+static void isr_maybe_toggle_led(void)
+{
+    // Blink the LED at 1Hz when motors are active and there's no error, or at 10Hz when there's an error.
+    static char ticks_remaining = 10;
+
+    if (--ticks_remaining > 0)
+        return;
+
+    bool error = false;
+
+    for (int i = 0; i < MOTOR_ID_COUNT; i++) {
+        if (motor[i].error_flags != 0)
+            error = true;
+    }
+
+    if (error) {
+        ticks_remaining = 1;  // Error, so check again in 1 tick (0.1 seconds).
+    } else {
+        ticks_remaining = 10;  // No error, so check again in 10 ticks (1 second).
+        if (motor_get_enabled_mask() == 0) {
+            // If no error, and not enabled, disable LED and speaker.
+            hardware_set_led_enabled(false);
+            hardware_set_speaker_enabled(false);
+            return;
         }
     }
+
+    bool led_state = !hardware_get_led_enabled();
+
+    hardware_set_led_enabled(led_state);
+    hardware_set_speaker_enabled(led_state);
+}
+
+ISR(TIMER1_COMPA_vect) {
+    // Interrupt Service Routine (ISR) that interrupts the main program at frequency of 2kHz.
+
+    const int counter_10Hz_reset = 200;
+    static int counter_10Hz = counter_10Hz_reset;
+
+    if (--counter_10Hz <= 0) {
+        hardware_debounce_buttons();
+        isr_maybe_toggle_led();
+        counter_10Hz = counter_10Hz_reset;
+    }
+
+    isr_read_all_encoders_and_home_switches();
+    isr_process_next_motor();  // One motor at 2kHz, all motors at 333Hz (2kHz/MOTOR_ID_COUNT).
 }
