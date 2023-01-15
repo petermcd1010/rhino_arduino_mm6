@@ -41,14 +41,14 @@ static motor_id_t motor_id = (motor_id_t)-1;
 static int prev_encoder;
 static int forward_delta;
 static int reverse_delta;
-static int half_wiggle_velocity;
+static int half_wiggle_encoder_delta;
 static int half_wiggle_start_encoder;
 static unsigned long start_ms;
 
 static void half_wiggle(void)
 {
     assert((motor_id >= 0) && (motor_id < MOTOR_ID_COUNT));
-    assert(half_wiggle_velocity != 0);
+    assert(half_wiggle_encoder_delta != 0);
 
     const int desired_encoder_delta = 10;  // Empricially determined to work well across various scenarios.
     const int timeout_ms = 500;
@@ -57,10 +57,9 @@ static void half_wiggle(void)
         // Initialize when start_ms == 0;
         start_ms = millis();
         half_wiggle_start_encoder = motor_get_encoder(motor_id);
-        motor_set_velocity(motor_id, half_wiggle_velocity);
+        motor_set_target_encoder(motor_id, half_wiggle_start_encoder + half_wiggle_encoder_delta);
         log_write(F("on"));
     } else if (abs(motor_get_encoder(motor_id) - half_wiggle_start_encoder) > desired_encoder_delta) {
-        motor_set_velocity(motor_id, 0);
         motor_set_enabled(motor_id, false);
         log_write(F(", off,"));
         start_ms = 0;  // Initialize wait_stop.
@@ -94,33 +93,33 @@ static void test_one(void)
 {
     assert((motor_id >= 0) && (motor_id < MOTOR_ID_COUNT));
 
-    static const int velocity = 200;  // 255 - motor_min_pwm.
+    static const int encoder_delta = 500;  // Ramp motors to max velocity.
     static bool retried_forward = false;
 
     motor_set_enabled(motor_id, true);
 
     start_ms = 0;  // Set to 0 so half_wiggle initializes.
 
-    if (half_wiggle_velocity == 0) {
-        half_wiggle_velocity = velocity;
+    if (half_wiggle_encoder_delta == 0) {
+        half_wiggle_encoder_delta = encoder_delta;
         retried_forward = false;
         log_write(F("  %c: Forward "), 'A' + motor_id);
         sm_set_next_state(state_half_wiggle);
-    } else if (half_wiggle_velocity > 0) {
+    } else if (half_wiggle_encoder_delta > 0) {
         forward_delta = motor_get_encoder(motor_id) - half_wiggle_start_encoder;
         log_write(F(" (%d encoders), "), forward_delta);
-        half_wiggle_velocity = -velocity;
+        half_wiggle_encoder_delta = -encoder_delta;
         log_write(F("reverse "));
         sm_set_next_state(state_half_wiggle);
     } else {
         reverse_delta = motor_get_encoder(motor_id) - half_wiggle_start_encoder;
         log_write(F(" (%d encoders)"), reverse_delta);
-        half_wiggle_velocity = 0;  // Reset.
+        half_wiggle_encoder_delta = 0;  // Reset.
 
         if ((forward_delta <= 0) && (reverse_delta != 0) && !retried_forward) {
             // Retry if it moved one direction but not the other. This happens if the motor won't move due to a joint being structurally
             // blocked from moving.
-            half_wiggle_velocity = velocity;
+            half_wiggle_encoder_delta = encoder_delta;
             retried_forward = true;
             log_write(F(", retry forward, "));
             sm_set_next_state(state_half_wiggle);
@@ -188,7 +187,7 @@ static void test_mask(void)
         motor_set_target_encoder(motor_id, 0);
         motor_set_enabled(motor_id, true);
 
-        half_wiggle_velocity = 0;
+        half_wiggle_encoder_delta = 0;
 
         if (motor_is_moving(motor_id)) {
             sm_set_next_state(state_stop_moving_motor);
@@ -197,7 +196,6 @@ static void test_mask(void)
             prev_encoder = 0;
             forward_delta = 0;
             reverse_delta = 0;
-            half_wiggle_velocity = 0;
             half_wiggle_start_encoder = 0;
             start_ms = 0;
             sm_set_next_state(state_test_one);

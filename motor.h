@@ -43,7 +43,7 @@ typedef struct {
     int           pid_dvalue;
     int           pid_perror;      // Proportional Error (Difference between Current and Target)
     int           target_encoder;
-    int           current;      // TODO: units? counts?
+    int           current_draw;      // TODO: units? counts?
     bool          stall_triggered;      // If current >= stall_current once, remains true until cleared.
     bool          prev_home_is_pressed;       // Switch value last time inversion detected.
     unsigned long prev_home_millis;    // Time last inversion detected.
@@ -61,7 +61,7 @@ extern motor_t motor[MOTOR_ID_COUNT];
 void motor_clear_persistent_ram_data(void);  // Clears data cached in RAM between boots.
 
 void motor_init(void);  // Initializes all motors, ISRs, etc.
-int motor_get_current(motor_id_t motor_id);
+int motor_get_current_draw(motor_id_t motor_id);
 bool motor_stall_triggered(motor_id_t motor_id);
 void motor_clear_stall(motor_id_t motor_id);
 void motor_disable_all(void);
@@ -78,7 +78,6 @@ void motor_set_target_angle(motor_id_t motor_id, float angle);
 float motor_get_percent(motor_id_t motor_id);
 void motor_set_target_percent(motor_id_t motor_id, float percent);
 bool motor_is_moving(motor_id_t motor_id);
-void motor_set_velocity(motor_id_t motor_id, int velocity);  // For velocity in [motor_min_velocity, motor_max_velocity]. Sets to 0 if not enabled.
 void motor_set_max_velocity_percent(motor_id_t motor_id, int max_velocity_percent);
 int motor_get_max_velocity_percent(motor_id_t motor_id);
 bool motor_home_is_pressed(motor_id_t motor_id);

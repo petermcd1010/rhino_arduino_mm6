@@ -182,7 +182,7 @@ static void update_status(motor_id_t motor_id)
                 log_write(F("At home, "));
         }
 
-        log_writeln(F("encoder %d, current draw %d."), encoder * config.motor[motor_id].orientation, motor[motor_id].current);
+        log_writeln(F("encoder %d, current draw %d."), encoder * config.motor[motor_id].orientation, motor[motor_id].current_draw);
         prev_print_ms = millis();
     }
 }

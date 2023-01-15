@@ -14,7 +14,7 @@ typedef struct {
     unsigned short out_direction;      // Digital. LOW = forward direction. HIGH = reverse direction.
     unsigned short out_pwm;            // Digital.
     unsigned short out_brake;          // Digital. LOW = disable brake. HIGH = enable brake.
-    unsigned short in_current;         // Analog. 377uA/A. What's the resistance?
+    unsigned short in_current_draw;    // Analog. 377uA/A. What's the resistance?
     unsigned short in_thermal_overload;    // Digital. Becomes active at 145C. Chip shuts off at 170C.
     unsigned short in_home_switch;     // Digital. LOW = home switch triggered. HIGH = home switch not triggered.
     unsigned short in_quadrature_encoder_a;  // Digital.
@@ -51,9 +51,7 @@ const char *const motor_error_name_by_id[MOTOR_ERROR_COUNT] = {
     error_name_other
 };
 
-// Configuration stored in RAM and saved across reset/reboot that don't include a power-cycle of the board.
-const int prev_encoder_state_init_value = -1;
-
+// Configuration stored in RAM and saved across reset/reboot but not saved across power-cycling of the board.
 static struct {
     // nbytes, version, magic are used to verify valid data.
     size_t nbytes;
@@ -64,6 +62,8 @@ static struct {
         int encoder;
     } motor[MOTOR_ID_COUNT];
 } persistent_ram_data __attribute__((section(".noinit")));  // NOT reset to 0 when the CPU is reset.
+
+const int prev_encoder_state_init_value = -1;
 
 void motor_clear_persistent_ram_data(void)
 {
@@ -102,7 +102,7 @@ static void init_motor(motor_id_t motor_id)
     digitalWrite(motor_pinout[motor_id].out_direction, config.motor[motor_id].forward_polarity);
 
     // Configure GPIO inputs.
-    pinMode(motor_pinout[motor_id].in_current, INPUT);
+    pinMode(motor_pinout[motor_id].in_current_draw, INPUT);
     pinMode(motor_pinout[motor_id].in_thermal_overload, INPUT_PULLUP);
     pinMode(motor_pinout[motor_id].in_home_switch, INPUT_PULLUP);
     pinMode(motor_pinout[motor_id].in_quadrature_encoder_a, INPUT_PULLUP);
@@ -128,10 +128,9 @@ void motor_init(void)
     }
 
     // Timer setup: Allows preceise timed measurements of the quadrature encoder.
-
     // From http://www.8bit-era.cz/arduino-timer-interrupts-calculator.html
     // TIMER 1 for interrupt frequency 2000 Hz:
-    cli();  // stop interrupts
+    cli();     // stop interrupts
     TCCR1A = 0;  // set entire TCCR1A register to 0
     TCCR1B = 0;  // same for TCCR1B
     TCNT1 = 0;  // initialize counter value to 0
@@ -153,18 +152,18 @@ static bool get_thermal_overload_active(motor_id_t motor_id)
     /*
      * From the LMD18200 datasheet:
      * Pin 9, THERMAL FLAG Output: This pin provides the thermal warning flag output signal.
-     * Pin 9 becomes active- low at 145°C (junction temperature). However the chip will not
+     * Pin 9 becomes active-low at 145°C (junction temperature). However the chip will not
      * shut itself down until 170°C is reached at the junction.
      */
     return digitalRead(motor_pinout[motor_id].in_thermal_overload) == 0;
 }
 
-int motor_get_current(motor_id_t motor_id)
+int motor_get_current_draw(motor_id_t motor_id)
 {
     assert((motor_id >= 0) && (motor_id < MOTOR_ID_COUNT));
 
     // LMD18200 datasheet says 377uA/A. What's the resistance?
-    return analogRead(motor_pinout[motor_id].in_current);  // 0 - 1023.
+    return analogRead(motor_pinout[motor_id].in_current_draw);  // 0 - 1023.
 }
 
 bool motor_stall_triggered(motor_id_t motor_id)
@@ -178,7 +177,7 @@ void motor_clear_stall(motor_id_t motor_id)
 {
     assert((motor_id >= 0) && (motor_id < MOTOR_ID_COUNT));
 
-    motor[motor_id].current = 0;  // Prevent retriggering until next time current is read.
+    motor[motor_id].current_draw = 0;  // Prevent retriggering until next time current is read.
     motor[motor_id].stall_triggered = false;
 }
 
@@ -198,19 +197,23 @@ void motor_set_enabled(motor_id_t motor_id, bool enabled)
         return;
 
     if (enabled) {
-        motor_set_velocity(motor_id, motor_max_velocity);
-        digitalWrite(motor_pinout[motor_id].out_brake, LOW);
+        digitalWrite(motor_pinout[motor_id].out_brake, LOW);  // Enable LM18200 motor-driver transistors by disabling motor BREAK.
+        analogWrite(motor_pinout[motor_id].out_pwm, 0);
         enabled_motors_mask |= 1 << (int)motor_id;
     } else {
-        motor_set_velocity(motor_id, 0);
+        // Disable LM18200 motor-driver transistors by enabling motor BREAK and disabling PWM output.
         digitalWrite(motor_pinout[motor_id].out_brake, HIGH);
+        analogWrite(motor_pinout[motor_id].out_pwm, 0);
         enabled_motors_mask &= ~(1 << (int)motor_id);
     }
 
+    motor[motor_id].velocity = 0;
+    motor[motor_id].pwm = 0;
     motor[motor_id].home_is_pressed_debounced = motor_home_is_pressed(motor_id);
     motor[motor_id].target_encoder = persistent_ram_data.motor[motor_id].encoder;
     motor[motor_id].pid_perror = 0;
     motor[motor_id].pid_dvalue = 0;
+
     motor[motor_id].enabled = enabled;
 }
 
@@ -326,12 +329,13 @@ bool motor_is_moving(motor_id_t motor_id)
     return motor[motor_id].target_encoder != persistent_ram_data.motor[motor_id].encoder;
 }
 
-void motor_set_velocity(motor_id_t motor_id, int velocity)
+static void set_velocity(motor_id_t motor_id, int velocity)
 {
     assert((motor_id >= 0) && (motor_id < MOTOR_ID_COUNT));
     assert((velocity >= motor_min_velocity) && (velocity <= motor_max_velocity));
 
     if (!motor[motor_id].enabled) {
+        motor[motor_id].velocity = 0;
         motor[motor_id].pwm = 0;
         analogWrite(motor_pinout[motor_id].out_pwm, 0);
         return;
@@ -390,7 +394,7 @@ void motor_dump(motor_id_t motor_id)
 
     int orientation = config.motor[motor_id].orientation;
 
-    log_writeln(F("  %c%s: enc:%d target_enc:%d perror:%d dvalue:%d vel:%d orient:%d prev_dir: %d PWM:%d cur:%d is_home:%d hs:%d,%d,%d,%d->%d angle:%s"),
+    log_writeln(F("  %c%s: enc:%d target_enc:%d perror:%d dvalue:%d vel:%d orient:%d prev_dir:%d PWM:%d cur:%d is_home:%d hs:%d,%d,%d,%d->%d angle:%s"),
                 'A' + motor_id,
                 ((motor_get_enabled_mask() & (1 << motor_id)) == 0) ? " [not enabled]" : "",
                 motor_get_encoder(motor_id),
@@ -401,7 +405,7 @@ void motor_dump(motor_id_t motor_id)
                 orientation,
                 motor[motor_id].prev_direction,
                 motor[motor_id].pwm,
-                motor[motor_id].current,
+                motor[motor_id].current_draw,
                 motor[motor_id].home_is_pressed_debounced,
                 motor[motor_id].home_reverse_off_encoder,
                 motor[motor_id].home_forward_on_encoder,
@@ -528,20 +532,6 @@ static void isr_read_all_encoders_and_home_switches(void)
     }
 }
 
-static void isr_check_pid_enable(motor_id_t motor_id)
-{
-    // TODO: implement.
-    // Check if the Motor PID needs to be turned on or off.
-    if (false) {
-        // The IntMotor PID is NOT running.
-        // (just kill the routine for now because it isn't doing what it needs to do.)
-        motor[motor_id].pid_dvalue = 0;  // Clear the PID DValue for this motor.
-        int intMDiff = abs(motor[motor_id].target_encoder - persistent_ram_data.motor[motor_id].encoder);
-        // if (intMDiff > 3)
-        //    Motor_PID[motor_id] = 1;   // Turn on the PID for this Motor.
-    }
-}
-
 static void isr_check_thermal_overload(motor_id_t motor_id)
 {
     if (get_thermal_overload_active(motor_id))
@@ -550,13 +540,13 @@ static void isr_check_thermal_overload(motor_id_t motor_id)
 
 static void isr_check_is_stalled(motor_id_t motor_id)
 {
-    motor[motor_id].current = motor_get_current(motor_id);  // Update current reading even if disabled.
+    motor[motor_id].current_draw = motor_get_current_draw(motor_id);  // Update current reading even if disabled.
 
     // stall_current_threshold <= 0 disables checking stall current.
-    if ((config.motor[motor_id].stall_current_threshold) <= 0 || (motor[motor_id].current <= config.motor[motor_id].stall_current_threshold))
+    if ((config.motor[motor_id].stall_current_threshold) <= 0 || (motor[motor_id].current_draw <= config.motor[motor_id].stall_current_threshold))
         return;
 
-    if ((!motor[motor_id].enabled) || (motor[motor_id].target_encoder == persistent_ram_data.motor[motor_id].encoder)) {
+    if (!motor[motor_id].enabled) {
         // If the motor is disabled, but the threshold is exceeded, trigger an error.
         // Or, if the motor is at its target, but the threshold is exceeded, trigger an error.
         motor_set_error(motor_id, MOTOR_ERROR_UNEXPECTED_STALL_CURRENT_THRESHOLD_EXCEEDED);
@@ -586,10 +576,8 @@ static void isr_check_is_stalled(motor_id_t motor_id)
     // the target position is set back a bit from the current position.
     const int destall_encoder_delta = 50;
 
-    log_writeln(F("unstalling"));
-
     motor[motor_id].target_encoder = persistent_ram_data.motor[motor_id].encoder + (destall_encoder_delta * -motor[motor_id].prev_direction);
-    motor[motor_id].current = 0;  // Prevent retriggering until next time current is read.
+    motor[motor_id].current_draw = 0;  // Prevent retriggering until next time current is read.
     motor[motor_id].stall_triggered = true;
 }
 
@@ -608,6 +596,19 @@ static void isr_calculate_pid_values(motor_id_t motor_id)
     // current position and the target position clamped to [-255, 255].
     int target_velocity = min(motor_max_velocity, max(motor_min_velocity, pid_perror));
 
+    // Enable or disable the LM18200 motor-driver transistors when the motor is going into or coming out of rest.
+    if (motor[motor_id].pwm == 0) {
+        if (target_velocity == 0) {
+            // At rest: Disable transistors by enabling motor BREAK and disabling PWM output.
+            digitalWrite(motor_pinout[motor_id].out_brake, HIGH);
+            analogWrite(motor_pinout[motor_id].out_pwm, 0);
+            return;
+        } else {
+            // Coming out of rest: Enable transistors by disabling motor BREAK. PWM output is updated below.
+            digitalWrite(motor_pinout[motor_id].out_brake, LOW);  // Disable motor BREAK.
+        }
+    }
+
     if (target_velocity == motor[motor_id].velocity)
         return;
 
@@ -621,14 +622,13 @@ static void isr_calculate_pid_values(motor_id_t motor_id)
         velocity--;
 
     velocity = min(motor_max_velocity, max(motor_min_velocity, velocity));
-    motor_set_velocity(motor_id, velocity);
+    set_velocity(motor_id, velocity);
 }
 
 static void isr_process_next_motor(void)
 {
     static motor_id_t motor_id = MOTOR_ID_A;
 
-    isr_check_pid_enable(motor_id);
     isr_check_thermal_overload(motor_id);
     isr_check_is_stalled(motor_id);
     isr_calculate_pid_values(motor_id);
