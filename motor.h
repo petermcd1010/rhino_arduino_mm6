@@ -22,7 +22,6 @@ typedef enum {
     MOTOR_ERROR_THERMAL_OVERLOAD_DETECTED = 0,  // Motor drive chip reports 145°C (junction temperature) exceeded.
     MOTOR_ERROR_INVALID_ENCODER_TRANSITION,  // Quadrature encoder reading didn't match what the previous or next encoder reading should be.
     MOTOR_ERROR_UNEXPECTED_STALL_CURRENT_THRESHOLD_EXCEEDED,  // The motor is at its target, but the current threshold was exceeded.
-    MOTOR_ERROR_OTHER,  // Hacky way to indicate the state machine is in ERROR, so LED blinks quickly.
     MOTOR_ERROR_COUNT
 } motor_error_t;
 

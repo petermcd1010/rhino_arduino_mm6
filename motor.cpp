@@ -14,7 +14,7 @@ typedef struct {
     unsigned short out_direction;      // Digital. LOW = forward direction. HIGH = reverse direction.
     unsigned short out_pwm;            // Digital.
     unsigned short out_brake;          // Digital. LOW = disable brake. HIGH = enable brake.
-    unsigned short in_current_draw;    // Analog. 377uA/A. What's the resistance?
+    unsigned short in_current_draw;    // Analog. Units unclear in datasheet.
     unsigned short in_thermal_overload;    // Digital. Becomes active at 145C. Chip shuts off at 170C.
     unsigned short in_home_switch;     // Digital. LOW = home switch triggered. HIGH = home switch not triggered.
     unsigned short in_quadrature_encoder_a;  // Digital.
@@ -43,13 +43,11 @@ static bool high_level_error_detected = false;
 static const char error_name_thermal_overload_detected[] PROGMEM = "thermal overload";
 static const char error_name_invalid_quadrature_encoder_transition[] PROGMEM = "invalid quadrature encoder transition";
 static const char error_name_stall_current_threshold_exceeded[] PROGMEM = "stall current threshold exceeded";
-static const char error_name_other[] PROGMEM = "other error";
 
 const char *const motor_error_name_by_id[MOTOR_ERROR_COUNT] = {
     error_name_thermal_overload_detected,
     error_name_invalid_quadrature_encoder_transition,
     error_name_stall_current_threshold_exceeded,
-    error_name_other
 };
 
 // Configuration stored in RAM and saved across reset/reboot but not saved across power-cycling of the board.
