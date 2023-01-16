@@ -38,6 +38,7 @@ static const int motor_max_velocity = 255 - motor_min_pwm;
 static const int motor_min_velocity = -motor_max_velocity;
 
 static int enabled_motors_mask = 0;
+static bool high_level_error_detected = false;
 
 static const char error_name_thermal_overload_detected[] PROGMEM = "thermal overload";
 static const char error_name_invalid_quadrature_encoder_transition[] PROGMEM = "invalid quadrature encoder transition";
@@ -415,24 +416,32 @@ void motor_dump(motor_id_t motor_id)
                 angle_str);
 }
 
-void motor_set_error(motor_id_t motor_id, motor_error_t motor_error_id)
+static void set_error(motor_id_t motor_id, motor_error_t motor_error_id)
 {
     assert((motor_id >= 0) && (motor_id < MOTOR_ID_COUNT));
     assert((motor_error_id >= 0) && (motor_error_id < MOTOR_ERROR_COUNT));
 
     cli();
+    motor[motor_id].error_flags_isr |= (1 << motor_error_id);
     motor[motor_id].error_flags |= (1 << motor_error_id);
     sei();
 }
 
-int motor_get_and_clear_error_flags(motor_id_t motor_id)
+void motor_set_high_level_error(bool has_error)
+{
+    cli();
+    high_level_error_detected = has_error;
+    sei();
+}
+
+int motor_get_error_flags(motor_id_t motor_id)
 {
     assert((motor_id >= 0) && (motor_id < MOTOR_ID_COUNT));
 
     cli();
-    unsigned char ret = motor[motor_id].error_flags;
+    unsigned char ret = motor[motor_id].error_flags;  // OR-mask of all errors set since last call to this function.
 
-    motor[motor_id].error_flags = 0;
+    motor[motor_id].error_flags = motor[motor_id].error_flags_isr;  // Reset to flags set previous time through ISR.
     sei();
 
     return ret;
@@ -475,7 +484,7 @@ static void isr_read_encoder(motor_id_t i)
     } else {
         // Only set an error if persistent ram data wasn't just initialized.
         if (persistent_ram_data.motor[i].prev_encoder_state != prev_encoder_state_init_value)
-            motor_set_error(i, MOTOR_ERROR_INVALID_ENCODER_TRANSITION);
+            set_error(i, MOTOR_ERROR_INVALID_ENCODER_TRANSITION);
     }
 
     persistent_ram_data.motor[i].prev_encoder_state = encoder_state;
@@ -535,7 +544,7 @@ static void isr_read_all_encoders_and_home_switches(void)
 static void isr_check_thermal_overload(motor_id_t motor_id)
 {
     if (get_thermal_overload_active(motor_id))
-        motor_set_error(motor_id, MOTOR_ERROR_THERMAL_OVERLOAD_DETECTED);
+        set_error(motor_id, MOTOR_ERROR_THERMAL_OVERLOAD_DETECTED);
 }
 
 static void isr_check_is_stalled(motor_id_t motor_id)
@@ -549,7 +558,7 @@ static void isr_check_is_stalled(motor_id_t motor_id)
     if (!motor[motor_id].enabled) {
         // If the motor is disabled, but the threshold is exceeded, trigger an error.
         // Or, if the motor is at its target, but the threshold is exceeded, trigger an error.
-        motor_set_error(motor_id, MOTOR_ERROR_UNEXPECTED_STALL_CURRENT_THRESHOLD_EXCEEDED);
+        set_error(motor_id, MOTOR_ERROR_UNEXPECTED_STALL_CURRENT_THRESHOLD_EXCEEDED);
         return;
     }
 
@@ -629,9 +638,13 @@ static void isr_process_next_motor(void)
 {
     static motor_id_t motor_id = MOTOR_ID_A;
 
+    motor[motor_id].error_flags_isr = 0;  // Clear flags.
+
     isr_check_thermal_overload(motor_id);
     isr_check_is_stalled(motor_id);
     isr_calculate_pid_values(motor_id);
+
+    motor[motor_id].error_flags |= motor[motor_id].error_flags_isr;  // Or into the error mask.
 
     motor_id = motor_id_t(motor_id + 1);
     if (motor_id >= MOTOR_ID_COUNT)
@@ -646,14 +659,14 @@ static void isr_maybe_toggle_led(void)
     if (--ticks_remaining > 0)
         return;
 
-    bool error = false;
+    bool error_detected = high_level_error_detected;
 
     for (int i = 0; i < MOTOR_ID_COUNT; i++) {
         if (motor[i].error_flags != 0)
-            error = true;
+            error_detected = true;
     }
 
-    if (error) {
+    if (error_detected) {
         ticks_remaining = 1;  // Error, so check again in 1 tick (0.1 seconds).
     } else {
         ticks_remaining = 10;  // No error, so check again in 10 ticks (1 second).

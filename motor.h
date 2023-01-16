@@ -53,7 +53,8 @@ typedef struct {
     int           home_forward_off_encoder;      // Home switch forward direction low value.
     int           home_reverse_on_encoder;      // Home switch reverse direction high value.
     int           home_reverse_off_encoder;      // Home switch reverse direction low value.
-    unsigned char error_flags;    // Once set, error flags must be cleared by user code.
+    unsigned char error_flags_isr;    // Error flags from the latest execution of the ISR, bitwise or'd into error_flags.
+    unsigned char error_flags;    // Cleared when motor_get_and_clear_error_flags() is called.
 } motor_t;
 
 extern motor_t motor[MOTOR_ID_COUNT];
@@ -83,5 +84,5 @@ int motor_get_max_velocity_percent(motor_id_t motor_id);
 bool motor_home_is_pressed(motor_id_t motor_id);
 bool motor_home_is_pressed_debounced(motor_id_t motor_id);
 void motor_dump(motor_id_t motor_id);
-void motor_set_error(motor_id_t motor_id, motor_error_t error_id);
-int motor_get_and_clear_error_flags(motor_id_t motor_id);
+void motor_set_high_level_error(bool has_error);
+int motor_get_error_flags(motor_id_t motor_id);  // Returns OR-mask of all errors active since last time called.

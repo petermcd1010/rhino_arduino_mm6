@@ -31,7 +31,7 @@ static bool check_system_integrity()
         ok = config_check();
 
     for (int i = 0; i < MOTOR_ID_COUNT; i++) {
-        unsigned char error_flags = motor_get_and_clear_error_flags(i);
+        unsigned char error_flags = motor_get_error_flags(i);
 
         if (error_flags != prev_error_flags[i]) {
             for (int j = 0; j < MOTOR_ERROR_COUNT; j++) {
@@ -65,7 +65,7 @@ void loop()
     if (prev_ok && !ok) {
         prev_ok = false;
         sm_set_next_state(sm_state_error_enter);
-        log_writeln(F("ERROR: System integrity check failed. Reboot or power-cycle system."));
+        log_writeln(F("ERROR: System error detected. Reboot or power-cycle system."));
     }
 
     sm_execute();

@@ -414,7 +414,7 @@ void sm_error_enter(void)
     next_state = { 0 };
 
     motor_disable_all();
-    motor_set_error(MOTOR_ID_A, MOTOR_ERROR_OTHER);
+    motor_set_high_level_error(true);  // Makes LED blink faster.
 
     sm_set_next_state(sm_state_error_execute);
 }
