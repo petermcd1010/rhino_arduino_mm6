@@ -5,17 +5,47 @@
  * See the LICENSE file in the root directory of this project for copyright and licensing details.
  */
 
+#include <ros.h>  // Note: https://github.com/ros-drivers/rosserial/issues/518
+#include <std_msgs/String.h>
+#include <std_msgs/UInt16.h>
+
 #include "config.h"
 #include "hardware.h"
 #include "log.h"
 #include "motor.h"
 #include "sm.h"
 
+// https://maker.pro/arduino/tutorial/how-to-use-arduino-with-robot-operating-system-ros
+
+#define BUTTON 8
+#define LED 13
+
+ros::NodeHandle node_handle;
+
+std_msgs::String button_msg;
+std_msgs::UInt16 led_msg;
+
+void subscriberCallback(const std_msgs::UInt16& led_msg)
+{
+    if (led_msg.data == 1)
+        digitalWrite(LED, HIGH);
+    else
+        digitalWrite(LED, LOW);
+}
+
+ros::Publisher button_publisher("button_press", &button_msg);
+ros::Subscriber <std_msgs::UInt16> led_subscriber("toggle_led", &subscriberCallback);
+
+
 void setup()
 {
     // https://www.arduino.cc/reference/en/language/structure/sketch/setup/.
 
     sm_init();
+
+    node_handle.initNode();
+    node_handle.advertise(button_publisher);
+    node_handle.subscribe(led_subscriber);
 }
 
 static bool check_system_integrity()
@@ -69,6 +99,14 @@ void loop()
     }
 
     sm_execute();
+
+    if (digitalRead(BUTTON) == HIGH)
+        button_msg.data = "Pressed";
+    else
+        button_msg.data = "NOT pressed";
+
+    button_publisher.publish(&button_msg);
+    node_handle.spinOnce();
 
     return;
 }

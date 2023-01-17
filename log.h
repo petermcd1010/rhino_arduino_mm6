@@ -26,7 +26,7 @@ void log_assert(const __FlashStringHelper *file_path, int line_num, const char *
 void log_assert_short(const __FlashStringHelper *file_path, int line_num);  // More memory-efficient version.
 
 // If ASSERT_FUNCTION is defined, the function name will print when assert() triggers. Function names use ~40% of RAM.
-#define ASSERT_FUNCTION
+// #define ASSERT_FUNCTION
 #ifdef ASSERT_FUNCTION
 #define assert(EX) (void)((EX) || (log_assert(F(__FILE__), __LINE__, __FUNCTION__, #EX), 0))
 #else
