@@ -5,7 +5,20 @@
  * See the LICENSE file in the root directory of this project for copyright and licensing details.
  */
 
-#include <ros.h>  // Note: https://github.com/ros-drivers/rosserial/issues/518
+/*
+ * You must install the ros_lib 'Rhinoserial Arduino Library' in the Arduino
+ * environment to be able to control these robots from your computer using the
+ * Robot Operating System (ROS) framework. To install ros_lib in the Arduino
+ * IDE select the 'Tools' menu, 'Manage Libraries', and then scroll down to
+ * find and install the 'Rosserial Arduino Library by Michael Ferguson.'
+ *
+ * On MacOS, there is an issue with rosserial and cstring (see
+ * https://github.com/ros-drivers/rosserial/issues/518). You may need to edit
+ * ~/Documents/Arduino/libraries/Rosserial_Arduino_Library/src/ros/msg.h to
+ * make ros compile.
+ */
+#include <ros.h>  // Note:
+
 #include <std_msgs/String.h>
 #include <std_msgs/UInt16.h>
 
@@ -34,7 +47,7 @@ void subscriberCallback(const std_msgs::UInt16& led_msg)
 }
 
 ros::Publisher button_publisher("button_press", &button_msg);
-ros::Subscriber <std_msgs::UInt16> led_subscriber("toggle_led", &subscriberCallback);
+ros::Subscriber < std_msgs::UInt16 > led_subscriber("toggle_led", &subscriberCallback);
 
 
 void setup()
