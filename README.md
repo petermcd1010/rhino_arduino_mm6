@@ -24,5 +24,9 @@ Follow the Arduino instructions for building and flashing this software. Once fl
 
 Once connected, start by running a motor test followed by a calibration. It's a good idea to stay within an arm's reach of the reset button while learning the software and how the robot moves.
 
+## 3D Models 
+
+See [Rhino 3D Models](https://github.com/petermcd1010/rhino_3d_models) for 3D-prints that mount the Arduino MegaMotor6's to the side of your Rhino Robots.
+
 Have fun!
 
